@@ -91,94 +91,95 @@ export default function Discovery() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="p-6 border-b border-slate-200 space-y-4 bg-white/70">
-          <div>
-            <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Thời Tiết</p>
-            <div className="flex gap-2">
-              {[
-                { value: 'all', label: 'Tất Cả' },
-                { value: 'indoor', label: 'Trong Nhà' },
-                { value: 'outdoor', label: 'Ngoài Trời' },
-              ].map((filter) => (
-                <Button
-                  key={filter.value}
-                  variant={weatherFilter === filter.value ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWeatherFilter(filter.value as WeatherFilter)}
-                  className={`rounded-full ${
-                    weatherFilter === filter.value
-                      ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                      : 'border-slate-300'
-                  }`}
-                >
-                  {filter.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Không Khí</p>
-            <div className="flex gap-2">
-              {[
-                { value: 'all', label: 'Tất Cả' },
-                { value: 'quiet', label: 'Yên Tĩnh' },
-                { value: 'vibrant', label: 'Sôi Động' },
-              ].map((filter) => (
-                <Button
-                  key={filter.value}
-                  variant={vibeFilter === filter.value ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setVibeFilter(filter.value as VibeFilter)}
-                  className={`rounded-full ${
-                    vibeFilter === filter.value
-                      ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                      : 'border-slate-300'
-                  }`}
-                >
-                  {filter.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Ngân Sách</p>
-            <div className="flex gap-2">
-              {[
-                { value: 'all', label: 'Tất Cả' },
-                { value: '$', label: 'Rẻ' },
-                { value: '$$', label: 'Trung Bình' },
-                { value: '$$$', label: 'Cao' },
-              ].map((filter) => (
-                <Button
-                  key={filter.value}
-                  variant={budgetFilter === filter.value ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setBudgetFilter(filter.value as BudgetFilter)}
-                  className={`rounded-full ${
-                    budgetFilter === filter.value
-                      ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                      : 'border-slate-300'
-                  }`}
-                >
-                  {filter.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Results Count */}
-        <div className="px-6 py-3 bg-slate-100 border-b border-slate-200">
-          <p className="text-sm text-slate-600">
-            <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
-          </p>
-        </div>
-
-        {/* Location Cards List */}
+        {/* Scrollable content: Filters + Results + List */}
         <ScrollArea className="flex-1 min-h-0">
+          {/* Filters */}
+          <div className="p-6 border-b border-slate-200 space-y-4 bg-white/70">
+            <div>
+              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Thời Tiết</p>
+              <div className="flex gap-2">
+                {[
+                  { value: 'all', label: 'Tất Cả' },
+                  { value: 'indoor', label: 'Trong Nhà' },
+                  { value: 'outdoor', label: 'Ngoài Trời' },
+                ].map((filter) => (
+                  <Button
+                    key={filter.value}
+                    variant={weatherFilter === filter.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWeatherFilter(filter.value as WeatherFilter)}
+                    className={`rounded-full ${
+                      weatherFilter === filter.value
+                        ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
+                        : 'border-slate-300'
+                    }`}
+                  >
+                    {filter.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Không Khí</p>
+              <div className="flex gap-2">
+                {[
+                  { value: 'all', label: 'Tất Cả' },
+                  { value: 'quiet', label: 'Yên Tĩnh' },
+                  { value: 'vibrant', label: 'Sôi Động' },
+                ].map((filter) => (
+                  <Button
+                    key={filter.value}
+                    variant={vibeFilter === filter.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setVibeFilter(filter.value as VibeFilter)}
+                    className={`rounded-full ${
+                      vibeFilter === filter.value
+                        ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
+                        : 'border-slate-300'
+                    }`}
+                  >
+                    {filter.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Ngân Sách</p>
+              <div className="flex gap-2">
+                {[
+                  { value: 'all', label: 'Tất Cả' },
+                  { value: '$', label: 'Rẻ' },
+                  { value: '$$', label: 'Trung Bình' },
+                  { value: '$$$', label: 'Cao' },
+                ].map((filter) => (
+                  <Button
+                    key={filter.value}
+                    variant={budgetFilter === filter.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setBudgetFilter(filter.value as BudgetFilter)}
+                    className={`rounded-full ${
+                      budgetFilter === filter.value
+                        ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
+                        : 'border-slate-300'
+                    }`}
+                  >
+                    {filter.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Results Count */}
+          <div className="px-6 py-3 bg-slate-100 border-b border-slate-200">
+            <p className="text-sm text-slate-600">
+              <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
+            </p>
+          </div>
+
+          {/* Location Cards List */}
           <div className="p-4 space-y-3">
             {filteredLocations.map((location) => (
               <Card
@@ -195,6 +196,11 @@ export default function Discovery() {
                     src={location.image}
                     alt={location.name}
                     className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-2">

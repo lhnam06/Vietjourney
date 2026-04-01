@@ -2,7 +2,6 @@ import { useRef } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Clock, Coffee, GripVertical, Landmark, MapPin, User, UtensilsCrossed } from 'lucide-react';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
 import { TimelineItem, Location } from '../data/mockData';
 
 interface TimelineBlockProps {
@@ -18,18 +17,6 @@ interface TimelineBlockProps {
 }
 
 const ItemType = 'TIMELINE_ITEM';
-
-const formatVND = (amount: number) => {
-  if (amount === 0) return 'Miễn phí';
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-    currencyDisplay: 'code',
-    minimumFractionDigits: 0,
-  })
-    .format(amount)
-    .replace(/\s?VND$/, ' VND');
-};
 
 function getActivityIcon(location: Location) {
   const tags = location.tags.join(' ').toLowerCase();
@@ -87,21 +74,19 @@ export default function TimelineBlock({
       <div className="flex gap-3">
         {/* Timeline rail */}
         <div className="w-14 flex flex-col items-center pt-1">
-          <div className="text-xs font-semibold text-slate-400">{item.startTime}</div>
-          <div className="text-[11px] text-slate-300 leading-none mt-0.5">Ngày</div>
+          <div className="text-xs font-extrabold text-white/90 tabular-nums">{item.startTime}</div>
+          <div className="text-[11px] text-white/65 leading-none mt-0.5">Ngày</div>
           <div className="relative flex-1 w-full flex justify-center mt-2">
-            <div className="absolute top-0 bottom-0 w-px bg-slate-200" />
-            <div className="relative z-10 mt-1 w-3.5 h-3.5 rounded-full bg-[var(--vj-accent)] ring-4 ring-white" />
-            {!isLast && (
-              <div className="absolute top-6 bottom-0 w-px bg-slate-200" />
-            )}
+            <div className="absolute top-0 bottom-0 w-px bg-white/25" />
+            <div className="relative z-10 mt-1 w-3.5 h-3.5 rounded-full bg-[#F4B23A] ring-4 ring-[color-mix(in_oklab,#F4B23A_25%,transparent)]" />
+            {!isLast && <div className="absolute top-6 bottom-0 w-px bg-white/25" />}
           </div>
         </div>
 
         {/* Card */}
         <Card
           ref={ref}
-          className={`relative overflow-hidden transition-all cursor-move bg-white border border-white/15 shadow-md hover:shadow-lg ${
+          className={`relative overflow-hidden transition-all cursor-move bg-white/95 border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,.18)] hover:shadow-[0_14px_34px_rgba(0,0,0,.22)] rounded-2xl ${
             isDragging ? 'opacity-50' : ''
           } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
             isEditing ? 'ring-2 ring-[var(--vj-accent)] ring-offset-2 shadow-lg' : ''
@@ -131,41 +116,22 @@ export default function TimelineBlock({
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-slate-900 leading-snug truncate">
+              <h3 className="font-extrabold text-slate-900 leading-snug truncate">
                 {location.name}
               </h3>
 
-              <div className="flex items-center gap-3 text-xs text-slate-600 mt-1">
-                <span className="inline-flex items-center gap-1">
+              <div className="flex items-center gap-2 text-xs text-slate-700 mt-1">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 border border-slate-200">
                   <Clock className="w-3.5 h-3.5" />
-                  {item.startTime} - {item.endTime}
+                  {item.startTime}–{item.endTime}
                 </span>
                 {ownerName && (
-                  <span className="inline-flex items-center gap-1 text-slate-500">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 border border-slate-200 text-slate-700">
                     <User className="w-3.5 h-3.5" />
                     {ownerName}
                   </span>
                 )}
               </div>
-
-              <div className="flex flex-wrap gap-1 mt-2">
-                {location.tags.slice(0, 2).map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="secondary"
-                    className="text-[11px] px-2 py-0 bg-slate-100 text-slate-600"
-                  >
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            {/* Price */}
-            <div className="flex-shrink-0 flex flex-col items-end justify-start pt-0.5">
-              <span className="text-xs font-semibold text-[var(--vj-primary)]">
-                {formatVND(location.price)}
-              </span>
             </div>
           </div>
 
