@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
 import { Mail, Lock, User, Chrome, Apple } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
+import { useAuth } from '../context/AuthContext';
+import { toast } from 'sonner';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,17 +15,44 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, loading, signInWithPassword, signUpWithPassword, signInWithOAuth } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const nextUrl = useMemo(() => {
+    const next = searchParams.get('next');
+    return next && next.startsWith('/') ? next : '/';
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) navigate(nextUrl, { replace: true });
+  }, [isAuthenticated, loading, navigate, nextUrl]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock authentication - in real app, this would call an API
-    navigate('/');
+    try {
+      if (isLogin) {
+        await signInWithPassword(email, password);
+        toast.success('Đăng nhập thành công');
+      } else {
+        await signUpWithPassword(email, password);
+        toast.success('Tạo tài khoản thành công', { description: 'Vui lòng kiểm tra email nếu cần xác nhận.' });
+      }
+      navigate(nextUrl, { replace: true });
+    } catch (err: any) {
+      toast.error('Không thể đăng nhập', { description: err?.message ?? 'Vui lòng thử lại.' });
+    }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    // Mock social login
-    console.log(`Login with ${provider}`);
-    navigate('/');
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
+    try {
+      if (provider === 'google') {
+        await signInWithOAuth('google');
+        return;
+      }
+      toast('Apple', { description: 'Chưa cấu hình. Vui lòng dùng Google hoặc email.' });
+    } catch (err: any) {
+      toast.error('Không thể đăng nhập', { description: err?.message ?? 'Vui lòng thử lại.' });
+    }
   };
 
   return (
@@ -186,6 +215,7 @@ export default function Auth() {
             <Button
               type="submit"
               className="w-full h-12 bg-[#0A4A6E] hover:bg-[#0d5d8a] text-white font-semibold"
+              disabled={loading}
             >
               {isLogin ? 'Đăng Nhập' : 'Tạo Tài Khoản'}
             </Button>
