@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: "backend"
+jwt:
+  signer_key: "Rr3sOnfhe2apJQWA07qne8d7"
+  valid_duration: 36000
