@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { DollarSign, TrendingUp, Users, Plus, Receipt, ArrowUpRight, ArrowDownRight, Smartphone, QrCode } from 'lucide-react';
+import { useParams } from 'react-router';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
@@ -7,6 +8,7 @@ import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { mockTransactions, mockUsers, calculateDebtSettlement, mockTrips } from '../data/mockData';
+import { loadTripData } from '../lib/tripStorage';
 
 // Format VND currency
 const formatVND = (amount: number) => {
@@ -25,8 +27,11 @@ const formatDebtK = (amount: number) => {
 };
 
 export default function Budget() {
-  const trip = mockTrips[0];
-  const transactions = mockTransactions;
+  const { tripId: tripIdParam } = useParams();
+  const tripId = tripIdParam || 'trip-1';
+  const stored = typeof window !== 'undefined' ? loadTripData(tripId) : null;
+  const trip = stored?.trip ?? mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  const transactions = stored?.transactions?.length ? stored.transactions : mockTransactions;
   const users = mockUsers.filter((u) => trip.participants.includes(u.id));
 
   // Calculate totals

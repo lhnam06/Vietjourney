@@ -1,8 +1,9 @@
 import { useRef } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
-import { Clock, Coffee, GripVertical, Landmark, MapPin, User, UtensilsCrossed } from 'lucide-react';
+import { Clock, Coffee, GripVertical, Landmark, MapPin, MoreVertical, Trash2, Copy, Pencil, User, UtensilsCrossed } from 'lucide-react';
 import { Card } from './ui/card';
 import { TimelineItem, Location } from '../data/mockData';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 interface TimelineBlockProps {
   index: number;
@@ -14,6 +15,10 @@ interface TimelineBlockProps {
   onEditEnd: () => void;
   isLast?: boolean;
   ownerName?: string;
+  hasOverlap?: boolean;
+  onEditTime?: () => void;
+  onRemove?: () => void;
+  onDuplicate?: () => void;
 }
 
 const ItemType = 'TIMELINE_ITEM';
@@ -38,6 +43,10 @@ export default function TimelineBlock({
   onEditEnd,
   isLast = false,
   ownerName,
+  hasOverlap = false,
+  onEditTime,
+  onRemove,
+  onDuplicate,
 }: TimelineBlockProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -90,7 +99,7 @@ export default function TimelineBlock({
             isDragging ? 'opacity-50' : ''
           } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
             isEditing ? 'ring-2 ring-[var(--vj-accent)] ring-offset-2 shadow-lg' : ''
-          }`}
+          } ${hasOverlap ? 'ring-2 ring-rose-500 ring-offset-2' : ''}`}
           onClick={onEditStart}
         >
           <div className="flex gap-3 p-3">
@@ -132,6 +141,52 @@ export default function TimelineBlock({
                   </span>
                 )}
               </div>
+            </div>
+
+            <div className="flex-shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="h-9 w-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 inline-flex items-center justify-center"
+                    aria-label="Tùy chọn"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      onEditTime?.();
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Chỉnh giờ
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      onDuplicate?.();
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                    Nhân bản
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      onRemove?.();
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Xoá
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 

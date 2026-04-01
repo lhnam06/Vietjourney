@@ -10,25 +10,74 @@ import {
   Navigation,
   Plus,
 } from 'lucide-react';
+import { useParams } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, mockTimeline, mockUsers, TimelineItem, Location } from '../data/mockData';
+import { mockLocations, mockTimeline, mockUsers, TimelineItem, Location, mockTrips, mockTransactions } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
 import { toast } from 'sonner';
+import { deleteTimelineItem, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Button as UIButton } from '../components/ui/button';
 
 export default function Workspace() {
-  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(mockTimeline);
+  const { tripId: tripIdParam } = useParams();
+  const tripId = tripIdParam || 'trip-1';
+  const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(() => {
+    const stored = typeof window !== 'undefined' ? loadTripData(tripId) : null;
+    return stored?.timeline?.length ? stored.timeline : mockTimeline;
+  });
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => mockTimeline[0]?.date ?? new Date().toISOString().slice(0, 10));
+  const [timeEditorOpen, setTimeEditorOpen] = useState(false);
+  const [timeEditorId, setTimeEditorId] = useState<string | null>(null);
+  const [timeStart, setTimeStart] = useState('09:00');
+  const [timeEnd, setTimeEnd] = useState('10:00');
+
+  useEffect(() => {
+    setLastTripId(tripId);
+    const stored = loadTripData(tripId);
+    if (stored?.timeline?.length) {
+      setTimelineItems(stored.timeline);
+      setSelectedDate(stored.timeline[0]?.date ?? new Date().toISOString().slice(0, 10));
+    } else {
+      setTimelineItems(mockTimeline);
+      setSelectedDate(mockTimeline[0]?.date ?? new Date().toISOString().slice(0, 10));
+    }
+  }, [tripId]);
 
   const moveTimelineItem = (dragIndex: number, hoverIndex: number) => {
-    const dragItem = timelineItems[dragIndex];
-    const newItems = [...timelineItems];
-    newItems.splice(dragIndex, 1);
-    newItems.splice(hoverIndex, 0, dragItem);
-    setTimelineItems(newItems);
+    setTimelineItems((prev) => {
+      const positions: number[] = [];
+      prev.forEach((t, i) => {
+        if (t.date === selectedDate) positions.push(i);
+      });
+      const dayItems = positions.map((i) => prev[i]);
+      const dragItem = dayItems[dragIndex];
+      if (!dragItem) return prev;
+      const reordered = dayItems.slice();
+      reordered.splice(dragIndex, 1);
+      reordered.splice(hoverIndex, 0, dragItem);
+      const next = prev.slice();
+      positions.forEach((pos, idx) => {
+        next[pos] = reordered[idx]!;
+      });
+      // persist
+      try {
+        const stored = loadTripData(tripId);
+        if (stored) {
+          upsertTimelineItem(tripId, stored.trip, next[0] as any, stored.timeline, stored.transactions);
+        }
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const addQuickActivity = (locationId?: string) => {
@@ -50,27 +99,14 @@ export default function Workspace() {
 
     const id = `timeline-${Date.now()}`;
     const next: TimelineItem = { id, locationId: location.id, startTime, endTime, date: selectedDate };
-    setTimelineItems((prev) => [...prev, next]);
+    setTimelineItems((prev) => {
+      const updated = [...prev, next];
+      upsertTimelineItem(tripId, trip, next, mockTimeline, mockTransactions);
+      return updated;
+    });
     setEditingItem(id);
     toast.success('Đã thêm hoạt động', { description: location.name });
   };
-
-  // MVP: accept pending add from Discovery (localStorage bridge)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('vj:pendingAdd');
-      if (!raw) return;
-      localStorage.removeItem('vj:pendingAdd');
-      const parsed = JSON.parse(raw) as { locationId?: string; date?: string };
-      if (parsed.date) setSelectedDate(parsed.date);
-      if (parsed.locationId) {
-        setTimeout(() => addQuickActivity(parsed.locationId), 0);
-      }
-    } catch {
-      // ignore
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const dates = useMemo(() => {
     const uniq = Array.from(new Set(timelineItems.map((t) => t.date))).sort();
@@ -85,6 +121,47 @@ export default function Workspace() {
     () => timelineItems.filter((t) => t.date === selectedDate),
     [timelineItems, selectedDate],
   );
+
+  const overlaps = useMemo(() => {
+    const toMinutes = (t: string) => {
+      const [hh, mm] = t.split(':').map(Number);
+      return (hh || 0) * 60 + (mm || 0);
+    };
+    const day = visibleTimelineItems.map((t) => ({ id: t.id, s: toMinutes(t.startTime), e: toMinutes(t.endTime) }));
+    const overlapping = new Set<string>();
+    for (let i = 0; i < day.length; i++) {
+      for (let j = i + 1; j < day.length; j++) {
+        const a = day[i]!, b = day[j]!;
+        if (a.s < b.e && b.s < a.e) {
+          overlapping.add(a.id);
+          overlapping.add(b.id);
+        }
+      }
+    }
+    return overlapping;
+  }, [visibleTimelineItems]);
+
+  const openTimeEditor = (id: string) => {
+    const item = timelineItems.find((t) => t.id === id);
+    if (!item) return;
+    setTimeEditorId(id);
+    setTimeStart(item.startTime);
+    setTimeEnd(item.endTime);
+    setTimeEditorOpen(true);
+  };
+
+  const saveTimeEditor = () => {
+    if (!timeEditorId) return;
+    setTimelineItems((prev) => {
+      const idx = prev.findIndex((t) => t.id === timeEditorId);
+      if (idx < 0) return prev;
+      const updated = prev.slice();
+      updated[idx] = { ...updated[idx]!, startTime: timeStart, endTime: timeEnd };
+      upsertTimelineItem(tripId, trip, updated[idx]!, mockTimeline, mockTransactions);
+      return updated;
+    });
+    setTimeEditorOpen(false);
+  };
 
   // Premium UX: keyboard reordering for selected item (⌘/Ctrl + ↑/↓)
   useEffect(() => {
@@ -135,9 +212,9 @@ export default function Workspace() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full bg-[var(--vj-bg)]">
-        <div className="h-full max-w-[1400px] mx-auto w-full p-4 flex gap-4 min-h-0">
+        <div className="h-full max-w-[1400px] mx-auto w-full p-4 flex flex-col lg:flex-row gap-4 min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
-          <div className="w-[520px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
+          <div className="w-full lg:w-[520px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
           {/* Sticky header */}
           <div className="sticky top-0 z-20 border-b border-[var(--vj-border)] bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
             <div className="p-4">
@@ -230,6 +307,12 @@ export default function Workspace() {
           {/* Timeline Items */}
           <ScrollArea className="flex-1 min-h-0 p-4 bg-[var(--vj-primary)]">
             <div className="space-y-3">
+              {visibleTimelineItems.length === 0 && (
+                <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-white/90">
+                  <div className="font-extrabold">Chưa có hoạt động cho ngày này</div>
+                  <div className="text-sm text-white/70 mt-1">Bấm “Thêm hoạt động” hoặc thêm từ trang Khám Phá.</div>
+                </div>
+              )}
               {visibleTimelineItems.map((item, index) => {
                 const location = mockLocations.find((loc) => loc.id === item.locationId);
                 if (!location) return null;
@@ -251,6 +334,22 @@ export default function Workspace() {
                       onEditEnd={() => setEditingItem(null)}
                       isLast={index === visibleTimelineItems.length - 1}
                       ownerName={owner?.name?.split(' ').slice(-1)[0]}
+                      hasOverlap={overlaps.has(item.id)}
+                      onEditTime={() => openTimeEditor(item.id)}
+                      onDuplicate={() => {
+                        const clone: TimelineItem = { ...item, id: `act-${Date.now()}` };
+                        setTimelineItems((prev) => {
+                          const updated = [...prev, clone];
+                          upsertTimelineItem(tripId, trip, clone, mockTimeline, mockTransactions);
+                          return updated;
+                        });
+                        toast.success('Đã nhân bản hoạt động');
+                      }}
+                      onRemove={() => {
+                        setTimelineItems((prev) => prev.filter((t) => t.id !== item.id));
+                        deleteTimelineItem(tripId, trip, item.id, mockTimeline, mockTransactions);
+                        toast.success('Đã xoá hoạt động');
+                      }}
                     />
 
                     {/* Transportation Widget */}
@@ -280,7 +379,7 @@ export default function Workspace() {
           </div>
 
           {/* Column 2: Map */}
-          <div className="flex-1 relative rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-0">
+          <div className="flex-1 relative rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-[360px] lg:min-h-0">
           {/* Panel title like reference */}
           <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-slate-200">
             <h2 className="text-sm font-bold text-[#0b5d55]">BẢN ĐỒ LỘ TRÌNH</h2>
@@ -312,6 +411,31 @@ export default function Workspace() {
         </div>
         </div>
       </div>
+
+      <Dialog open={timeEditorOpen} onOpenChange={setTimeEditorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Chỉnh sửa thời gian</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2">
+            <Input type="time" value={timeStart} onChange={(e) => setTimeStart(e.target.value)} />
+            <Input type="time" value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} />
+          </div>
+          {overlaps.size > 0 && (
+            <div className="text-xs text-rose-600 font-semibold mt-2">
+              Có hoạt động bị chồng giờ. Vui lòng điều chỉnh để tránh trùng lịch.
+            </div>
+          )}
+          <DialogFooter>
+            <UIButton variant="outline" onClick={() => setTimeEditorOpen(false)}>
+              Huỷ
+            </UIButton>
+            <UIButton className="bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white" onClick={saveTimeEditor}>
+              Lưu
+            </UIButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DndProvider>
   );
 }

@@ -1,4 +1,30 @@
-# Smart Travel Planning App
+# Vietjourney
+
+Travel planning for Vietnam: discovery, itinerary workspace, and budget — split into **frontend** and **backend** packages for the next implementation phase.
+
+## Repository layout
+
+| Path | Description |
+|------|-------------|
+| `frontend/` | Vite + React app (`@vietjourney/frontend`) |
+| `backend/` | Node API scaffold (`@vietjourney/backend`) — health check, ready for routes / DB |
+| `supabase/` | Supabase Edge Functions and related server code (existing) |
+
+### Commands (from repo root)
+
+```bash
+npm install
+npm run dev              # Vite dev server (frontend)
+npm run dev:backend      # Express API (default http://localhost:3001)
+npm run build            # Production build of the frontend
+npm run build:all        # Frontend + backend TypeScript build
+```
+
+Copy env files: `frontend/.env.example` → `frontend/.env`, `backend/.env.example` → `backend/.env` as needed.
+
+---
+
+## Product overview
 
 A comprehensive, interactive travel planning application with smart discovery, real-time collaboration workspace, budget management, and user profiles.
 
@@ -57,12 +83,7 @@ A comprehensive, interactive travel planning application with smart discovery, r
 
 ## Mock Data
 
-The app uses comprehensive mock data including:
-- 8 sample locations in Paris
-- 3 sample trips
-- 4 sample users
-- Transaction history
-- Timeline items
+The app uses mock data including sample locations in Vietnam (e.g. Hà Nội), trips, users, transactions, and timeline items.
 
 ## Future Enhancements
 

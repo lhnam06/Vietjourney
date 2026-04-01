@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Search, MapPin, Star } from 'lucide-react';
 import { Input } from '../components/ui/input';
@@ -6,9 +6,11 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, Location } from '../data/mockData';
+import { mockLocations, Location, mockTrips, mockUsers, mockTimeline, mockTransactions } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
 import { toast } from 'sonner';
+import AddToItineraryDialog from '../components/AddToItineraryDialog';
+import { appendTransaction, getLastTripId, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
 
 type WeatherFilter = 'all' | 'indoor' | 'outdoor';
 type VibeFilter = 'all' | 'quiet' | 'vibrant';
@@ -31,7 +33,12 @@ export default function Discovery() {
   const [vibeFilter, setVibeFilter] = useState<VibeFilter>('all');
   const [budgetFilter, setBudgetFilter] = useState<BudgetFilter>('all');
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addLocation, setAddLocation] = useState<Location | null>(null);
   const navigate = useNavigate();
+  const tripId = getLastTripId('trip-1');
+  const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  const tripUsers = mockUsers.filter((u) => trip.participants.includes(u.id));
 
   const filteredLocations = useMemo(() => {
     return mockLocations.filter((location) => {
@@ -58,10 +65,9 @@ export default function Discovery() {
     ? mockLocations.find((l) => l.id === selectedLocationId) ?? null
     : null;
 
-  const handleAddToTimeline = (location: Location) => {
-    localStorage.setItem('vj:pendingAdd', JSON.stringify({ locationId: location.id, date: new Date().toISOString().slice(0, 10) }));
-    toast.success('Đã gửi sang lịch trình', { description: location.name });
-    navigate('/workspace/trip-1');
+  const openAdd = (location: Location) => {
+    setAddLocation(location);
+    setAddOpen(true);
   };
 
   return (
@@ -236,7 +242,7 @@ export default function Discovery() {
                           className="h-8 bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAddToTimeline(location);
+                            openAdd(location);
                           }}
                         >
                           Thêm
@@ -275,6 +281,24 @@ export default function Discovery() {
           showRoute={false}
         />
       </div>
+
+      <AddToItineraryDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        tripId={tripId}
+        trip={trip}
+        location={addLocation}
+        users={tripUsers}
+        defaultDate={new Date().toISOString().slice(0, 10)}
+        onCreate={(item, tx) => {
+          setLastTripId(tripId);
+          upsertTimelineItem(tripId, trip, item, mockTimeline, mockTransactions);
+          if (tx) appendTransaction(tripId, trip, tx, mockTimeline, mockTransactions);
+          toast.success('Đã thêm vào lịch trình', { description: addLocation?.name });
+          navigate(`/workspace/${tripId}`);
+        }}
+      />
     </div>
   );
 }
+
