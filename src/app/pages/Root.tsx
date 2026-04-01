@@ -18,21 +18,18 @@ export default function Root() {
       <header className="h-16 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)]">
         <div className="h-full max-w-[1400px] mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 flex items-center">
+            <div className="h-14 flex items-center px-2.5 py-1.5 rounded-2xl bg-white/25 border border-white/25 backdrop-blur-xl shadow-[0_14px_34px_rgba(0,0,0,.28)] ring-1 ring-black/10">
               <img
                 src={logoUrl}
                 alt="VIETJOURNEY"
-                className="h-9 w-auto object-contain drop-shadow-[0_6px_14px_rgba(0,0,0,.25)]"
+                className="h-14 w-auto object-contain drop-shadow-[0_12px_26px_rgba(0,0,0,.32)] saturate-125 contrast-125 brightness-105"
                 loading="eager"
                 decoding="async"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[var(--vj-text-on-dark)] font-bold tracking-wide">VIETJOURNEY</span>
-              <span className="text-xs text-[var(--vj-text-on-dark-muted)]" aria-label="Việt Nam">
-                🇻🇳
-              </span>
-            </div>
+            <span className="text-xs text-[var(--vj-text-on-dark-muted)]" aria-label="Việt Nam">
+              🇻🇳
+            </span>
           </div>
 
           <nav className="flex items-center gap-8">
