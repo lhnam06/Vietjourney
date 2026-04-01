@@ -63,8 +63,8 @@ export interface User {
 export const mockLocations: Location[] = [
   {
     id: 'loc-1',
-    name: 'Phở Thìn Bờ Hồ',
-    description: 'Quán phở nổi tiếng với hơn 30 năm lịch sử',
+    name: 'Ăn Sáng (Phở Thìn)',
+    description: 'Phở bò Hà Nội nóng hổi, chuẩn vị buổi sáng',
     image: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&q=80',
     lat: 21.0285,
     lng: 105.8542,
@@ -78,8 +78,8 @@ export const mockLocations: Location[] = [
   },
   {
     id: 'loc-2',
-    name: 'Văn Miếu - Quốc Tử Giám',
-    description: 'Trường đại học đầu tiên của Việt Nam',
+    name: 'Tham Quan Văn Miếu',
+    description: 'Văn Miếu – Quốc Tử Giám, không gian văn hoá & lịch sử',
     image: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80',
     lat: 21.0277,
     lng: 105.8355,
@@ -93,8 +93,8 @@ export const mockLocations: Location[] = [
   },
   {
     id: 'loc-3',
-    name: 'Chả Cá Lã Vọng',
-    description: 'Món chả cá truyền thống Hà Nội',
+    name: 'Ăn Trưa (Chả Cá Lã Vọng)',
+    description: 'Đặc sản chả cá trứ danh – ăn kèm bún, lạc, thì là',
     image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80',
     lat: 21.0318,
     lng: 105.8516,
@@ -109,7 +109,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-4',
     name: 'Cà Phê Đường Tàu',
-    description: 'Quán cà phê độc đáo bên đường ray tàu hỏa',
+    description: 'Trải nghiệm cà phê sát đường ray – check-in nổi tiếng Hà Nội',
     image: 'https://images.unsplash.com/photo-1511920170033-f8396924c348?w=800&q=80',
     lat: 21.0245,
     lng: 105.8412,
@@ -184,7 +184,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-9',
     name: 'Bánh Mì Bà Phượng',
-    description: 'Quán bánh mì nổi tiếng gần Hồ Tây',
+    description: 'Bánh mì giòn rụm, phù hợp ghé nhanh giữa lịch trình',
     image: 'https://images.unsplash.com/photo-1604797332671-e601c4f89f91?w=800&q=80',
     lat: 21.0452,
     lng: 105.8302,

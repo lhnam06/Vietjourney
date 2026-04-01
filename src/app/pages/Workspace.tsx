@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Clock, GripVertical, MoreHorizontal, Plus, Sparkles, Bike, ChevronDown, Navigation } from 'lucide-react';
+import {
+  Bike,
+  ChevronDown,
+  Clock,
+  GripVertical,
+  MoreHorizontal,
+  Navigation,
+  Plus,
+} from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -45,12 +53,6 @@ export default function Workspace() {
     setTimelineItems((prev) => [...prev, next]);
     setEditingItem(id);
     toast.success('Đã thêm hoạt động', { description: location.name });
-  };
-
-  const addAISuggestion = () => {
-    // MVP: insert a reasonable nearby suggestion based on mock data
-    const suggestion = mockLocations.find((l) => l.tags.join(' ').includes('Bánh Mì')) ?? mockLocations[0];
-    addQuickActivity(suggestion?.id);
   };
 
   // MVP: accept pending add from Discovery (localStorage bridge)
@@ -119,21 +121,6 @@ export default function Workspace() {
     return location ? [location.lat, location.lng] : [0, 0];
   });
 
-  // Calculate time gaps
-  const getTimeGap = (index: number) => {
-    if (index === visibleTimelineItems.length - 1) return null;
-    
-    const current = visibleTimelineItems[index];
-    const next = visibleTimelineItems[index + 1];
-    
-    const currentEnd = new Date(`2000-01-01T${current.endTime}`);
-    const nextStart = new Date(`2000-01-01T${next.startTime}`);
-    
-    const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
-    
-    return gapMinutes > 0 ? gapMinutes : 0;
-  };
-
   const getTransportMethod = (index: number) => {
     // Alternate between motorbike and walking for Vietnam context
     const methods = [
@@ -148,7 +135,7 @@ export default function Workspace() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full bg-[var(--vj-bg)]">
-        <div className="h-full max-w-[1200px] mx-auto w-full p-4 flex gap-4 min-h-0">
+        <div className="h-full max-w-[1400px] mx-auto w-full p-4 flex gap-4 min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
           <div className="w-[520px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
           {/* Sticky header */}
@@ -157,15 +144,6 @@ export default function Workspace() {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">LỊCH TRÌNH CHUYẾN ĐI</h2>
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-3 bg-white/10 border-white/20 text-white hover:bg-white/15"
-                    onClick={addAISuggestion}
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    GỢI Ý AI
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -250,7 +228,7 @@ export default function Workspace() {
           </div>
 
           {/* Timeline Items */}
-          <ScrollArea className="flex-1 min-h-0 p-4 bg-[#eef2f0]">
+          <ScrollArea className="flex-1 min-h-0 p-4 bg-[var(--vj-primary)]">
             <div className="space-y-3">
               {visibleTimelineItems.map((item, index) => {
                 const location = mockLocations.find((loc) => loc.id === item.locationId);
@@ -276,29 +254,13 @@ export default function Workspace() {
                     />
 
                     {/* Transportation Widget */}
-                    {index < timelineItems.length - 1 && (
-                      <div className="flex items-center gap-2 my-3 ml-14">
-                        <div className="flex-1 h-px bg-slate-200" />
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-                          <TransportIcon className="w-3.5 h-3.5 text-[var(--vj-accent)]" />
-                          <span className="font-medium">{transport.label}</span>
-                          <span className="text-slate-300">•</span>
-                          <span>{transport.time}</span>
-                        </div>
-                        <div className="flex-1 h-px bg-slate-200" />
-                      </div>
-                    )}
-
-                    {/* AI Suggestion for time gaps */}
-                    {getTimeGap(index)! > 60 && (
-                      <div className="ml-14 my-3">
-                        <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm">
-                          <div className="flex items-center gap-2 text-xs font-bold tracking-wide text-slate-700">
-                            <Sparkles className="w-4 h-4 text-[var(--vj-accent)]" />
-                            GỢI Ý AI
-                          </div>
-                          <div className="text-sm mt-1 text-slate-700">
-                            Ghé tiệm Bánh Mì Bà Phượng gần đó
+                    {index < visibleTimelineItems.length - 1 && (
+                      <div className="flex items-center justify-center gap-3 my-3 ml-14">
+                        <div className="flex items-center gap-2 text-xs text-white/90 bg-white/10 px-4 py-2 rounded-2xl border border-white/15 shadow-sm">
+                          <TransportIcon className="w-4 h-4 text-white/90" />
+                          <div className="leading-tight">
+                            <div className="font-extrabold">{transport.label}</div>
+                            <div className="text-white/70 tabular-nums">{transport.time}</div>
                           </div>
                         </div>
                       </div>
