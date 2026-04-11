@@ -1,7 +1,13 @@
 package com.project.backend.controller;
 import com.project.backend.dto.request.AuthenticationRequest;
+import com.project.backend.dto.request.IntrospectRequest;
+import com.project.backend.dto.response.ApiResponse;
 import com.project.backend.dto.response.AuthenticationResponse;
+import com.project.backend.dto.response.IntrospectResponse;
 import com.project.backend.service.AuthService;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,23 +18,21 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuthController {
-    @Autowired
-    private AuthService authService;
+    AuthService authService;
 
-    @PostMapping("/login")
-    public ResponseEntity<AuthenticationResponse> login(@RequestBody AuthenticationRequest loginRequest){
-        boolean isAuthenticated = authService.authenticate(loginRequest).isSuccess();
-        // Login Success
-        if(isAuthenticated){
-            AuthenticationResponse response = new AuthenticationResponse(true, "Login Success!", "NONE");
-            return ResponseEntity.ok(response);
-        }
-
-        // Login Failed
-        else{
-            AuthenticationResponse response = new AuthenticationResponse(false, "Wrong Username Or Password!", null);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-        }
+    @PostMapping("/token")
+    public ApiResponse<AuthenticationResponse> authenticate(@RequestBody AuthenticationRequest loginRequest){
+        var result = authService.authenticate(loginRequest);
+        return ApiResponse.<AuthenticationResponse>builder().result(result).build();
     }
+
+    @PostMapping("/introspect")
+    public ApiResponse<IntrospectResponse> authenticate(@RequestBody IntrospectRequest introspectRequest){
+        var result = authService.introspect(introspectRequest);
+        return ApiResponse.<IntrospectResponse>builder().result(result).build();
+    }
+
 }
