@@ -2,18 +2,27 @@ package com.project.backend.service;
 
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import com.project.backend.dto.request.AuthenticationRequest;
+import com.project.backend.dto.request.IntrospectRequest;
 import com.project.backend.dto.response.AuthenticationResponse;
+import com.project.backend.dto.response.IntrospectResponse;
 import com.project.backend.exception.AppException;
 import com.project.backend.exception.ErrorCode;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -21,26 +30,38 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuthService {
-    @Value("${jwt.signer_key")
+    @Value("${jwt.signer_key}")
     protected String SIGNER_KEY;
 
-    @Value("${jwt.valid_duration")
+    @Value("${jwt.valid_duration}")
     protected long VALID_DURATION;
 
-    public AuthenticationResponse authenticate(AuthenticationRequest request){
+    public AuthenticationResponse authenticate(AuthenticationRequest request) {
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
 
         boolean authenticated = true;
-        if(!authenticated){
+        if (!authenticated) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
         var token = generateToken(request.getUsername());
         return AuthenticationResponse.builder().token(token).success(true).build();
     }
 
-    @Autowired
-    private String generateToken(String username){
+    public IntrospectResponse introspect(IntrospectRequest request) {
+        var token = request.getToken();
+        boolean isValid = true;
+        try {
+            verifyToken(token);
+        } catch (AppException | JOSEException | ParseException e){
+            isValid = false;
+        }
+        return IntrospectResponse.builder().valid(isValid).build();
+    }
+
+    private String generateToken(String username) {
         // Create header (encode algorithm)
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
@@ -51,7 +72,7 @@ public class AuthService {
                 .issueTime(new Date())
                 .expirationTime(new Date(Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS).toEpochMilli()))
                 .jwtID(UUID.randomUUID().toString())
-                    .claim("CustomClaim", "Custom")
+                .claim("CustomClaim", "Custom")
                 .build();
         Payload payload = new Payload(jwtClaimsSet.toJSONObject());
         JWSObject jwsObject = new JWSObject(header, payload);
@@ -65,4 +86,19 @@ public class AuthService {
             throw new RuntimeException(e);
         }
     }
+
+    private SignedJWT verifyToken(String token) throws JOSEException, ParseException {
+        JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
+        SignedJWT signedJWT = SignedJWT.parse(token);
+        Date expiryTime = new Date(signedJWT
+                .getJWTClaimsSet()
+                .getIssueTime()
+                .toInstant()
+                .plus(VALID_DURATION, ChronoUnit.SECONDS)
+                .toEpochMilli());
+        var verified = signedJWT.verify(verifier);
+        if (!(verified && expiryTime.after(new Date()))) throw new AppException(ErrorCode.UNAUTHENTICATED);
+        return signedJWT;
+    }
+
 }
