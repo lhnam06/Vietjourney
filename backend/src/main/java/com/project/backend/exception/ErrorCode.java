@@ -33,7 +33,7 @@ public enum  ErrorCode {
     PASSWORD_HAS_SPACE(3007, "Password must not contain space [_]", HttpStatus.BAD_REQUEST),
 
     // display name:
-    DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST),
+    DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST);
 
 
     int code;
