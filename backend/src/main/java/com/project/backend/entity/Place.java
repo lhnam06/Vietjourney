@@ -1,6 +1,7 @@
 package com.project.backend.entity;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -15,5 +16,6 @@ import org.hibernate.annotations.Immutable;
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Place {
-
+    @Id
+    String id;
 }
