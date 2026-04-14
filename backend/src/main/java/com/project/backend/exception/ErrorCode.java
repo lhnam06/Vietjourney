@@ -13,6 +13,7 @@ public enum  ErrorCode {
     USER_NOT_EXIST(1001, "Unexist Account", HttpStatus.NOT_FOUND),
     UNAUTHENTICATED(1002, "Incorrect Username or Password", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1003, "No Access Permission", HttpStatus.UNAUTHORIZED),
+    USER_EXISTED(1004, "User already exists!", HttpStatus.BAD_REQUEST),
 
     // Validation Regex Error
     INVALID_KEY(8888, "Invalid Message Key", HttpStatus.BAD_REQUEST),
@@ -21,7 +22,7 @@ public enum  ErrorCode {
     INVALID_USERNAME_LENGTH(2001, "Username must be between 5 and 30 characters", HttpStatus.BAD_REQUEST),
     INVALID_CHARS_USERNAME(2002, "Username contains invalid characters", HttpStatus.BAD_REQUEST),
     USERNAME_HAS_SPACE(2003, "Username must not contain space [_]", HttpStatus.BAD_REQUEST),
-    USERNAME_EXISTS(2004, "This Username already existed", HttpStatus.BAD_REQUEST),
+    USERNAME_EXISTS(2004, "This username already existed", HttpStatus.BAD_REQUEST),
 
     // password:
     PASSWORD_SHORT(3001, "Password must be at least 8 characters", HttpStatus.BAD_REQUEST),

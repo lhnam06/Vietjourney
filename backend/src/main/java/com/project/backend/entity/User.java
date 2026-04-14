@@ -1,17 +1,17 @@
 package com.project.backend.entity;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.util.Set;
 
+@Entity
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "users")
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class User {
     @Id
@@ -20,6 +20,5 @@ public class User {
     String username;
     String password;
     String displayName;
-    Set<String> roles;
 
 }
