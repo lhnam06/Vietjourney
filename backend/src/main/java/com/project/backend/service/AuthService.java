@@ -9,11 +9,14 @@ import com.project.backend.dto.request.AuthenticationRequest;
 import com.project.backend.dto.request.IntrospectRequest;
 import com.project.backend.dto.response.AuthenticationResponse;
 import com.project.backend.dto.response.IntrospectResponse;
+import com.project.backend.entity.User;
 import com.project.backend.exception.AppException;
 import com.project.backend.exception.ErrorCode;
+import com.project.backend.repository.UserRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,22 +34,30 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthService {
+    UserRepository userRepository;
+
+    @NonFinal
     @Value("${jwt.signer_key}")
     protected String SIGNER_KEY;
 
+    @NonFinal
     @Value("${jwt.valid_duration}")
     protected long VALID_DURATION;
 
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
 
-        boolean authenticated = true;
+        var user = userRepository.findByUsername(request.getUsername()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST));
+        boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPassword());
+
         if (!authenticated) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-        var token = generateToken(request.getUsername());
+
+        var token = generateToken(user);
+
         return AuthenticationResponse.builder().token(token).success(true).build();
     }
 
@@ -61,13 +72,13 @@ public class AuthService {
         return IntrospectResponse.builder().valid(isValid).build();
     }
 
-    private String generateToken(String username) {
+    private String generateToken(User user) {
         // Create header (encode algorithm)
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
         // Create payload
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(username)
+                .subject(user.getUsername())
                 .issuer("tourism-backend")
                 .issueTime(new Date())
                 .expirationTime(new Date(Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS).toEpochMilli()))
