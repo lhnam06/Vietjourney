@@ -1,0 +1,218 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-04-19T14:56:32.581+07:00  INFO 17968 --- [chat-service] [           main] c.p.chat_service.ChatServiceApplication  : Starting ChatServiceApplication v0.0.1-SNAPSHOT using Java 21.0.7 with PID 17968 (C:\Users\Admin\Downloads\chat-service\chat-service\target\chat-service-0.0.1-SNAPSHOT.jar started by Admin in C:\Users\Admin\Downloads\chat-service\chat-service)
+2026-04-19T14:56:32.593+07:00  INFO 17968 --- [chat-service] [           main] c.p.chat_service.ChatServiceApplication  : No active profile set, falling back to 1 default profile: "default"
+2026-04-19T14:56:34.843+07:00  INFO 17968 --- [chat-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-04-19T14:56:35.332+07:00  INFO 17968 --- [chat-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 463 ms. Found 2 JPA repository interfaces.
+2026-04-19T14:56:37.208+07:00  INFO 17968 --- [chat-service] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-04-19T14:56:37.255+07:00  INFO 17968 --- [chat-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-04-19T14:56:37.257+07:00  INFO 17968 --- [chat-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-04-19T14:56:37.389+07:00  INFO 17968 --- [chat-service] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 4641 ms
+2026-04-19T14:56:37.915+07:00  INFO 17968 --- [chat-service] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-04-19T14:56:38.069+07:00  INFO 17968 --- [chat-service] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.2.7.Final
+2026-04-19T14:56:39.581+07:00  INFO 17968 --- [chat-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-04-19T14:56:39.664+07:00  INFO 17968 --- [chat-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-04-19T14:56:40.292+07:00  INFO 17968 --- [chat-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@16e5344c
+2026-04-19T14:56:40.295+07:00  INFO 17968 --- [chat-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-04-19T14:56:40.526+07:00  INFO 17968 --- [chat-service] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:postgresql://localhost:5433/chat_db]
+	Database driver: PostgreSQL JDBC Driver
+	Database dialect: PostgreSQLDialect
+	Database version: 15.17
+	Default catalog/schema: chat_db/public
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-04-19T14:56:44.341+07:00  INFO 17968 --- [chat-service] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-04-19T14:56:44.630+07:00  INFO 17968 --- [chat-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-04-19T14:56:44.866+07:00  INFO 17968 --- [chat-service] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-04-19T14:56:46.546+07:00  WARN 17968 --- [chat-service] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-04-19T14:56:47.640+07:00  INFO 17968 --- [chat-service] [           main] o.s.m.s.s.StompBrokerRelayMessageHandler : Starting...
+2026-04-19T14:56:48.254+07:00  INFO 17968 --- [chat-service] [           main] o.s.m.s.s.StompBrokerRelayMessageHandler : Starting "system" session, StompBrokerRelay[ReactorNettyTcpClient[reactor.netty.tcp.TcpClientConnect@2c6b36d7]]
+2026-04-19T14:56:48.601+07:00  INFO 17968 --- [chat-service] [           main] o.s.m.s.s.StompBrokerRelayMessageHandler : Started.
+2026-04-19T14:56:48.637+07:00  INFO 17968 --- [chat-service] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-04-19T14:56:48.648+07:00  INFO 17968 --- [chat-service] [           main] o.s.a.r.c.CachingConnectionFactory       : Attempting to connect to: [localhost:5672]
+2026-04-19T14:56:48.870+07:00  INFO 17968 --- [chat-service] [           main] o.s.a.r.c.CachingConnectionFactory       : Created new connection: rabbitConnectionFactory#46bbcb82:0/SimpleConnection@1c027237 [delegate=amqp://guest@127.0.0.1:5672/, localPort=58748]
+2026-04-19T14:56:48.962+07:00  INFO 17968 --- [chat-service] [ent-scheduler-3] o.s.m.s.s.StompBrokerRelayMessageHandler : "System" session connected.
+2026-04-19T14:56:48.971+07:00  INFO 17968 --- [chat-service] [ent-scheduler-3] o.s.m.s.s.StompBrokerRelayMessageHandler : BrokerAvailabilityEvent[available=true, StompBrokerRelay[ReactorNettyTcpClient[reactor.netty.tcp.TcpClientConnect@2c6b36d7]]]
+2026-04-19T14:56:49.070+07:00  INFO 17968 --- [chat-service] [           main] c.p.chat_service.ChatServiceApplication  : Started ChatServiceApplication in 17.678 seconds (process running for 19.1)
+2026-04-19T14:57:06.174+07:00  INFO 17968 --- [chat-service] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-04-19T14:57:06.185+07:00  INFO 17968 --- [chat-service] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-04-19T14:57:06.185+07:00  INFO 17968 --- [chat-service] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms
+Hibernate: 
+    select
+        cr1_0.id,
+        cr1_0.created_at,
+        cr1_0.name,
+        cr1_0.type,
+        cr1_0.updated_at 
+    from
+        chat_rooms cr1_0 
+    where
+        cr1_0.type=?
+Hibernate: 
+    insert 
+    into
+        chat_rooms
+        (created_at, name, type, updated_at, id) 
+    values
+        (?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    select
+        cr1_0.id,
+        cr1_0.created_at,
+        cr1_0.name,
+        pi1_0.chat_room_id,
+        pi1_0.participant_id,
+        cr1_0.type,
+        cr1_0.updated_at 
+    from
+        chat_rooms cr1_0 
+    left join
+        chat_room_participants pi1_0 
+            on cr1_0.id=pi1_0.chat_room_id 
+    where
+        cr1_0.id=?
+Hibernate: 
+    insert 
+    into
+        messages
+        (chat_room_id, content, sender_id, sent_at, type, id) 
+    values
+        (?, ?, ?, ?, ?, ?)
+Hibernate: 
+    select
+        cr1_0.id,
+        cr1_0.created_at,
+        cr1_0.name,
+        pi1_0.chat_room_id,
+        pi1_0.participant_id,
+        cr1_0.type,
+        cr1_0.updated_at 
+    from
+        chat_rooms cr1_0 
+    left join
+        chat_room_participants pi1_0 
+            on cr1_0.id=pi1_0.chat_room_id 
+    where
+        cr1_0.id=?
+Hibernate: 
+    select
+        m1_0.id,
+        m1_0.chat_room_id,
+        m1_0.content,
+        m1_0.sender_id,
+        m1_0.sent_at,
+        m1_0.type 
+    from
+        messages m1_0 
+    where
+        m1_0.chat_room_id=? 
+    order by
+        m1_0.sent_at
+Hibernate: 
+    insert 
+    into
+        chat_rooms
+        (created_at, name, type, updated_at, id) 
+    values
+        (?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+2026-04-19T14:57:32.517+07:00 ERROR 17968 --- [chat-service] [ent-scheduler-5] o.s.m.s.s.StompBrokerRelayMessageHandler : Received ERROR {message=[Bad CONNECT], content-type=[text/plain], version=[1.0,1.1,1.2], content-length=[38]} session=1c77fa2d-ea39-d655-ef53-5b016de95c0d text/plain payload=Virtual host 'localhost' access denied
+Hibernate: 
+    insert 
+    into
+        chat_rooms
+        (created_at, name, type, updated_at, id) 
+    values
+        (?, ?, ?, ?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    insert 
+    into
+        chat_room_participants
+        (chat_room_id, participant_id) 
+    values
+        (?, ?)
+Hibernate: 
+    select
+        cr1_0.id,
+        cr1_0.created_at,
+        cr1_0.name,
+        pi1_0.chat_room_id,
+        pi1_0.participant_id,
+        cr1_0.type,
+        cr1_0.updated_at 
+    from
+        chat_rooms cr1_0 
+    left join
+        chat_room_participants pi1_0 
+            on cr1_0.id=pi1_0.chat_room_id 
+    where
+        cr1_0.id=?
+Hibernate: 
+    insert 
+    into
+        messages
+        (chat_room_id, content, sender_id, sent_at, type, id) 
+    values
+        (?, ?, ?, ?, ?, ?)
+2026-04-19T14:57:47.646+07:00  INFO 17968 --- [chat-service] [MessageBroker-1] o.s.w.s.c.WebSocketMessageBrokerStats    : WebSocketSession[0 current WS(0)-HttpStream(0)-HttpPoll(0), 2 total, 0 closed abnormally (0 connect failure, 0 send limit, 1 transport error)], stompSubProtocol[processed CONNECT(2)-CONNECTED(1)-DISCONNECT(0)], stompBrokerRelay[1 sessions, ReactorNettyTcpClient[reactor.netty.tcp.TcpClientConnect@2c6b36d7] (available), processed CONNECT(3)-CONNECTED(2)-DISCONNECT(2)], inboundChannel[pool size = 18, active threads = 0, queued tasks = 0, completed tasks = 18], outboundChannel[pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 4], sockJsScheduler[pool size = 1, active threads = 1, queued tasks = 0, completed tasks = 0]
