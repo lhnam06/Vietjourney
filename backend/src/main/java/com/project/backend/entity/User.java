@@ -21,4 +21,6 @@ public class User {
     String password;
     String displayName;
 
+    @ManyToMany
+    Set<Role> roles;
 }

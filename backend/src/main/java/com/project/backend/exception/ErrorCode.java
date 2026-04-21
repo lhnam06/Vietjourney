@@ -32,11 +32,12 @@ public enum  ErrorCode {
     PASSWORD_MISS_LOWERCASE(3005, "Password must contain at least one lowercase letter", HttpStatus.BAD_REQUEST),
     PASSWORD_MISS_UPPERCASE(3006, "Password must contain at least one uppercase letter", HttpStatus.BAD_REQUEST),
     PASSWORD_HAS_SPACE(3007, "Password must not contain space [_]", HttpStatus.BAD_REQUEST),
-
+    PASSWORD_INCORRECT(3008, "Password is incorrect", HttpStatus.BAD_REQUEST),
+    OLD_PASSWORD_REQUIRED(3009, "Old pasword cannot be blank", HttpStatus.BAD_REQUEST),
     // display name:
-    DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST);
+    DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST),
 
-
+    ROLE_NOT_EXIST(4001, "Role does not exist", HttpStatus.BAD_REQUEST);
     int code;
     String message;
     HttpStatusCode statusCode;
