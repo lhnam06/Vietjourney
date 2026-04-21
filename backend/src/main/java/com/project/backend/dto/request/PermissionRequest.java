@@ -1,4 +1,4 @@
-package com.project.backend.dto.response;
+package com.project.backend.dto.request;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -7,10 +7,10 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class LogoutResponse {
-    boolean success;
-    boolean message;
+public class PermissionRequest {
+    String name;
+    String description;
 }

@@ -1,6 +1,5 @@
-package com.project.backend.dto.response;
+package com.project.backend.dto.request;
 
-import com.project.backend.entity.Role;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,9 +12,8 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserResponse {
-    String id;
-    String username;
-    String displayName;
-    Set<Role> roles;
+public class RoleRequest {
+    String name;
+    String description;
+    Set<String> permissions;
 }
