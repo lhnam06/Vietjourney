@@ -1,13 +1,14 @@
-package com.project.backend.dto.request;
+package com.project.backend.dto.response;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class LogoutRequest {
-    String token;
+public class PermissionResponse {
+    String name;
+    String description;
 }
