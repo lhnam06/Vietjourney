@@ -13,7 +13,11 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
-public class UserUpdateRequest {
+public class ChangePasswordRequest {
+
+    @NotBlank(message = "OLD_PASSWORD_REQUIRED")
+    String oldPassword;
+
     @NotNull
     @Size(min = 8, message = "PASSWORD_SHORT")
     @Pattern(regexp = ValidationRegex.ONLY_KEYBOARD_CHARS, message = "INVALID_CHARS_PASSWORD")
@@ -22,10 +26,5 @@ public class UserUpdateRequest {
     @Pattern(regexp = ValidationRegex.HAS_UPPERCASE, message = "PASSWORD_MISS_UPPERCASE")
     @Pattern(regexp = ValidationRegex.HAS_DIGIT, message = "PASSWORD_MISS_DIGIT")
     @Pattern(regexp = ValidationRegex.HAS_SYMBOL, message = "PASSWORD_MISS_SYMBOL")
-    String password;
-
-    @NotBlank
-    @Size(max = 50, message = "DISPLAY_NAME_LONG")
-    String displayName;
-
+    String newPassword;
 }
