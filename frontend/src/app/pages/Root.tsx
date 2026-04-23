@@ -1,10 +1,28 @@
-import { Outlet, Link, useLocation } from 'react-router';
-import { Bell, ChevronDown } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
+import { Bell, ChevronDown, LogOut, User as UserIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Button } from '../components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import { useAuth } from '../context/AuthContext';
 import logoUrl from '../../../photos/Vietjourney_logo.png';
+
+function initialsFromDisplay(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
 
 export default function Root() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, signOut } = useAuth();
   
   const navItems = [
     { path: '/', label: 'Khám Phá' },
@@ -17,20 +35,19 @@ export default function Root() {
       {/* Top Navigation (matches reference screenshot) */}
       <header className="h-16 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)]">
         <div className="h-full max-w-[1400px] mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-14 flex items-center px-2.5 py-1.5 rounded-2xl bg-white/25 border border-white/25 backdrop-blur-xl shadow-[0_14px_34px_rgba(0,0,0,.28)] ring-1 ring-black/10">
-              <img
-                src={logoUrl}
-                alt="VIETJOURNEY"
-                className="h-14 w-auto object-contain drop-shadow-[0_12px_26px_rgba(0,0,0,.32)] saturate-125 contrast-125 brightness-105"
-                loading="eager"
-                decoding="async"
-              />
-            </div>
-            <span className="text-xs text-[var(--vj-text-on-dark-muted)]" aria-label="Việt Nam">
-              🇻🇳
-            </span>
-          </div>
+          <Link
+            to="/"
+            className="h-12 sm:h-14 flex items-center rounded-xl bg-white/18 border border-white/20 px-2.5 py-1.5 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:bg-white/22 transition-colors"
+            aria-label="Về trang chủ Vietjourney"
+          >
+            <img
+              src={logoUrl}
+              alt="Vietjourney"
+              className="h-10 sm:h-12 w-auto max-w-[11rem] sm:max-w-[13rem] object-contain object-left"
+              loading="eager"
+              decoding="async"
+            />
+          </Link>
 
           <nav className="flex items-center gap-8">
             {navItems.map((item) => {
@@ -65,7 +82,7 @@ export default function Root() {
             })}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               className="w-9 h-9 rounded-full bg-white/10 border border-white/15 hover:bg-white/15 transition-colors flex items-center justify-center text-white"
@@ -73,13 +90,67 @@ export default function Root() {
             >
               <Bell className="w-4.5 h-4.5" />
             </button>
-            <div className="flex items-center gap-2">
-              <Avatar className="w-9 h-9 ring-2 ring-white/15">
-                <AvatarImage src="https://i.pravatar.cc/100?img=12" />
-                <AvatarFallback>HN</AvatarFallback>
-              </Avatar>
-              <ChevronDown className="w-4 h-4 text-[var(--vj-text-on-dark-muted)]" />
-            </div>
+            {isAuthenticated && user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-full pl-0.5 pr-2 py-0.5 hover:bg-white/10 transition-colors text-left"
+                  >
+                    <Avatar className="w-9 h-9 ring-2 ring-white/15">
+                      <AvatarFallback className="bg-white/20 text-white text-xs font-bold">
+                        {initialsFromDisplay(user.displayName || user.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden sm:block max-w-[140px]">
+                      <p className="text-sm font-semibold text-white leading-tight truncate">
+                        {user.displayName}
+                      </p>
+                      <p className="text-[11px] text-[var(--vj-text-on-dark-muted)] truncate">
+                        {user.username}
+                      </p>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-[var(--vj-text-on-dark-muted)] shrink-0" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4" />
+                      Hồ sơ
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={async () => {
+                      try {
+                        await signOut();
+                        toast.success('Đã đăng xuất');
+                        navigate('/', { replace: true });
+                      } catch {
+                        toast.error('Không thể đăng xuất');
+                      }
+                    }}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Đăng xuất
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                asChild
+                className="bg-white/15 hover:bg-white/25 text-white border border-white/20 font-semibold"
+              >
+                <Link
+                  to={`/auth?next=${encodeURIComponent(
+                    location.pathname + location.search + location.hash
+                  )}`}
+                >
+                  Đăng nhập
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
