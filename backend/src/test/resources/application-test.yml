@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:timeline-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  main:
+    allow-bean-definition-overriding: true
+
+jwt:
+  signer_key: test-signer-key-with-sufficient-length-for-hs512
