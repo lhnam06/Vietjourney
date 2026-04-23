@@ -1,0 +1,131 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.project:backend >-------------------------
+[INFO] Building backend 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.2.4:run (default-cli) > test-compile @ backend >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ backend ---
+[INFO] Copying 2 resources from src\main\resources to target\classes
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ backend ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ backend ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ backend ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] <<< spring-boot:3.2.4:run (default-cli) < test-compile @ backend <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.2.4:run (default-cli) @ backend ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.4)
+
+2026-04-24T00:21:39.637+07:00  INFO 17724 --- [           main] com.project.backend.BackendApplication   : Starting BackendApplication using Java 21.0.7 with PID 17724 (C:\Users\Admin\Downloads\Vietjourney\backend\target\classes started by Admin in C:\Users\Admin\Downloads\Vietjourney\backend)
+2026-04-24T00:21:39.643+07:00  INFO 17724 --- [           main] com.project.backend.BackendApplication   : The following 1 profile is active: "dev"
+2026-04-24T00:21:41.273+07:00  INFO 17724 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-04-24T00:21:41.426+07:00  INFO 17724 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 134 ms. Found 7 JPA repository interfaces.
+2026-04-24T00:21:42.548+07:00  INFO 17724 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-04-24T00:21:42.572+07:00  INFO 17724 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-04-24T00:21:42.573+07:00  INFO 17724 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.19]
+2026-04-24T00:21:42.712+07:00  INFO 17724 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-04-24T00:21:42.715+07:00  INFO 17724 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2956 ms
+2026-04-24T00:21:43.063+07:00  INFO 17724 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-04-24T00:21:43.160+07:00  INFO 17724 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.4.4.Final
+2026-04-24T00:21:43.219+07:00  INFO 17724 --- [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-04-24T00:21:43.640+07:00  INFO 17724 --- [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-04-24T00:21:43.687+07:00  INFO 17724 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-04-24T00:21:45.661+07:00  INFO 17724 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@29f95272
+2026-04-24T00:21:45.667+07:00  INFO 17724 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-04-24T00:21:48.374+07:00  INFO 17724 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-04-24T00:21:52.595+07:00  INFO 17724 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-04-24T00:21:53.499+07:00  INFO 17724 --- [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-04-24T00:21:54.873+07:00  WARN 17724 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-04-24T00:21:55.556+07:00  INFO 17724 --- [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@1f404aa1, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@6d5fc2ca, org.springframework.security.web.context.SecurityContextHolderFilter@88151e7, org.springframework.security.web.header.HeaderWriterFilter@79200f8, org.springframework.web.filter.CorsFilter@5d05f453, org.springframework.security.web.authentication.logout.LogoutFilter@5bf9c995, org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter@6799cded, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@2e66340, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@52478bf5, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@44808c29, org.springframework.security.web.access.ExceptionTranslationFilter@6ee9fcac, org.springframework.security.web.access.intercept.AuthorizationFilter@5d186b14]
+2026-04-24T00:21:56.397+07:00  INFO 17724 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path ''
+2026-04-24T00:21:56.417+07:00  INFO 17724 --- [           main] com.project.backend.BackendApplication   : Started BackendApplication in 17.628 seconds (process running for 18.497)
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.username=?
+Hibernate: select r1_0.name,r1_0.description from roles r1_0 where r1_0.name=?
+2026-04-24T00:23:23.604+07:00  INFO 17724 --- [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-04-24T00:23:23.604+07:00  INFO 17724 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-04-24T00:23:23.607+07:00  INFO 17724 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.username=?
+Hibernate: select r1_0.user_id,r1_1.name,r1_1.description from users_roles r1_0 join roles r1_1 on r1_1.name=r1_0.roles_name where r1_0.user_id=?
+Hibernate: select p1_0.role_name,p1_1.name,p1_1.description from roles_permissions p1_0 join permissions p1_1 on p1_1.name=p1_0.permissions_name where p1_0.role_name=?
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.username=?
+Hibernate: select r1_0.user_id,r1_1.name,r1_1.description from users_roles r1_0 join roles r1_1 on r1_1.name=r1_0.roles_name where r1_0.user_id=?
+Hibernate: select p1_0.role_name,p1_1.name,p1_1.description from roles_permissions p1_0 join permissions p1_1 on p1_1.name=p1_0.permissions_name where p1_0.role_name=?
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.username=?
+Hibernate: insert into timelines (created_at,description,end_date,owner_id,start_date,title,updated_at,visibility,id) values (?,?,?,?,?,?,?,?,?)
+Hibernate: insert into timeline_members (created_at,role,timeline_id,updated_at,user_id,id) values (?,?,?,?,?,?)
+Hibernate: select tm1_0.id,tm1_0.created_at,tm1_0.role,tm1_0.timeline_id,tm1_0.updated_at,tm1_0.user_id from timeline_members tm1_0 join timelines t1_0 on t1_0.id=tm1_0.timeline_id where t1_0.id=? order by tm1_0.created_at
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.end_time>? and te1_0.start_time<? order by te1_0.start_time,te1_0.order_index,te1_0.id
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id,t1_0.created_at,t1_0.description,t1_0.end_date,t1_0.owner_id,t1_0.start_date,t1_0.title,t1_0.updated_at,t1_0.visibility from timelines t1_0 where t1_0.id=? for no key update
+Hibernate: select case when count(te1_0.id)>0 then true else false end from timeline_events te1_0 where te1_0.timeline_id=? and (? is null or te1_0.id<>?) and te1_0.status<>? and te1_0.start_time<? and te1_0.end_time>?
+Hibernate: insert into timeline_events (category,created_at,end_time,external_place_id,notes,order_index,start_time,status,timeline_id,updated_at,version,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.start_time>=? and te1_0.start_time<? and te1_0.status<>? order by te1_0.order_index,te1_0.start_time,te1_0.id for no key update
+Hibernate: select t1_0.id,t1_0.created_at,t1_0.description,t1_0.end_date,t1_0.owner_id,t1_0.start_date,t1_0.title,t1_0.updated_at,t1_0.visibility from timelines t1_0 where t1_0.id=?
+Hibernate: select tm1_0.id,tm1_0.created_at,tm1_0.role,tm1_0.timeline_id,tm1_0.updated_at,tm1_0.user_id from timeline_members tm1_0 join timelines t1_0 on t1_0.id=tm1_0.timeline_id where t1_0.id=? order by tm1_0.created_at
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.end_time>? and te1_0.start_time<? order by te1_0.start_time,te1_0.order_index,te1_0.id
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.id=?
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.username=?
+Hibernate: select r1_0.user_id,r1_1.name,r1_1.description from users_roles r1_0 join roles r1_1 on r1_1.name=r1_0.roles_name where r1_0.user_id=?
+Hibernate: select p1_0.role_name,p1_1.name,p1_1.description from roles_permissions p1_0 join permissions p1_1 on p1_1.name=p1_0.permissions_name where p1_0.role_name=?
+Hibernate: select u1_0.id,u1_0.display_name,u1_0.password,u1_0.username from users u1_0 where u1_0.username=?
+Hibernate: insert into timelines (created_at,description,end_date,owner_id,start_date,title,updated_at,visibility,id) values (?,?,?,?,?,?,?,?,?)
+Hibernate: insert into timeline_members (created_at,role,timeline_id,updated_at,user_id,id) values (?,?,?,?,?,?)
+Hibernate: select tm1_0.id,tm1_0.created_at,tm1_0.role,tm1_0.timeline_id,tm1_0.updated_at,tm1_0.user_id from timeline_members tm1_0 join timelines t1_0 on t1_0.id=tm1_0.timeline_id where t1_0.id=? order by tm1_0.created_at
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.end_time>? and te1_0.start_time<? order by te1_0.start_time,te1_0.order_index,te1_0.id
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id,t1_0.created_at,t1_0.description,t1_0.end_date,t1_0.owner_id,t1_0.start_date,t1_0.title,t1_0.updated_at,t1_0.visibility from timelines t1_0 where t1_0.id=? for no key update
+Hibernate: select case when count(te1_0.id)>0 then true else false end from timeline_events te1_0 where te1_0.timeline_id=? and (? is null or te1_0.id<>?) and te1_0.status<>? and te1_0.start_time<? and te1_0.end_time>?
+Hibernate: insert into timeline_events (category,created_at,end_time,external_place_id,notes,order_index,start_time,status,timeline_id,updated_at,version,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.start_time>=? and te1_0.start_time<? and te1_0.status<>? order by te1_0.order_index,te1_0.start_time,te1_0.id for no key update
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id,t1_0.created_at,t1_0.description,t1_0.end_date,t1_0.owner_id,t1_0.start_date,t1_0.title,t1_0.updated_at,t1_0.visibility from timelines t1_0 where t1_0.id=? for no key update
+Hibernate: select case when count(te1_0.id)>0 then true else false end from timeline_events te1_0 where te1_0.timeline_id=? and (? is null or te1_0.id<>?) and te1_0.status<>? and te1_0.start_time<? and te1_0.end_time>?
+Hibernate: insert into timeline_events (category,created_at,end_time,external_place_id,notes,order_index,start_time,status,timeline_id,updated_at,version,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.start_time>=? and te1_0.start_time<? and te1_0.status<>? order by te1_0.order_index,te1_0.start_time,te1_0.id for no key update
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id from timelines t1_0 join users o1_0 on o1_0.id=t1_0.owner_id where t1_0.id=? and o1_0.username=? fetch first ? rows only
+Hibernate: select t1_0.id,t1_0.created_at,t1_0.description,t1_0.end_date,t1_0.owner_id,t1_0.start_date,t1_0.title,t1_0.updated_at,t1_0.visibility from timelines t1_0 where t1_0.id=? for no key update
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 join timelines t1_0 on t1_0.id=te1_0.timeline_id where te1_0.id=? and t1_0.id=?
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.start_time>=? and te1_0.start_time<? and te1_0.status<>? order by te1_0.order_index,te1_0.start_time,te1_0.id for no key update
+Hibernate: update timeline_events set category=?,end_time=?,external_place_id=?,notes=?,order_index=?,start_time=?,status=?,timeline_id=?,updated_at=?,version=? where id=? and version=?
+Hibernate: update timeline_events set category=?,end_time=?,external_place_id=?,notes=?,order_index=?,start_time=?,status=?,timeline_id=?,updated_at=?,version=? where id=? and version=?
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 join timelines t1_0 on t1_0.id=te1_0.timeline_id where te1_0.id=? and t1_0.id=?
+Hibernate: select te1_0.id,te1_0.category,te1_0.created_at,te1_0.end_time,te1_0.external_place_id,te1_0.notes,te1_0.order_index,te1_0.start_time,te1_0.status,te1_0.timeline_id,te1_0.updated_at,te1_0.version from timeline_events te1_0 where te1_0.timeline_id=? and te1_0.end_time>? and te1_0.start_time<? order by te1_0.start_time,te1_0.order_index,te1_0.id
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  04:31 min
+[INFO] Finished at: 2026-04-24T00:26:04+07:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:3.2.4:run (default-cli) on project backend: Process terminated with exit code: -1 -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException
