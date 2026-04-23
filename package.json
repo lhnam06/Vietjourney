@@ -1,0 +1,9 @@
+{
+  "name": "vietjourney",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev -w @vietjourney/frontend",
+    "build": "npm run build -w @vietjourney/frontend"
+  },
+  "workspaces": ["frontend"]
+}

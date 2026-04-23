@@ -1,22 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { motion } from 'motion/react';
-import { Mail, Lock, User, Chrome, Apple } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { User, KeyRound, IdCard, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
+import { Separator } from '../components/ui/separator';
 import { useAuth } from '../context/AuthContext';
+import { ApiError } from '../lib/api';
 import { toast } from 'sonner';
+import logoUrl from '../../../photos/Vietjourney_logo.png';
+
+function getErrorMessage(err: unknown) {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return 'Vui lòng thử lại.';
+}
+
+const PASSWORD_HINT =
+  'Tối thiểu 8 ký tự: chữ hoa, chữ thường, số và ký tự đặc biệt, không dấu cách.';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [password2, setPassword2] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, loading, signInWithPassword, signUpWithPassword, signInWithOAuth } = useAuth();
+  const { isAuthenticated, loading, signInWithPassword, signUp } = useAuth();
 
   const nextUrl = useMemo(() => {
     const next = searchParams.get('next');
@@ -29,184 +42,205 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      if (isLogin) {
-        await signInWithPassword(email, password);
-        toast.success('Đăng nhập thành công');
-      } else {
-        await signUpWithPassword(email, password);
-        toast.success('Tạo tài khoản thành công', { description: 'Vui lòng kiểm tra email nếu cần xác nhận.' });
-      }
-      navigate(nextUrl, { replace: true });
-    } catch (err: any) {
-      toast.error('Không thể đăng nhập', { description: err?.message ?? 'Vui lòng thử lại.' });
-    }
-  };
-
-  const handleSocialLogin = async (provider: 'google' | 'apple') => {
-    try {
-      if (provider === 'google') {
-        await signInWithOAuth('google');
+    if (!isLogin) {
+      if (password !== password2) {
+        toast.error('Mật khẩu xác nhận không khớp');
         return;
       }
-      toast('Apple', { description: 'Chưa cấu hình. Vui lòng dùng Google hoặc email.' });
-    } catch (err: any) {
-      toast.error('Không thể đăng nhập', { description: err?.message ?? 'Vui lòng thử lại.' });
+      if (displayName.trim().length < 1) {
+        toast.error('Vui lòng nhập tên hiển thị');
+        return;
+      }
+    }
+    setSubmitting(true);
+    try {
+      if (isLogin) {
+        await signInWithPassword(username.trim(), password);
+        toast.success('Đăng nhập thành công');
+      } else {
+        await signUp({
+          username: username.trim(),
+          password,
+          displayName: displayName.trim(),
+        });
+        toast.success('Tài khoản đã được tạo', { description: 'Bạn đã được đăng nhập tự động.' });
+      }
+      navigate(nextUrl, { replace: true });
+    } catch (err) {
+      toast.error(isLogin ? 'Không thể đăng nhập' : 'Không thể tạo tài khoản', {
+        description: getErrorMessage(err),
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0A4A6E] via-[#0d5d8a] to-[#0A4A6E] p-4">
-      {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <motion.div
-          className="absolute top-20 left-20 w-64 h-64 bg-[#FF6B35]/10 rounded-full blur-3xl"
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
-        <motion.div
-          className="absolute bottom-20 right-20 w-96 h-96 bg-[#FF6B35]/10 rounded-full blur-3xl"
-          animate={{
-            scale: [1, 1.3, 1],
-            opacity: [0.2, 0.4, 0.2],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: 'easeInOut',
+    <div className="min-h-screen flex flex-col items-center justify-start sm:justify-center p-4 sm:p-6 bg-[var(--vj-bg)] text-[var(--vj-text-on-dark)]">
+      {/* Quiet backdrop — static gradient + pattern, no looping animation */}
+      <div
+        className="pointer-events-none fixed inset-0 -z-10 bg-[var(--vj-bg)]"
+        aria-hidden
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-[var(--vj-primary)]/25 via-transparent to-[var(--vj-bg-2)]/40" />
+        <div
+          className="absolute inset-0 opacity-[0.14]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundSize: '220px 220px',
           }}
         />
+        <div className="absolute bottom-0 left-1/2 h-[38vh] w-[min(100%,48rem)] -translate-x-1/2 rounded-[100%] bg-[var(--vj-accent)]/5 blur-3xl" />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
-      >
-        <Card className="p-8 shadow-2xl backdrop-blur-sm bg-white/95">
-          {/* Logo & Title */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="text-5xl mb-4"
-            >
-              🇻🇳
-            </motion.div>
-            <h1 className="text-3xl font-bold text-[#0A4A6E] mb-2">
-              {isLogin ? 'Chào Mừng Trở Lại' : 'Tham Gia VIETJOURNEY'}
-            </h1>
-            <p className="text-slate-600">
-              {isLogin ? 'Đăng nhập để tiếp tục hành trình' : 'Bắt đầu lên kế hoạch chuyến đi mơ ước'}
-            </p>
-          </div>
+      <div className="w-full max-w-[26rem] relative">
+        <div className="mb-4">
+          <Button
+            variant="ghost"
+            className="px-0 text-[var(--vj-text-on-dark-muted)] hover:text-[var(--vj-text-on-dark)] hover:bg-white/5 gap-1.5"
+            asChild
+          >
+            <Link to={nextUrl === '/' ? '/' : nextUrl}>
+              <ArrowLeft className="w-4 h-4 opacity-80" />
+              Về ứng dụng
+            </Link>
+          </Button>
+        </div>
 
-          {/* Social Login Buttons */}
-          <div className="space-y-3 mb-6">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-12 hover:bg-slate-50"
-              onClick={() => handleSocialLogin('Google')}
-            >
-              <Chrome className="w-5 h-5 mr-2" />
-              Tiếp Tục Với Google
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-12 hover:bg-slate-50"
-              onClick={() => handleSocialLogin('Apple')}
-            >
-              <Apple className="w-5 h-5 mr-2" />
-              Tiếp Tục Với Apple
-            </Button>
-          </div>
-
-          {/* Divider */}
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200" />
+        <Card className="border border-white/20 bg-[var(--vj-surface)] text-slate-900 shadow-[0_12px_40px_rgba(0,0,0,0.14)] rounded-2xl p-6 sm:p-8">
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="inline-flex h-[4.5rem] sm:h-16 w-full max-w-[18rem] items-center justify-center rounded-xl bg-white/80 px-4 py-2 border border-slate-200/90 shadow-sm">
+              <img
+                src={logoUrl}
+                alt="Vietjourney"
+                className="h-12 sm:h-14 w-auto object-contain object-center max-h-full"
+                loading="eager"
+                decoding="async"
+              />
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-slate-500">Hoặc tiếp tục với email</span>
+            <div className="space-y-1">
+              <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+                {isLogin ? 'Đăng nhập' : 'Tạo tài khoản'}
+              </h1>
+              <p className="text-sm text-slate-600 leading-relaxed max-w-sm mx-auto">
+                {isLogin
+                  ? 'Dùng tên đăng nhập Vietjourney của bạn để tiếp tục lên kế hoạch.'
+                  : 'Một tài khoản để lưu chuyến đi và tùy chọn cá nhân.'}
+              </p>
             </div>
           </div>
 
-          {/* Form */}
+          <Separator className="my-6 bg-slate-200/90" />
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <Label htmlFor="name" className="text-slate-700">
-                  Họ Và Tên
+              <div className="space-y-2">
+                <Label htmlFor="displayName" className="text-slate-800 text-sm font-medium">
+                  Tên hiển thị
                 </Label>
-                <div className="relative mt-1">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <div className="relative">
+                  <IdCard
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-[1.1rem] h-[1.1rem] text-slate-400"
+                    strokeWidth={1.75}
+                  />
                   <Input
-                    id="name"
+                    id="displayName"
                     type="text"
-                    placeholder="Nguyễn Văn A"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-10 h-12"
+                    autoComplete="name"
+                    placeholder="Ví dụ: Nguyễn Minh An"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="pl-10 h-11 rounded-lg border-slate-200 bg-white focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--vj-primary)35%,white)]"
+                    maxLength={50}
                     required={!isLogin}
                   />
                 </div>
-              </motion.div>
+              </div>
             )}
 
-            <div>
-              <Label htmlFor="email" className="text-slate-700">
-                Địa Chỉ Email
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-slate-800 text-sm font-medium">
+                Tên đăng nhập
               </Label>
-              <div className="relative mt-1">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <div className="relative">
+                <User
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-[1.1rem] h-[1.1rem] text-slate-400"
+                  strokeWidth={1.75}
+                />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-12"
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="5–30 ký tự, không khoảng trắng"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="pl-10 h-11 rounded-lg border-slate-200 bg-white focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--vj-primary)35%,white)]"
+                  minLength={5}
+                  maxLength={30}
                   required
                 />
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="password" className="text-slate-700">
-                Mật Khẩu
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-slate-800 text-sm font-medium">
+                Mật khẩu
               </Label>
-              <div className="relative mt-1">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <div className="relative">
+                <KeyRound
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-[1.1rem] h-[1.1rem] text-slate-400"
+                  strokeWidth={1.75}
+                />
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  placeholder="Mật khẩu của bạn"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-12"
+                  className="pl-10 h-11 rounded-lg border-slate-200 bg-white focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--vj-primary)35%,white)]"
                   required
                 />
               </div>
+              {!isLogin && <p className="text-xs text-slate-500 leading-snug pl-0.5">{PASSWORD_HINT}</p>}
             </div>
 
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="password2" className="text-slate-800 text-sm font-medium">
+                  Xác nhận mật khẩu
+                </Label>
+                <div className="relative">
+                  <KeyRound
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-[1.1rem] h-[1.1rem] text-slate-400"
+                    strokeWidth={1.75}
+                  />
+                  <Input
+                    id="password2"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Nhập lại mật khẩu"
+                    value={password2}
+                    onChange={(e) => setPassword2(e.target.value)}
+                    className="pl-10 h-11 rounded-lg border-slate-200 bg-white focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--vj-primary)35%,white)]"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             {isLogin && (
-              <div className="flex items-center justify-end">
-                <Button variant="link" className="text-[#FF6B35] hover:text-[#ff7d4d] p-0 h-auto">
+              <div className="flex justify-end -mt-1">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0 text-sm text-[var(--vj-accent)] hover:text-[var(--vj-accent-2)] no-underline hover:underline"
+                  onClick={() =>
+                    toast('Tính năng đang phát triển', {
+                      description: 'Liên hệ quản trị nếu cần đặt lại mật khẩu.',
+                    })
+                  }
+                >
                   Quên mật khẩu?
                 </Button>
               </div>
@@ -214,38 +248,32 @@ export default function Auth() {
 
             <Button
               type="submit"
-              className="w-full h-12 bg-[#0A4A6E] hover:bg-[#0d5d8a] text-white font-semibold"
-              disabled={loading}
+              className="w-full h-11 rounded-lg font-medium bg-[var(--vj-primary)] text-white hover:bg-[var(--vj-primary-2)] shadow-sm"
+              disabled={loading || submitting}
             >
-              {isLogin ? 'Đăng Nhập' : 'Tạo Tài Khoản'}
+              {submitting ? 'Đang xử lý…' : isLogin ? 'Đăng nhập' : 'Tạo tài khoản'}
             </Button>
           </form>
 
-          {/* Toggle Login/Signup */}
-          <div className="mt-6 text-center">
-            <p className="text-slate-600">
-              {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}{' '}
-              <Button
-                variant="link"
-                className="text-[#FF6B35] hover:text-[#ff7d4d] p-0 h-auto font-semibold"
-                onClick={() => setIsLogin(!isLogin)}
-              >
-                {isLogin ? 'Đăng ký' : 'Đăng nhập'}
-              </Button>
-            </p>
-          </div>
+          <p className="mt-5 text-center text-sm text-slate-600">
+            {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}{' '}
+            <button
+              type="button"
+              className="font-medium text-[var(--vj-accent)] hover:text-[var(--vj-accent-2)]"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setPassword2('');
+              }}
+            >
+              {isLogin ? 'Đăng ký' : 'Đăng nhập'}
+            </button>
+          </p>
         </Card>
 
-        {/* Footer Note */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center text-white/80 text-sm mt-6"
-        >
-          Bằng cách tiếp tục, bạn đồng ý với Điều khoản Dịch vụ và Chính sách Bảo mật của chúng tôi
-        </motion.p>
-      </motion.div>
+        <p className="text-center text-xs text-[var(--vj-text-on-dark-muted)] mt-5 max-w-[24rem] mx-auto leading-relaxed">
+          Khi tiếp tục, bạn đồng ý với điều khoản sử dụng và cách chúng tôi xử lý dữ liệu cá nhân.
+        </p>
+      </div>
     </div>
   );
 }

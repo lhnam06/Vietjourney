@@ -1,81 +1,92 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  type AuthUser,
+  getMyInfo,
+  getStoredToken,
+  loginRequest,
+  logoutRequest,
+  refreshTokenRequest,
+  registerRequest,
+  setStoredToken,
+} from '../lib/authApi';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   loading: boolean;
-  signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUpWithPassword: (email: string, password: string) => Promise<void>;
+  signInWithPassword: (username: string, password: string) => Promise<void>;
+  signUp: (args: { username: string; password: string; displayName: string }) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithOAuth: (provider: 'google') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function init() {
-      const { data, error } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (!error) setSession(data.session ?? null);
-      setLoading(false);
+  const bootstrap = useCallback(async () => {
+    const token = getStoredToken();
+    if (!token) {
+      setUser(null);
+      return;
     }
-
-    init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return;
-      setSession(nextSession);
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
+    try {
+      setUser(await getMyInfo(token));
+      return;
+    } catch {
+      try {
+        const { token: newToken } = await refreshTokenRequest(token);
+        setStoredToken(newToken);
+        setUser(await getMyInfo(newToken));
+      } catch {
+        setStoredToken(null);
+        setUser(null);
+      }
+    }
   }, []);
 
-  const user = useMemo(() => session?.user ?? null, [session]);
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await bootstrap();
+      setLoading(false);
+    })();
+  }, [bootstrap]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        isAuthenticated: !!user,
-        loading,
-        signInWithPassword: async (email: string, password: string) => {
-          const { error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) throw error;
-        },
-        signUpWithPassword: async (email: string, password: string) => {
-          const { error } = await supabase.auth.signUp({ email, password });
-          if (error) throw error;
-        },
-        signOut: async () => {
-          const { error } = await supabase.auth.signOut();
-          if (error) throw error;
-        },
-        signInWithOAuth: async (provider: 'google') => {
-          const { error } = await supabase.auth.signInWithOAuth({
-            provider,
-            options: { redirectTo: window.location.origin },
-          });
-          if (error) throw error;
-        },
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      loading,
+      signInWithPassword: async (username, password) => {
+        const { token } = await loginRequest(username, password);
+        setStoredToken(token);
+        setUser(await getMyInfo(token));
+      },
+      signUp: async (args) => {
+        await registerRequest(args);
+        const { token } = await loginRequest(args.username, args.password);
+        setStoredToken(token);
+        setUser(await getMyInfo(token));
+      },
+      signOut: async () => {
+        const t = getStoredToken();
+        if (t) {
+          try {
+            await logoutRequest(t);
+          } catch {
+            /* still clear local session */
+          }
+        }
+        setStoredToken(null);
+        setUser(null);
+      },
+    }),
+    [user, loading, bootstrap]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
