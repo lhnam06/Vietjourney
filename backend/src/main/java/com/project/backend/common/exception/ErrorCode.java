@@ -37,7 +37,19 @@ public enum  ErrorCode {
     // display name:
     DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST),
 
-    ROLE_NOT_EXIST(4001, "Role does not exist", HttpStatus.BAD_REQUEST);
+    ROLE_NOT_EXIST(4002, "Role does not exist", HttpStatus.BAD_REQUEST),
+    PLACE_NOT_EXIST(4003, "Place does not exist", HttpStatus.BAD_REQUEST),
+
+    TIMELINE_NOT_EXIST(5001, "Timeline does not exist", HttpStatus.NOT_FOUND),
+    TIMELINE_EVENT_NOT_EXIST(5002, "Timeline event does not exist", HttpStatus.NOT_FOUND),
+    TIMELINE_MEMBER_NOT_EXIST(5003, "Timeline member does not exist", HttpStatus.NOT_FOUND),
+    TIMELINE_MEMBER_ALREADY_EXISTS(5004, "Timeline member already exists", HttpStatus.BAD_REQUEST),
+    INVALID_TIMELINE_DATE_RANGE(5005, "Timeline date range is invalid", HttpStatus.BAD_REQUEST),
+    INVALID_TIMELINE_EVENT_RANGE(5006, "Timeline event time range is invalid", HttpStatus.BAD_REQUEST),
+    TIMELINE_EVENT_OUTSIDE_TIMELINE_RANGE(5007, "Timeline event is outside the timeline date range", HttpStatus.BAD_REQUEST),
+    TIMELINE_EVENT_OVERLAP(5008, "Timeline event overlaps with an existing event", HttpStatus.BAD_REQUEST),
+    TIMELINE_ACCESS_DENIED(5009, "You do not have access to this timeline", HttpStatus.FORBIDDEN),
+    TIMELINE_CONCURRENT_MODIFICATION(5010, "Timeline was modified concurrently, please retry", HttpStatus.CONFLICT);
     int code;
     String message;
     HttpStatusCode statusCode;
