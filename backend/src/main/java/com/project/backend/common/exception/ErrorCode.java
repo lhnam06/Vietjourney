@@ -14,6 +14,8 @@ public enum  ErrorCode {
     UNAUTHENTICATED(1002, "Incorrect Username or Password", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1003, "No Access Permission", HttpStatus.UNAUTHORIZED),
     USER_EXISTED(1004, "User already exists!", HttpStatus.BAD_REQUEST),
+    METHOD_NOT_ALLOWED(1005, "Method not allowed", HttpStatus.METHOD_NOT_ALLOWED),
+    INVALID_REQUEST_BODY(1006, "Invalid request body", HttpStatus.BAD_REQUEST),
 
     // Validation Regex Error
     INVALID_KEY(8888, "Invalid Message Key", HttpStatus.BAD_REQUEST),
@@ -37,7 +39,10 @@ public enum  ErrorCode {
     // display name:
     DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST),
 
-    ROLE_NOT_EXIST(4001, "Role does not exist", HttpStatus.BAD_REQUEST);
+    ROLE_NOT_EXIST(4001, "Role does not exist", HttpStatus.BAD_REQUEST),
+
+    INVALID_CATEGORY(5001, "Invalid category. Must be: food, drink or activity", HttpStatus.BAD_REQUEST),
+    INVALID_PRICE_RANGE(5002, "minPrice must be less than or equal to maxPrice", HttpStatus.BAD_REQUEST);
     int code;
     String message;
     HttpStatusCode statusCode;
