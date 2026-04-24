@@ -3,6 +3,8 @@ package com.project.backend.common.exception;
 import com.project.backend.common.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -21,6 +23,24 @@ public class GlobalExceptionHandler {
         apiResponse.setMessage(errorCode.getMessage());
 
         return ResponseEntity.status(errorCode.getStatusCode()).body(apiResponse);
+    }
+
+    @ExceptionHandler(value = HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ApiResponse> handlingMethodNotSupported(HttpRequestMethodNotSupportedException exception) {
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setCode(ErrorCode.METHOD_NOT_ALLOWED.getCode());
+        apiResponse.setMessage(ErrorCode.METHOD_NOT_ALLOWED.getMessage());
+
+        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.getStatusCode()).body(apiResponse);
+    }
+
+    @ExceptionHandler(value = HttpMessageNotReadableException.class)
+    ResponseEntity<ApiResponse> handlingInvalidBody(HttpMessageNotReadableException exception) {
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setCode(ErrorCode.INVALID_REQUEST_BODY.getCode());
+        apiResponse.setMessage(ErrorCode.INVALID_REQUEST_BODY.getMessage());
+
+        return ResponseEntity.status(ErrorCode.INVALID_REQUEST_BODY.getStatusCode()).body(apiResponse);
     }
 
     // Exception (Unexpected) Thrown By System
