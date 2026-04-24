@@ -1,103 +1,94 @@
 # Vietjourney
 
-Travel planning for Vietnam: discovery, itinerary workspace, and budget — split into **frontend** and **backend** packages for the next implementation phase.
+Vietjourney is a travel planning product focused on Vietnam: discovery, collaborative trip workspaces, and budget tooling. This repository splits a **Vite + React** client from a **Spring Boot** API so features can grow without coupling UI to persistence.
 
 ## Repository layout
 
-| Path | Description |
-|------|-------------|
-| `frontend/` | Vite + React app (`@vietjourney/frontend`) |
-| `backend/` | Node API scaffold (`@vietjourney/backend`) — health check, ready for routes / DB |
-| `supabase/` | Supabase Edge Functions and related server code (existing) |
+| Path | Role |
+|------|------|
+| `frontend/` | SPA: discovery, workspace, budget, profile, auth UI (`@vietjourney/frontend`) |
+| `backend/` | REST API: authentication, users, roles, permissions (Java 17, Spring Boot 3.2) |
+| `guidelines/` | Design and implementation notes |
 
-### Commands (from repo root)
+The frontend can use **Supabase** for hosted auth/data when configured; client defaults are documented in `frontend/.env.example`. The Java backend uses **PostgreSQL** and issues its own JWTs for protected routes.
+
+## Prerequisites
+
+- **Node.js** (for the frontend)
+- **Java 17** and **Maven** (for the backend; wrapper scripts `backend/mvnw` / `backend/mvnw.cmd` are included)
+- **PostgreSQL** with a database the app can use (see below)
+
+## Backend
+
+1. Create a database (default in config is `tourism_db` on `localhost:5432`).
+2. Set environment variables expected by `backend/src/main/resources/application.yml`:
+   - `DB_PASSWORD` — PostgreSQL password for the configured user (`postgres` in the checked-in defaults)
+   - `JWT_SIGNER_KEY` — secret used to sign access and refresh tokens
+
+3. From `backend/`:
+
+```bash
+./mvnw spring-boot:run
+```
+
+The API serves on the default Spring Boot port **8080** unless you override `server.port`. JPA is set to `ddl-auto: update` for development.
+
+### REST surface (high level)
+
+- `POST /api/v1/auth/login`, refresh, logout, introspect
+- `api/v1/users` — user management
+- `/api/v1/roles`, `/api/v1/permissions` — authorization model
+
+Controllers live under `backend/src/main/java/com/project/backend/modules/auth/controller/`.
+
+## Frontend
+
+1. Copy `frontend/.env.example` to `frontend/.env` and set variables as needed (Google Maps, optional Supabase).
+2. Install and run from `frontend/`:
 
 ```bash
 npm install
-npm run dev              # Vite dev server (frontend)
-npm run dev:backend      # Express API (default http://localhost:3001)
-npm run build            # Production build of the frontend
-npm run build:all        # Frontend + backend TypeScript build
+npm run dev
 ```
 
-Copy env files: `frontend/.env.example` → `frontend/.env`, `backend/.env.example` → `backend/.env` as needed.
+3. Production build:
 
----
+```bash
+npm run build
+```
+
+There is no root `package.json`; run npm commands inside `frontend/`.
 
 ## Product overview
 
-A comprehensive, interactive travel planning application with smart discovery, real-time collaboration workspace, budget management, and user profiles.
+The app targets a full trip lifecycle: find places, plan day-by-day timelines with maps, track spend and splits, and manage profile and sign-in. Much of the UI still relies on **mock data** (sample Vietnamese locations, trips, transactions) while the Spring API fills in real auth and user/role storage.
 
-## Features
+### Feature areas
 
-### 🗺️ Smart Discovery
-- Split-screen interface with interactive map and location cards
-- Advanced filtering system (Weather, Vibe, Budget)
-- Real-time search across locations
-- Beautiful location cards with images, ratings, and tags
-- Deep ocean blue (#0A4A6E) and vibrant orange (#FF6B35) color scheme
+- **Discovery** — Map + cards, filters (weather, vibe, budget), search.
+- **Workspace** — Drag-and-drop timeline, map, chat-style collaboration affordances, route hints and AI-suggestion placeholders.
+- **Budget** — Budget vs. actual, category breakdown, debt/settlement helpers, transaction history tied to the trip narrative.
+- **Profile & auth** — Account flows in the UI; backend supports credential-based auth and token lifecycle.
 
-### 📅 Real-time Workspace
-- Drag-and-drop timeline for daily itinerary planning
-- Three-column layout: Timeline + Interactive Map + Live Chat
-- Visual route planning with connected points on map
-- Transportation time indicators between locations
-- AI suggestion buttons for time gaps
-- Real-time collaboration indicators (editing states, online users)
-- Activity feed showing team member actions
+## Tech stack
 
-### 💰 Budget Management
-- Fintech-style dashboard design
-- Budget vs. Actual spending with circular progress
-- Debt settlement calculator showing who owes whom
-- Transaction history linked to timeline activities
-- Category breakdown with visualizations
-- Split bill functionality
-- Color-coded balance indicators (green/red)
+**Frontend:** React 18, TypeScript, Vite, React Router 7, React DnD, React Leaflet / Google Maps, Motion, Tailwind CSS v4, Radix UI, Lucide, Recharts, optional Supabase client.
 
-### 👤 User Profile & Authentication
-- Social login options (Google, Apple)
-- Email/password authentication
-- Travel preferences (pace, budget level, favorite categories)
-- Past trips gallery with cover photos
-- Customizable travel settings with sliders
+**Backend:** Spring Boot (Web, Security, OAuth2 resource server, JPA, WebSocket starter), PostgreSQL, MapStruct, Lombok.
 
-## Tech Stack
+## Routes (SPA)
 
-- **React 18** with TypeScript
-- **React Router 7** for navigation
-- **React DnD** for drag-and-drop functionality
-- **React Leaflet** for interactive maps
-- **Motion** for smooth animations
-- **Tailwind CSS v4** for styling
-- **Radix UI** components for accessible UI elements
-- **Lucide React** for icons
+| Path | Purpose |
+|------|---------|
+| `/` | Discovery |
+| `/workspace/:tripId` | Trip workspace |
+| `/budget/:tripId` | Budget |
+| `/profile` | Profile |
+| `/auth` | Login / signup |
 
-## Pages
+## What is integrated vs. planned
 
-- `/` - Discovery page with search, filters, and map
-- `/workspace/:tripId` - Trip planning workspace
-- `/budget/:tripId` - Budget management dashboard
-- `/profile` - User profile and preferences
-- `/auth` - Login and signup
+- **Today:** Rich client experience with mocks; Java API for users, roles, permissions, and JWT auth; PostgreSQL as the API database.
+- **Next steps:** Point the SPA at the Spring API for login and trip persistence, wire real-time collaboration to WebSocket or a managed service, and align optional Supabase usage with your deployment story (client-only vs. backend sync).
 
-## Mock Data
-
-The app uses mock data including sample locations in Vietnam (e.g. Hà Nội), trips, users, transactions, and timeline items.
-
-## Future Enhancements
-
-This app would greatly benefit from backend integration for:
-- Real-time collaboration features
-- Persistent trip storage
-- User authentication and authorization
-- Transaction history across devices
-- Shared trip planning with team members
-- Cloud-based photo storage for trips
-
-Consider integrating with Supabase for:
-- User authentication (social + email)
-- Real-time database for collaborative editing
-- File storage for trip photos
-- Row-level security for private trips
-- Real-time subscriptions for live updates
+For third-party and asset credits, see `ATTRIBUTIONS.md`.
