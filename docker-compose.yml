@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vj-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: tourism_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: vj-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --loglevel warning
+
+volumes:
+  postgres_data:
