@@ -26,6 +26,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import com.project.backend.modules.timeline.messaging.TimelineEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +38,7 @@ public class TimelineEventService {
     TimelineSecurityService timelineSecurityService;
     TimelineService timelineService;
     PlaceLookupService placeLookupService;
+    TimelineEventPublisher timelineEventPublisher;
 
     @Transactional(readOnly = true)
     @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
@@ -67,8 +70,10 @@ public class TimelineEventService {
         event = timelineEventRepository.save(event);
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), event.getId(), request.getOrderIndex());
-        return timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
+        TimelineEventResponse response = timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_EVENT_NOT_EXIST)));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_ADDED", response);
+        return response;
     }
 
     @Transactional
@@ -90,7 +95,9 @@ public class TimelineEventService {
         normalizeDay(timelineId, originalDay, null, null);
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
 
-        return timelineService.toEventResponse(event);
+        TimelineEventResponse response = timelineService.toEventResponse(event);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_MOVED", response);
+        return response;
     }
 
     @Transactional
@@ -113,7 +120,9 @@ public class TimelineEventService {
             normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, event.getOrderIndex());
         }
 
-        return timelineService.toEventResponse(event);
+        TimelineEventResponse response = timelineService.toEventResponse(event);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_RESIZED", response);
+        return response;
     }
 
     @Transactional
@@ -125,7 +134,9 @@ public class TimelineEventService {
         TimelineEvent event = getEventOrThrow(timelineId, eventId);
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
-        return timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
+        TimelineEventResponse response = timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_REORDERED", response);
+        return response;
     }
 
     @Transactional
@@ -138,6 +149,7 @@ public class TimelineEventService {
         LocalDate eventDay = event.getStartTime().toLocalDate();
         timelineEventRepository.delete(event);
         normalizeDay(timelineId, eventDay, null, null);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_DELETED", Map.of("eventId", eventId));
     }
 
     private TimelineEvent getEventOrThrow(String timelineId, String eventId) {
