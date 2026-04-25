@@ -10,6 +10,7 @@ import com.project.backend.modules.timeline.dto.response.TimelineEventResponse;
 import com.project.backend.modules.place.service.PlaceLookupService;
 import com.project.backend.modules.timeline.entity.Timeline;
 import com.project.backend.modules.timeline.entity.TimelineEvent;
+import com.project.backend.modules.timeline.event.TimelineChangeType;
 import com.project.backend.modules.timeline.enums.TimelineEventStatus;
 import com.project.backend.modules.timeline.enums.TimelineEventCategory;
 import com.project.backend.modules.timeline.repository.TimelineEventRepository;
@@ -67,6 +68,7 @@ public class TimelineEventService {
         event = timelineEventRepository.save(event);
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), event.getId(), request.getOrderIndex());
+        timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_ADDED);
         return timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_EVENT_NOT_EXIST)));
     }
@@ -89,6 +91,7 @@ public class TimelineEventService {
 
         normalizeDay(timelineId, originalDay, null, null);
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
+        timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_MOVED);
 
         return timelineService.toEventResponse(event);
     }
@@ -112,6 +115,7 @@ public class TimelineEventService {
         if (!originalDay.equals(event.getStartTime().toLocalDate())) {
             normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, event.getOrderIndex());
         }
+        timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_RESIZED);
 
         return timelineService.toEventResponse(event);
     }
@@ -125,6 +129,7 @@ public class TimelineEventService {
         TimelineEvent event = getEventOrThrow(timelineId, eventId);
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
+        timelineService.publishTimelineChangedEvent(event.getTimeline(), TimelineChangeType.EVENT_REORDERED);
         return timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
     }
 
@@ -136,8 +141,10 @@ public class TimelineEventService {
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_NOT_EXIST));
         TimelineEvent event = getEventOrThrow(timelineId, eventId);
         LocalDate eventDay = event.getStartTime().toLocalDate();
+        Timeline timeline = event.getTimeline();
         timelineEventRepository.delete(event);
         normalizeDay(timelineId, eventDay, null, null);
+        timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_DELETED);
     }
 
     private TimelineEvent getEventOrThrow(String timelineId, String eventId) {

@@ -15,6 +15,9 @@ import com.project.backend.modules.place.service.PlaceLookupService;
 import com.project.backend.modules.timeline.entity.Timeline;
 import com.project.backend.modules.timeline.entity.TimelineEvent;
 import com.project.backend.modules.timeline.entity.TimelineMember;
+import com.project.backend.modules.timeline.event.TimelineChangeType;
+import com.project.backend.modules.timeline.event.TimelineChangedEvent;
+import com.project.backend.modules.timeline.event.TimelineMemberInvitedEvent;
 import com.project.backend.modules.timeline.enums.TimelineMemberRole;
 import com.project.backend.modules.timeline.repository.TimelineEventRepository;
 import com.project.backend.modules.timeline.repository.TimelineMemberRepository;
@@ -22,6 +25,7 @@ import com.project.backend.modules.timeline.repository.TimelineRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +46,7 @@ public class TimelineService {
     UserRepository userRepository;
     TimelineSecurityService timelineSecurityService;
     PlaceLookupService placeLookupService;
+    ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
@@ -114,6 +120,7 @@ public class TimelineService {
         timeline.setStartDate(request.getStartDate());
         timeline.setEndDate(request.getEndDate());
         timeline.setVisibility(request.getVisibility());
+        publishTimelineChangedEvent(timeline, TimelineChangeType.TIMELINE_UPDATED);
 
         return getTimeline(timeline.getId());
     }
@@ -135,9 +142,20 @@ public class TimelineService {
                         .timeline(timeline)
                         .user(user)
                         .build());
+        boolean isNewMember = member.getId() == null;
         member.setRole(request.getRole());
+        TimelineMember savedMember = timelineMemberRepository.save(member);
+        if (isNewMember) {
+            applicationEventPublisher.publishEvent(TimelineMemberInvitedEvent.builder()
+                    .timelineId(timeline.getId())
+                    .timelineTitle(timeline.getTitle())
+                    .actorUsername(getCurrentUser().getUsername())
+                    .invitedUsername(user.getUsername())
+                    .role(savedMember.getRole())
+                    .build());
+        }
 
-        return toMemberResponse(timelineMemberRepository.save(member));
+        return toMemberResponse(savedMember);
     }
 
     @Transactional
@@ -192,6 +210,26 @@ public class TimelineService {
         if (hasOutsideEvent) {
             throw new AppException(ErrorCode.TIMELINE_EVENT_OUTSIDE_TIMELINE_RANGE);
         }
+    }
+
+    void publishTimelineChangedEvent(Timeline timeline, TimelineChangeType changeType) {
+        String actorUsername = timelineSecurityService.getCurrentUsername();
+        Set<String> recipientUsernames = timelineMemberRepository.findAllByTimelineIdOrderByCreatedAtAsc(timeline.getId()).stream()
+                .map(member -> member.getUser().getUsername())
+                .filter(username -> !username.equals(actorUsername))
+                .collect(java.util.stream.Collectors.toSet());
+
+        if (recipientUsernames.isEmpty()) {
+            return;
+        }
+
+        applicationEventPublisher.publishEvent(TimelineChangedEvent.builder()
+                .timelineId(timeline.getId())
+                .timelineTitle(timeline.getTitle())
+                .actorUsername(actorUsername)
+                .changeType(changeType)
+                .recipientUsernames(recipientUsernames)
+                .build());
     }
 
     private TimelineResponse toResponse(Timeline timeline, List<TimelineMember> members, List<TimelineEvent> events) {
