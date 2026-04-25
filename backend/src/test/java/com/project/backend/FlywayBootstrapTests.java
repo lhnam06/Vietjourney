@@ -36,6 +36,8 @@ class FlywayBootstrapTests {
         assertThat(tableExists("timelines")).isTrue();
         assertThat(tableExists("timeline_members")).isTrue();
         assertThat(tableExists("timeline_events")).isTrue();
+        assertThat(tableExists("notifications")).isTrue();
+        assertThat(tableExists("notification_preferences")).isTrue();
     }
 
     private boolean tableExists(String tableName) {
