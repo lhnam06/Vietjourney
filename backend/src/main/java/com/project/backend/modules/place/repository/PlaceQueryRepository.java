@@ -7,20 +7,13 @@ import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Repository
 @RequiredArgsConstructor
 public class PlaceQueryRepository {
 
-    private final EntityManager em;
-
-    // Project the same columns (with stable aliases) from every category table.
-    // Cast jsonb/int4range to text so Tuple mapping is consistent across drivers.
+    // Cast jsonb/int4range to text
     private static final String UNION_SELECT_TEMPLATE = """
             SELECT
               id,
@@ -31,51 +24,52 @@ public class PlaceQueryRepository {
               rating,
               latitude,
               longitude,
-              CAST(urls AS text)      AS images,
-              CAST(tags AS text)        AS tags,
+              CAST(urls AS text) AS images,
+              CAST(tags AS text) AS tags,
               CAST(price_range AS text) AS price_range
             FROM %s
             """;
-
     private static final Map<String, String> TABLE_MAP = Map.of(
             "food", "places_food",
             "drink", "places_drink",
             "activity", "places_activity"
     );
 
-    // Whitelist to prevent SQL injection via tag group keys.
+    // Whitelist
     private static final Set<String> ALLOWED_TAG_GROUPS = Set.of(
             "sub_category", "purpose", "service_style",
             "vibe", "amenity"
     );
 
+    private final EntityManager em;
     public List<Tuple> findByFilter(PlaceFilterRequest req) {
-        WhereClause w = buildWhere(req);
+        WhereClause whereClause = buildWhere(req);
 
-        String sql = buildFromClause(req.getCategory())
-                + w.sql()
-                + " ORDER BY p.rating DESC NULLS LAST"
-                + " LIMIT :limit OFFSET :offset";
+        String sql = new StringBuilder()
+                .append(buildFromClause(req.getCategory()))
+                .append(whereClause.sql())
+                .append(" ORDER BY p.rating DESC NULLS LAST")
+                .append(" LIMIT :limit OFFSET :offset")
+                .toString();
 
         Query query = em.createNativeQuery(sql, Tuple.class);
-        w.params().forEach(query::setParameter);
+        whereClause.params().forEach(query::setParameter);
         query.setParameter("limit", req.getSize());
         query.setParameter("offset", req.getPage() * req.getSize());
 
-        //noinspection unchecked
         return query.getResultList();
     }
 
     public long countByFilter(PlaceFilterRequest req) {
-        WhereClause w = buildWhere(req);
+        WhereClause whereClause = buildWhere(req);
 
         String sql = "SELECT COUNT(*) FROM ("
                 + buildUnionParts(req.getCategory())
                 + ") p"
-                + w.sql();
+                + whereClause.sql();
 
         Query query = em.createNativeQuery(sql);
-        w.params().forEach(query::setParameter);
+        whereClause.params().forEach(query::setParameter);
 
         return ((Number) query.getSingleResult()).longValue();
     }
@@ -96,7 +90,7 @@ public class PlaceQueryRepository {
             params.put("minRating", req.getMinRating());
         }
 
-        // price range overlap (inclusive bounds, typical UI expectation)
+        // price range overlap
         if (req.getMinPrice() != null || req.getMaxPrice() != null) {
             Integer minPrice = req.getMinPrice();
             Integer maxPrice = req.getMaxPrice();
@@ -114,7 +108,6 @@ public class PlaceQueryRepository {
         }
 
         // tags: AND across groups, OR within a group
-        // Example: p.tags->'sub_category' ?| CAST(:tagVals0 AS text[])
         if (req.getTags() != null) {
             int i = 0;
             for (Map.Entry<String, List<String>> entry : req.getTags().entrySet()) {
@@ -163,5 +156,6 @@ public class PlaceQueryRepository {
         return s != null && !s.isBlank();
     }
 
-    private record WhereClause(String sql, Map<String, Object> params) {}
+    private record WhereClause(String sql, Map<String, Object> params) {
+    }
 }
