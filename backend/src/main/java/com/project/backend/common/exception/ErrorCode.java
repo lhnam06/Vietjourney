@@ -14,6 +14,8 @@ public enum  ErrorCode {
     UNAUTHENTICATED(1002, "Incorrect Username or Password", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1003, "No Access Permission", HttpStatus.UNAUTHORIZED),
     USER_EXISTED(1004, "User already exists!", HttpStatus.BAD_REQUEST),
+    METHOD_NOT_ALLOWED(1005, "Method not allowed", HttpStatus.METHOD_NOT_ALLOWED),
+    INVALID_REQUEST_BODY(1006, "Invalid request body", HttpStatus.BAD_REQUEST),
 
     // Validation Regex Error
     INVALID_KEY(8888, "Invalid Message Key", HttpStatus.BAD_REQUEST),
@@ -39,6 +41,8 @@ public enum  ErrorCode {
 
     ROLE_NOT_EXIST(4002, "Role does not exist", HttpStatus.BAD_REQUEST),
     PLACE_NOT_EXIST(4003, "Place does not exist", HttpStatus.BAD_REQUEST),
+    INVALID_CATEGORY(4004, "Invalid category. Must be: food, drink or activity", HttpStatus.BAD_REQUEST),
+    INVALID_PRICE_RANGE(4005, "minPrice must be less than or equal to maxPrice", HttpStatus.BAD_REQUEST),
 
     TIMELINE_NOT_EXIST(5001, "Timeline does not exist", HttpStatus.NOT_FOUND),
     TIMELINE_EVENT_NOT_EXIST(5002, "Timeline event does not exist", HttpStatus.NOT_FOUND),

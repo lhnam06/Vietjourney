@@ -35,4 +35,5 @@ build/
 ### Custom Secrets & Environment Variables ###
 .env
 *.env
+.env.example
 
