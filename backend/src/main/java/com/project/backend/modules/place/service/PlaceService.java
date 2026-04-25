@@ -54,7 +54,7 @@ public class PlaceService {
             }
         }
 
-        // Clamp page/size để tránh abuse
+        // Page, size
         if (req.getPage() < 0) req.setPage(0);
         if (req.getSize() <= 0 || req.getSize() > 100) req.setSize(20);
 
