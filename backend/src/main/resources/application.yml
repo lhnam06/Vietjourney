@@ -3,10 +3,24 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    baseline-on-migrate: true
+    locations: classpath:db/migration
   jpa:
     hibernate:
       ddl-auto: none
     show-sql: true
+place:
+  datasource:
+    enabled: ${PLACE_DB_ENABLED:false}
+    url: ${PLACE_DB_URL:}
+    username: ${PLACE_DB_USERNAME:}
+    password: ${PLACE_DB_PASSWORD:}
+  lookup:
+    food-table: ${PLACE_DB_FOOD_TABLE:places_food}
+    drink-table: ${PLACE_DB_DRINK_TABLE:places_drink}
+    activity-table: ${PLACE_DB_ACTIVITY_TABLE:places_activity}
+    id-column: ${PLACE_DB_ID_COLUMN:id}
 
 jwt:
   signer_key: ${JWT_SIGNER_KEY}
