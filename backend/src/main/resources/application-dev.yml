@@ -5,13 +5,13 @@ spring:
     password:
     driver-class-name: org.h2.Driver
   flyway:
-    enabled: false
+    enabled: true
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
 
 jwt:
-  signer_key: ${JWT_SIGNER_KEY}
+  signer_key: ${JWT_SIGNER_KEY:dev-signer-key-with-sufficient-length-for-hs512-0123456789}
   valid_duration: 36000
   refreshable_duration: 604800
