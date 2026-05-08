@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:flyway-bootstrap;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+
+place:
+  datasource:
+    enabled: false
+
+jwt:
+  signer_key: flyway-test-signer-key-that-is-long-enough-for-hs512-0123456789
