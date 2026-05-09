@@ -1,4 +1,6 @@
 spring:
+  main:
+    lazy-initialization: true
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -9,9 +11,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
 server:
   port: ${PORT:8080}
+  address: 0.0.0.0
 place:
   datasource:
     enabled: ${PLACE_DB_ENABLED:false}
