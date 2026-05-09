@@ -41,6 +41,11 @@ The API serves on the default Spring Boot port **8080** unless you override `ser
 
 Controllers live under `backend/src/main/java/com/project/backend/modules/auth/controller/`.
 
+### Places catalog (Discovery)
+
+- **`POST /api/v1/places/filter`** — public (no JWT). Request body supports optional `category` (`food` \| `drink` \| `activity`), `district`, tags, price and rating bounds, plus `page` / `size`.
+- The Spring app runs these queries against the **primary datasource** (`spring.datasource`), expecting tables such as **`places_food`**, **`places_drink`**, **`places_activity`** (PostgreSQL-oriented SQL: JSONB + `int4range`). Profile **`dev`** uses in-memory **H2**: if those tables do not exist locally, the Discovery client falls back to HCMC sample data while the API stays up for auth and timelines.
+
 ## Frontend
 
 1. Copy `frontend/.env.example` to `frontend/.env` and set variables as needed (Google Maps, optional Supabase).
