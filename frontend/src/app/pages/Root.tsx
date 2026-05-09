@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { useAuth } from '../context/AuthContext';
+import { getLastTripId } from '../lib/tripStorage';
 import logoUrl from '../../../photos/Vietjourney_logo.png';
 
 function initialsFromDisplay(name: string) {
@@ -24,9 +25,24 @@ export default function Root() {
   const navigate = useNavigate();
   const { user, isAuthenticated, signOut } = useAuth();
   
-  const navItems = [
-    { path: '/', label: 'Khám Phá' },
-    { path: '/workspace/trip-1', label: 'Chuyến Đi Của Tôi' },
+  const lastTripId = getLastTripId();
+  const navItems: {
+    path: string;
+    label: string;
+    disabled?: boolean;
+    isActive?: (pathname: string) => boolean;
+  }[] = [
+    { path: '/', label: 'Khám Phá', isActive: (p) => p === '/' },
+    {
+      path: `/workspace/${lastTripId}`,
+      label: 'Chuyến Đi Của Tôi',
+      isActive: (p) => p.startsWith('/workspace/'),
+    },
+    {
+      path: `/timetable/${lastTripId}`,
+      label: 'Thời khoá biểu',
+      isActive: (p) => p.startsWith('/timetable/'),
+    },
     { path: '/community', label: 'Cộng Đồng', disabled: true },
   ];
 
@@ -52,9 +68,11 @@ export default function Root() {
           <nav className="flex items-center gap-8">
             {navItems.map((item) => {
               const isActive =
-                item.path === '/'
-                  ? location.pathname === '/'
-                  : location.pathname.startsWith(item.path);
+                item.disabled
+                  ? false
+                  : item.isActive
+                    ? item.isActive(location.pathname)
+                    : location.pathname.startsWith(item.path);
 
               const base =
                 'relative text-sm font-semibold transition-colors';

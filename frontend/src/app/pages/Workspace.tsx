@@ -4,13 +4,14 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
   Bike,
   ChevronDown,
+  CalendarRange,
   Clock,
   GripVertical,
   MoreHorizontal,
   Navigation,
   Plus,
 } from 'lucide-react';
-import { useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -26,6 +27,7 @@ import { Button as UIButton } from '../components/ui/button';
 export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
+  const [searchParams] = useSearchParams();
   const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
 
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(() => {
@@ -116,6 +118,13 @@ export default function Workspace() {
   useEffect(() => {
     if (!dates.includes(selectedDate)) setSelectedDate(dates[0]);
   }, [dates, selectedDate]);
+
+  useEffect(() => {
+    const d = searchParams.get('date');
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && dates.includes(d)) {
+      setSelectedDate(d);
+    }
+  }, [searchParams, dates]);
 
   const visibleTimelineItems = useMemo(
     () => timelineItems.filter((t) => t.date === selectedDate),
@@ -279,7 +288,13 @@ export default function Workspace() {
                   })}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  <Button size="sm" variant="outline" className="h-8 bg-white/10 border-white/25 text-white hover:bg-white/15" asChild>
+                    <Link to={`/timetable/${tripId}`}>
+                      <CalendarRange className="w-4 h-4 mr-1.5" />
+                      Thời khoá biểu
+                    </Link>
+                  </Button>
                   <Button
                     size="sm"
                     className="h-8 bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white shadow-sm"
@@ -400,7 +415,7 @@ export default function Workspace() {
           </div>
 
           <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-3 shadow-lg border border-slate-200">
-            <p className="text-xs font-semibold text-[#0A4A6E]">🗺️ Hà Nội, Việt Nam</p>
+            <p className="text-xs font-semibold text-[#0A4A6E]">🗺️ {trip.destination}</p>
           </div>
 
           <SimpleMap
