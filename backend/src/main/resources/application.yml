@@ -10,6 +10,8 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: true
+server:
+  port: ${PORT:8080}
 place:
   datasource:
     enabled: ${PLACE_DB_ENABLED:false}
