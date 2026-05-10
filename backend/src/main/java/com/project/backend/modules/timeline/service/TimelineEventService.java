@@ -37,6 +37,7 @@ public class TimelineEventService {
     TimelineSecurityService timelineSecurityService;
     TimelineService timelineService;
     PlaceLookupService placeLookupService;
+    com.project.backend.modules.timeline.messaging.TimelineEventPublisher timelineEventPublisher;
 
     @Transactional(readOnly = true)
     @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
@@ -69,8 +70,10 @@ public class TimelineEventService {
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), event.getId(), request.getOrderIndex());
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_ADDED);
-        return timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
+        TimelineEventResponse response = timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_EVENT_NOT_EXIST)));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_ADDED", response);
+        return response;
     }
 
     @Transactional
@@ -93,7 +96,9 @@ public class TimelineEventService {
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_MOVED);
 
-        return timelineService.toEventResponse(event);
+        TimelineEventResponse response = timelineService.toEventResponse(event);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_MOVED", response);
+        return response;
     }
 
     @Transactional
@@ -117,7 +122,9 @@ public class TimelineEventService {
         }
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_RESIZED);
 
-        return timelineService.toEventResponse(event);
+        TimelineEventResponse response = timelineService.toEventResponse(event);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_RESIZED", response);
+        return response;
     }
 
     @Transactional
@@ -130,7 +137,9 @@ public class TimelineEventService {
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
         timelineService.publishTimelineChangedEvent(event.getTimeline(), TimelineChangeType.EVENT_REORDERED);
-        return timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
+        TimelineEventResponse response = timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_REORDERED", response);
+        return response;
     }
 
     @Transactional
@@ -145,6 +154,7 @@ public class TimelineEventService {
         timelineEventRepository.delete(event);
         normalizeDay(timelineId, eventDay, null, null);
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_DELETED);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_DELETED", java.util.Map.of("eventId", eventId));
     }
 
     private TimelineEvent getEventOrThrow(String timelineId, String eventId) {

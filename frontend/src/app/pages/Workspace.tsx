@@ -23,11 +23,23 @@ import { deleteTimelineItem, loadTripData, setLastTripId, upsertTimelineItem } f
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Button as UIButton } from '../components/ui/button';
+import { useTimelineSocket } from '../hooks/useTimelineSocket';
+import { useAuth } from '../context/AuthContext';
 
 export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const { lastMessage } = useTimelineSocket(tripId, user?.token ?? "dummy_token");
+
+  useEffect(() => {
+    if (lastMessage) {
+      console.log("[Workspace] Real-time event received:", lastMessage);
+      // In a full implementation, we would update the timelineItems state here
+      // while avoiding echo-loops from our own actions.
+    }
+  }, [lastMessage]);
   const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
 
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(() => {
