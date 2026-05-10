@@ -1,100 +1,131 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader } from '@googlemaps/js-api-loader';
+import { useEffect, useRef, useState } from 'react';
+import { importLibrary } from '@googlemaps/js-api-loader';
 import type { Location } from '../data/mockData';
 
 type LatLng = [number, number];
 
+declare global {
+  interface Window {
+    gm_authFailure?: () => void;
+  }
+}
+
 interface GoogleMapViewProps {
-  apiKey: string;
+  mapId?: string;
   locations: Location[];
   center?: LatLng;
+  userLocation?: LatLng;
   showRoute?: boolean;
   routeCoordinates?: LatLng[];
 }
 
 export default function GoogleMapView({
-  apiKey,
+  mapId,
   locations,
   center = [21.0285, 105.8542],
+  userLocation,
   showRoute = false,
   routeCoordinates = [],
 }: GoogleMapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const [ready, setReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
-  const loader = useMemo(() => {
-    return new Loader({
-      apiKey,
-      version: 'weekly',
-      libraries: ['marker'],
-    });
-  }, [apiKey]);
+  useEffect(() => {
+    const prevGmAuthFailure = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      prevGmAuthFailure?.();
+      setMapError('Google Maps từ chối yêu cầu. Kiểm tra API key, billing và HTTP referrer trong Google Cloud.');
+    };
+    return () => {
+      window.gm_authFailure = prevGmAuthFailure;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
+      setMapError(null);
       if (!containerRef.current) return;
       if (mapRef.current) return;
 
-      await loader.load();
-      if (cancelled) return;
+      try {
+        await importLibrary('maps');
+      } catch (e) {
+        if (!cancelled) {
+          setMapError(e instanceof Error ? e.message : 'Không tải được thư viện Google Maps.');
+        }
+        return;
+      }
 
-      mapRef.current = new google.maps.Map(containerRef.current, {
-        center: { lat: center[0], lng: center[1] },
-        zoom: 13,
-        mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false,
-        clickableIcons: false,
-      });
+      if (cancelled || !containerRef.current) return;
+
+      try {
+        mapRef.current = new google.maps.Map(containerRef.current, {
+          ...(mapId ? { mapId } : {}),
+          center: { lat: center[0], lng: center[1] },
+          zoom: 13,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false,
+          clickableIcons: false,
+        });
+      } catch (e) {
+        if (!cancelled) {
+          setMapError(e instanceof Error ? e.message : 'Không khởi tạo được bản đồ.');
+        }
+        return;
+      }
 
       setReady(true);
     }
 
-    init();
+    void init();
     return () => {
       cancelled = true;
+      markersRef.current.forEach((m) => m.setMap(null));
+      markersRef.current = [];
+      userMarkerRef.current?.setMap(null);
+      userMarkerRef.current = null;
+      polylineRef.current?.setMap(null);
+      polylineRef.current = null;
+      mapRef.current = null;
+      if (containerRef.current) containerRef.current.innerHTML = '';
+      setReady(false);
     };
-  }, [center, loader]);
+  }, [mapId]);
 
-  // Keep markers in sync
   useEffect(() => {
     if (!ready || !mapRef.current) return;
 
-    // Clear old markers
-    markersRef.current.forEach((m) => (m.map = null));
+    markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
     locations.forEach((loc, idx) => {
-      const el = document.createElement('div');
-      el.style.width = '28px';
-      el.style.height = '28px';
-      el.style.borderRadius = '999px';
-      el.style.background = '#ff6b35';
-      el.style.border = '3px solid white';
-      el.style.boxShadow = '0 8px 18px rgba(0,0,0,.18)';
-      el.style.display = 'flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      el.style.color = 'white';
-      el.style.fontWeight = '700';
-      el.style.fontSize = '12px';
-      el.textContent = showRoute ? String(idx + 1) : '';
+      if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
 
-      const marker = new google.maps.marker.AdvancedMarkerElement({
+      const marker = new google.maps.Marker({
         map: mapRef.current!,
         position: { lat: loc.lat, lng: loc.lng },
         title: loc.name,
-        content: el,
+        label: showRoute ? String(idx + 1) : undefined,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#ff6b35',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3,
+          scale: 9,
+        },
       });
       markersRef.current.push(marker);
     });
 
-    // Fit bounds when we have markers
     if (locations.length > 1) {
       const bounds = new google.maps.LatLngBounds();
       locations.forEach((l) => bounds.extend({ lat: l.lat, lng: l.lng }));
@@ -108,15 +139,35 @@ export default function GoogleMapView({
     }
   }, [center, locations, ready, showRoute]);
 
-  // Route polyline
   useEffect(() => {
     if (!ready || !mapRef.current) return;
 
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
-    }
+    userMarkerRef.current?.setMap(null);
+    userMarkerRef.current = null;
+    if (!userLocation) return;
+    if (!Number.isFinite(userLocation[0]) || !Number.isFinite(userLocation[1])) return;
 
+    userMarkerRef.current = new google.maps.Marker({
+      map: mapRef.current,
+      position: { lat: userLocation[0], lng: userLocation[1] },
+      title: 'Bạn đang ở đây',
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: '#2563eb',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 3,
+        scale: 7,
+      },
+      zIndex: 999,
+    });
+  }, [ready, userLocation]);
+
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+
+    polylineRef.current?.setMap(null);
+    polylineRef.current = null;
     if (!showRoute || routeCoordinates.length < 2) return;
 
     polylineRef.current = new google.maps.Polyline({
@@ -135,6 +186,15 @@ export default function GoogleMapView({
     });
   }, [ready, routeCoordinates, showRoute]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <div className="relative w-full h-full">
+      <div ref={containerRef} className="w-full h-full" />
+      {mapError ? (
+        <div className="pointer-events-none absolute inset-x-4 top-4 z-10 rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow">
+          <p className="font-semibold">Không tải được Google Maps</p>
+          <p className="mt-0.5 leading-relaxed">{mapError}</p>
+        </div>
+      ) : null}
+    </div>
+  );
 }
-

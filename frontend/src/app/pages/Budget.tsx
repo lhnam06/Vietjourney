@@ -58,26 +58,34 @@ export default function Budget() {
   }, [transactions]);
 
   return (
-    <div className="h-screen bg-[var(--vj-bg)] overflow-hidden">
+    <div className="h-full bg-[var(--vj-bg)] overflow-hidden">
       <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)] p-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)] px-6 py-5">
+          <div className="max-w-[1440px] mx-auto w-full flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-1">QUẢN LÝ NGÂN SÁCH</h1>
-              <p className="text-white/80">{trip.name}</p>
+              <h1 className="text-3xl font-bold text-white mb-1 tracking-tight">Quản Lý Ngân Sách</h1>
+              <p className="text-white/85">{trip.name}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium text-white/90">
+                <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1">
+                  {users.length} thành viên
+                </span>
+                <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1">
+                  {transactions.length} giao dịch
+                </span>
+              </div>
             </div>
-            <Button className="bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] shadow-lg text-white font-medium">
+            <Button className="bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] shadow-lg text-white font-medium rounded-full px-5">
               <Plus className="w-4 h-4 mr-2" />
               Chia Tiền
             </Button>
           </div>
         </div>
 
-        <ScrollArea className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <ScrollArea className="flex-1">
+          <div className="max-w-[1440px] mx-auto p-4 lg:p-6 space-y-5">
             {/* Budget Summary Card - NGÂN SÁCH */}
-            <Card className="p-6 bg-gradient-to-br from-[var(--vj-primary)] to-[var(--vj-primary-2)] text-white shadow-xl border border-[var(--vj-border)]">
+            <Card className="p-6 bg-gradient-to-br from-[var(--vj-primary)] to-[var(--vj-primary-2)] text-white shadow-xl border border-[var(--vj-border)] rounded-2xl">
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <p className="text-sm text-white/80 mb-1 uppercase tracking-wide">Tổng Ngân Sách</p>
@@ -109,15 +117,15 @@ export default function Budget() {
             </Card>
 
             {/* Debt Settlement Section - CHIA TIỀN */}
-            <Card className="p-6 shadow-lg">
-              <div className="flex items-center justify-between mb-6">
+            <Card className="p-6 shadow-lg rounded-2xl">
+              <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#0A4A6E]" />
-                  <h2 className="text-xl font-bold text-[#0A4A6E]">CHIA TIỀN</h2>
+                  <h2 className="text-xl font-bold text-[#0A4A6E]">Chia Tiền</h2>
                 </div>
                 <Button 
                   variant="outline" 
-                  className="border-[#FF6B35] text-[#FF6B35] hover:bg-[#FF6B35]/10"
+                  className="border-[#FF6B35] text-[#FF6B35] hover:bg-[#FF6B35]/10 rounded-full"
                   size="sm"
                 >
                   <QrCode className="w-4 h-4 mr-2" />
@@ -131,7 +139,7 @@ export default function Budget() {
                   const isPositive = balance > 0;
                   
                   return (
-                    <Card key={user.id} className={`p-5 ${isPositive ? 'bg-green-50 border-green-200 border-2' : balance < 0 ? 'bg-red-50 border-red-200 border-2' : 'bg-slate-50'}`}>
+                    <Card key={user.id} className={`p-5 rounded-xl ${isPositive ? 'bg-green-50 border-green-200 border-2' : balance < 0 ? 'bg-red-50 border-red-200 border-2' : 'bg-slate-50 border border-slate-200'}`}>
                       <div className="flex items-center gap-3 mb-4">
                         <Avatar className="w-12 h-12 ring-2 ring-white">
                           <AvatarImage src={user.avatar} />
@@ -183,10 +191,10 @@ export default function Budget() {
             </Card>
 
             {/* Category Breakdown */}
-            <Card className="p-6 shadow-lg">
-              <div className="flex items-center gap-2 mb-6">
+            <Card className="p-6 shadow-lg rounded-2xl">
+              <div className="flex items-center gap-2 mb-5">
                 <TrendingUp className="w-5 h-5 text-[#0A4A6E]" />
-                <h2 className="text-xl font-bold text-[#0A4A6E]">PHÂN LOẠI CHI PHÍ</h2>
+                <h2 className="text-xl font-bold text-[#0A4A6E]">Phân Loại Chi Phí</h2>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -209,11 +217,11 @@ export default function Budget() {
             </Card>
 
             {/* Transactions List - LỊCH SỬ GIAO DỊCH */}
-            <Card className="p-6 shadow-lg">
-              <div className="flex items-center justify-between mb-6">
+            <Card className="p-6 shadow-lg rounded-2xl">
+              <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-[#0A4A6E]" />
-                  <h2 className="text-xl font-bold text-[#0A4A6E]">LỊCH SỬ GIAO DỊCH</h2>
+                  <h2 className="text-xl font-bold text-[#0A4A6E]">Lịch Sử Giao Dịch</h2>
                 </div>
                 <Badge className="bg-[#FF6B35]/10 text-[#FF6B35] hover:bg-[#FF6B35]/20">
                   {transactions.length} giao dịch
@@ -228,7 +236,7 @@ export default function Budget() {
                   return (
                     <div
                       key={transaction.id}
-                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-slate-50 to-white rounded-xl hover:shadow-md transition-all border border-slate-100"
+                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-slate-50 to-white rounded-xl hover:shadow-md transition-all border border-slate-200"
                     >
                       <Avatar className="w-10 h-10 ring-2 ring-slate-200">
                         <AvatarImage src={payer.avatar} />
@@ -263,16 +271,6 @@ export default function Budget() {
             </Card>
           </div>
         </ScrollArea>
-      </div>
-
-      {/* Floating Action Button */}
-      <div className="fixed bottom-8 right-8">
-        <Button
-          size="lg"
-          className="rounded-full shadow-2xl bg-[#FF6B35] hover:bg-[#ff7d4d] h-16 w-16 p-0"
-        >
-          <Plus className="w-8 h-8" />
-        </Button>
       </div>
     </div>
   );
