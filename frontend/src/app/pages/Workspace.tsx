@@ -233,14 +233,17 @@ export default function Workspace() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full bg-[var(--vj-bg)]">
-        <div className="h-full max-w-[1400px] mx-auto w-full p-4 flex flex-col lg:flex-row gap-4 min-h-0">
+        <div className="h-full max-w-[1440px] mx-auto w-full p-4 lg:p-6 flex flex-col lg:flex-row gap-5 min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
-          <div className="w-full lg:w-[520px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
+          <div className="w-full lg:w-[540px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
           {/* Sticky header */}
           <div className="sticky top-0 z-20 border-b border-[var(--vj-border)] bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
-            <div className="p-4">
+            <div className="p-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">LỊCH TRÌNH CHUYẾN ĐI</h2>
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Lịch Trình Chuyến Đi</h2>
+                  <p className="mt-1 text-xs text-white/80">{trip.name}</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -264,7 +267,7 @@ export default function Workspace() {
               </div>
               
               {/* Online Users */}
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-2 mt-4">
                 <div className="flex -space-x-2">
                   {onlineUsers.map((user) => (
                     <Avatar key={user.id} className="w-8 h-8 border-2 border-white ring-2 ring-green-400">
@@ -274,11 +277,14 @@ export default function Workspace() {
                   ))}
                 </div>
                 <span className="text-sm text-white/90">{onlineUsers.length} đang hoạt động</span>
+                <span className="text-[11px] rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-white/85">
+                  {visibleTimelineItems.length} hoạt động hôm nay
+                </span>
               </div>
             </div>
 
             {/* Day switcher + hints */}
-            <div className="px-4 pb-4">
+            <div className="px-5 pb-5">
               <div className="flex items-center justify-between gap-3">
                 <div className="inline-flex rounded-xl bg-white/10 border border-white/15 p-1 overflow-hidden">
                   {dates.map((d) => {
@@ -332,8 +338,8 @@ export default function Workspace() {
           </div>
 
           {/* Timeline Items */}
-          <ScrollArea className="flex-1 min-h-0 p-4 bg-[var(--vj-primary)]">
-            <div className="space-y-3">
+          <ScrollArea className="flex-1 min-h-0 p-5 bg-[var(--vj-primary)]">
+            <div className="space-y-4">
               {visibleTimelineItems.length === 0 && (
                 <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-white/90">
                   <div className="font-extrabold">Chưa có hoạt động cho ngày này</div>
@@ -381,7 +387,7 @@ export default function Workspace() {
 
                     {/* Transportation Widget */}
                     {index < visibleTimelineItems.length - 1 && (
-                      <div className="flex items-center justify-center gap-3 my-3 ml-14">
+                      <div className="flex items-center justify-center gap-3 my-3 sm:ml-14">
                         <div className="flex items-center gap-2 text-xs text-white/90 bg-white/10 px-4 py-2 rounded-2xl border border-white/15 shadow-sm">
                           <TransportIcon className="w-4 h-4 text-white/90" />
                           <div className="leading-tight">
@@ -398,9 +404,12 @@ export default function Workspace() {
           </ScrollArea>
 
           {/* Add Activity Button */}
-          <div className="p-4 border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
-            <Button className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium">
-              + Thêm Hoạt Động
+          <div className="p-5 border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
+            <Button
+              className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium rounded-xl h-11"
+              onClick={() => addQuickActivity()}
+            >
+              + Thêm Hoạt Động Mới
             </Button>
           </div>
           </div>
@@ -409,9 +418,9 @@ export default function Workspace() {
           <div className="flex-1 relative rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-[360px] lg:min-h-0">
           {/* Panel title like reference */}
           <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-slate-200">
-            <h2 className="text-sm font-bold text-[#0b5d55]">BẢN ĐỒ LỘ TRÌNH</h2>
+            <h2 className="text-sm font-bold text-[#0b5d55]">Bản Đồ Lộ Trình</h2>
           </div>
-          <div className="absolute top-16 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200">
+          <div className="absolute top-16 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 min-w-[220px]">
             <h3 className="font-bold text-sm text-[#0A4A6E] mb-2">Lộ Trình Tự Động</h3>
             <div className="flex items-center gap-3 text-xs text-slate-600">
               <div className="flex items-center gap-1">
@@ -428,6 +437,7 @@ export default function Workspace() {
 
           <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-3 shadow-lg border border-slate-200">
             <p className="text-xs font-semibold text-[#0A4A6E]">🗺️ {trip.destination}</p>
+            <p className="text-[11px] text-slate-500 mt-1">Tối ưu thứ tự di chuyển theo ngày đang chọn</p>
           </div>
 
           <SimpleMap

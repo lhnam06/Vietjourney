@@ -12,9 +12,27 @@ type LatLng = [number, number];
 interface LeafletMapViewProps {
   locations: Location[];
   center?: LatLng;
+  userLocation?: LatLng;
   showRoute?: boolean;
   routeCoordinates?: LatLng[];
 }
+
+const defaultMarkerIcon = L.icon({
+  iconUrl,
+  iconRetinaUrl,
+  shadowUrl,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+const userMarkerIcon = L.divIcon({
+  className: 'vj-user-marker',
+  html: '<div style="width:14px;height:14px;border-radius:50%;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,.25)"></div>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
 
 const formatVND = (amount: number) => {
   if (amount === 0) return 'Miễn phí';
@@ -28,7 +46,13 @@ const formatVND = (amount: number) => {
     .replace(/\s?VND$/, ' VND');
 };
 
-function FitBounds({ points, fallbackCenter }: { points: LatLng[]; fallbackCenter: LatLng }) {
+function FitBounds({
+  points,
+  fallbackCenter,
+}: {
+  points: LatLng[];
+  fallbackCenter: LatLng;
+}) {
   const map = useMap();
 
   useEffect(() => {
@@ -48,25 +72,18 @@ function FitBounds({ points, fallbackCenter }: { points: LatLng[]; fallbackCente
   return null;
 }
 
-const defaultMarkerIcon = L.icon({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-
 export default function LeafletMapView({
   locations,
   center = [21.0285, 105.8542],
+  userLocation,
   showRoute = false,
   routeCoordinates = [],
 }: LeafletMapViewProps) {
   const points = useMemo<LatLng[]>(() => {
     if (showRoute && routeCoordinates.length) return routeCoordinates;
-    return locations.map((l) => [l.lat, l.lng]);
+    return locations
+      .map((l) => [l.lat, l.lng] as LatLng)
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
   }, [locations, routeCoordinates, showRoute]);
 
   const polyline = useMemo(() => {
@@ -81,7 +98,7 @@ export default function LeafletMapView({
       zoom={13}
       zoomControl={true}
       scrollWheelZoom={true}
-      className="w-full h-full"
+      className="h-full w-full"
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -101,12 +118,12 @@ export default function LeafletMapView({
         <Marker key={loc.id} position={{ lat: loc.lat, lng: loc.lng }} icon={defaultMarkerIcon}>
           <Popup>
             <div style={{ minWidth: 180 }}>
-              <div style={{ fontWeight: 800, marginBottom: 4 }}>
+              <div style={{ marginBottom: 4, fontWeight: 800 }}>
                 {showRoute ? `${idx + 1}. ` : ''}
                 {loc.name}
               </div>
-              <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 8 }}>{loc.description}</div>
-              <div style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.85 }}>{loc.description}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                 <span>⭐ {loc.rating}</span>
                 <span style={{ opacity: 0.4 }}>•</span>
                 <span style={{ color: '#FF6B35', fontWeight: 800 }}>{formatVND(loc.price)}</span>
@@ -115,7 +132,12 @@ export default function LeafletMapView({
           </Popup>
         </Marker>
       ))}
+
+      {userLocation && Number.isFinite(userLocation[0]) && Number.isFinite(userLocation[1]) ? (
+        <Marker position={{ lat: userLocation[0], lng: userLocation[1] }} icon={userMarkerIcon}>
+          <Popup>Bạn đang ở đây</Popup>
+        </Marker>
+      ) : null}
     </MapContainer>
   );
 }
-
