@@ -28,12 +28,81 @@ function flattenTags(tags?: Record<string, string[]> | null): string[] {
     .filter(Boolean);
 }
 
+function stablePlaceId(p: RecommendedPlace): string {
+  const rawId = typeof p.id === 'string' ? p.id.trim() : '';
+  if (rawId) return rawId;
+  const name = (p.name ?? 'unknown').trim().toLowerCase().replace(/\s+/g, '-');
+  const category = (p.category ?? 'place').trim().toLowerCase();
+  const lat = Number.isFinite(p.latitude as number) ? Number(p.latitude).toFixed(5) : 'na';
+  const lng = Number.isFinite(p.longitude as number) ? Number(p.longitude).toFixed(5) : 'na';
+  return `${category}:${name}:${lat}:${lng}`;
+}
+
 function budgetFromPrice(max?: number | null, min?: number | null): Location['budget'] {
   const p = max ?? min ?? 0;
   if (p <= 0) return '$';
   if (p <= 100_000) return '$';
   if (p <= 350_000) return '$$';
   return '$$$';
+}
+
+/** Derive Discovery filters from structured tag JSON returned by the API (no backend changes). */
+const TAG_GROUPS_FOR_HAYSTACK = new Set(['sub_category', 'purpose', 'service_style', 'vibe', 'amenity']);
+
+function inferWeatherFromTags(tags?: Record<string, string[]> | null): Location['weather'] {
+  if (!tags) return 'both';
+
+  const blob = [...(tags.amenity ?? []), ...(tags.purpose ?? []), ...(tags.service_style ?? []), ...(tags.sub_category ?? [])]
+    .join(' ')
+    .toLowerCase();
+
+  const outdoor = /\b(rooftop|alfresco|courtyard|garden|patio|terrace|beach(?:side)?|outdoor|open-?air|beer garden|ngoài trời|sân thượng|ban công|vườn|bia hơi)\b/.test(blob);
+  const indoor = /\b(indoor|enclosed|climate controlled|\bmall\b|trong nhà|\bđiều hòa|máy lạnh)\b/.test(blob);
+
+  if (indoor && outdoor) return 'both';
+  if (outdoor) return 'outdoor';
+  if (indoor) return 'indoor';
+  return 'both';
+}
+
+function inferVibeFromTags(tags?: Record<string, string[]> | null): Location['vibe'] {
+  if (!tags) return 'moderate';
+
+  const direct = [...(tags.vibe ?? [])].map((s) => s.trim().toLowerCase()).filter(Boolean);
+  for (const s of direct) {
+    if (/(moderate|balanced|neutral|mixed|phổ\s*biến|cân\s*bằng)/.test(s)) return 'moderate';
+    if (/(quiet|calm|cozy|serene|yên\s*tĩnh|thư giãn|thiền|nhẹ\s*nhàng)/.test(s)) return 'quiet';
+    if (/(vibrant|lively|energetic|busy|noisy|night|karaoke|\bdj\b|sôi\s*động|ốn\s*ào)/.test(s)) return 'vibrant';
+  }
+
+  const haystack = Object.entries(tags)
+    .flatMap(([k, vs]) => (TAG_GROUPS_FOR_HAYSTACK.has(k) ? vs : []))
+    .join(' ')
+    .toLowerCase();
+
+  if (!haystack.trim()) return 'moderate';
+
+  const quietHints = /\b(quiet|calm|peaceful|serene|intimate|\bcozy\b|study cafe|yên tĩnh|thiền|nhẹ nhàng|reading room|book\s*cafe)\b/i.test(haystack);
+  const vibrantHints =
+    /\b(vibrant|lively|bustling|energetic|nightlife|\bclub\b|\bdj\b|karaoke|crowded|\bbar\b hop|đêm\s*muộn|sôi động|ồn ào|náo nhiệt|live\s+music|pub crawl)\b/i.test(haystack);
+
+  if (quietHints && vibrantHints) return 'moderate';
+  if (quietHints) return 'quiet';
+  if (vibrantHints) return 'vibrant';
+  return 'moderate';
+}
+
+/** Plain-text slice for Discovery search bar (flattened labels + grouped tags). */
+export function locationSearchText(location: Location): string {
+  const parts: string[] = [location.name, location.description];
+  parts.push(...location.tags);
+  const grouped = location.recommendation?.tags;
+  if (grouped) {
+    for (const [k, vs] of Object.entries(grouped)) {
+      parts.push(k, ...vs);
+    }
+  }
+  return parts.join(' ').trim().toLowerCase();
 }
 
 /** Map UI mock / legacy location to a valid backend category. */
@@ -67,7 +136,7 @@ export function recommendedPlaceToLocation(p: RecommendedPlace): Location {
   const lat = p.latitude ?? HCMC_CENTER[0];
   const lng = p.longitude ?? HCMC_CENTER[1];
   return {
-    id: p.id,
+    id: stablePlaceId(p),
     name: p.name,
     description: p.address?.trim() ? p.address : 'Địa điểm được đề xuất',
     image: p.images?.[0] ?? PLACEHOLDER_IMAGE,
@@ -76,8 +145,8 @@ export function recommendedPlaceToLocation(p: RecommendedPlace): Location {
     price: p.maxPrice ?? p.minPrice ?? 0,
     rating: p.rating ?? 0,
     tags: tagList.length ? tagList : [p.category],
-    weather: 'both',
-    vibe: 'moderate',
+    weather: inferWeatherFromTags(p.tags),
+    vibe: inferVibeFromTags(p.tags),
     budget: budgetFromPrice(p.maxPrice, p.minPrice),
     duration: 90,
     recommendation: {
