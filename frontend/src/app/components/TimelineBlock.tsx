@@ -4,6 +4,7 @@ import { Clock, Coffee, GripVertical, Landmark, MapPin, MoreVertical, Trash2, Co
 import { Card } from './ui/card';
 import { TimelineItem, Location } from '../data/mockData';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { onLocationImageError } from '../lib/imagePlaceholder';
 
 interface TimelineBlockProps {
   index: number;
@@ -114,6 +115,10 @@ export default function TimelineBlock({
                 src={location.image}
                 alt={location.name}
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="strict-origin-when-cross-origin"
+                onError={onLocationImageError}
               />
               <div className="absolute bottom-1 right-1 w-7 h-7 rounded-lg bg-white/95 shadow flex items-center justify-center border border-slate-200">
                 {(() => {
