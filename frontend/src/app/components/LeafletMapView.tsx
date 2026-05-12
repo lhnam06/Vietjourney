@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Navigation } from 'lucide-react';
 import type { Location } from '../data/mockData';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -15,6 +16,7 @@ interface LeafletMapViewProps {
   userLocation?: LatLng;
   showRoute?: boolean;
   routeCoordinates?: LatLng[];
+  onAddToItinerary?: (location: Location) => void;
 }
 
 const defaultMarkerIcon = L.icon({
@@ -78,6 +80,7 @@ export default function LeafletMapView({
   userLocation,
   showRoute = false,
   routeCoordinates = [],
+  onAddToItinerary,
 }: LeafletMapViewProps) {
   const points = useMemo<LatLng[]>(() => {
     if (showRoute && routeCoordinates.length) return routeCoordinates;
@@ -127,6 +130,29 @@ export default function LeafletMapView({
                 <span>⭐ {loc.rating}</span>
                 <span style={{ opacity: 0.4 }}>•</span>
                 <span style={{ color: '#FF6B35', fontWeight: 800 }}>{formatVND(loc.price)}</span>
+                {onAddToItinerary ? (
+                  <button
+                    type="button"
+                    onClick={() => onAddToItinerary(loc)}
+                    title="Thêm vào lịch trình"
+                    aria-label={`Thêm ${loc.name} vào lịch trình`}
+                    style={{
+                      marginLeft: 'auto',
+                      border: '1px solid #fb923c',
+                      background: '#fff7ed',
+                      color: '#c2410c',
+                      borderRadius: 9999,
+                      width: 28,
+                      height: 28,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Navigation size={14} />
+                  </button>
+                ) : null}
               </div>
             </div>
           </Popup>

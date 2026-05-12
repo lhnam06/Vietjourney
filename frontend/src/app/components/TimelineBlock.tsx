@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef, type Ref } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Clock, Coffee, GripVertical, Landmark, MapPin, MoreVertical, Trash2, Copy, Pencil, User, UtensilsCrossed } from 'lucide-react';
 import { Card } from './ui/card';
@@ -49,7 +49,7 @@ export default function TimelineBlock({
   onRemove,
   onDuplicate,
 }: TimelineBlockProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemType,
@@ -62,7 +62,7 @@ export default function TimelineBlock({
   const [{ isOver }, drop] = useDrop({
     accept: ItemType,
     hover(draggedItem: { index: number }) {
-      if (!ref.current) return;
+      if (!cardRef.current) return;
 
       const dragIndex = draggedItem.index;
       const hoverIndex = index;
@@ -77,11 +77,17 @@ export default function TimelineBlock({
     }),
   });
 
-  drag(drop(ref));
+  const connectCardDropPreview = useCallback(
+    (node: HTMLDivElement | null) => {
+      cardRef.current = node;
+      drop(node);
+      preview(node);
+    },
+    [drop, preview],
+  );
 
   return (
-    <div ref={preview}>
-      <div className="flex gap-3">
+    <div className="flex gap-3 min-w-0">
         {/* Timeline rail */}
         <div className="w-14 flex flex-col items-center pt-1">
           <div className="text-xs font-extrabold text-white/90 tabular-nums">{item.startTime}</div>
@@ -93,28 +99,39 @@ export default function TimelineBlock({
           </div>
         </div>
 
-        {/* Card */}
-        <Card
-          ref={ref}
-          className={`relative overflow-hidden transition-all cursor-move bg-white/95 border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,.18)] hover:shadow-[0_14px_34px_rgba(0,0,0,.22)] rounded-2xl ${
-            isDragging ? 'opacity-50' : ''
-          } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
-            isEditing ? 'ring-2 ring-[var(--vj-accent)] ring-offset-2 shadow-lg' : ''
-          } ${hasOverlap ? 'ring-2 ring-rose-500 ring-offset-2' : ''}`}
-          onClick={onEditStart}
-        >
-          <div className="flex gap-3 p-3">
-            {/* Drag Handle */}
-            <div className="flex-shrink-0 flex items-center text-slate-300 hover:text-slate-500">
-              <GripVertical className="w-4.5 h-4.5" />
-            </div>
+        {/* Card — wrapper owns DnD ref (Card is not forwardRef in React 18) */}
+        <div ref={connectCardDropPreview} className="flex-1 min-w-0">
+          <Card
+            className={`relative min-w-0 max-w-full overflow-hidden transition-all bg-white/95 border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,.18)] hover:shadow-[0_14px_34px_rgba(0,0,0,.22)] rounded-2xl select-none ${
+              isDragging ? 'opacity-50' : ''
+            } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
+              isEditing ? 'ring-2 ring-[var(--vj-accent)] ring-offset-2 shadow-lg' : ''
+            } ${hasOverlap ? 'ring-2 ring-rose-500 ring-offset-2' : ''}`}
+            onClick={onEditStart}
+          >
+            <div className="flex items-start gap-2 sm:gap-3 p-3">
+              {/* Drag handle only — full-card drag fights browser text selection */}
+              <div
+                ref={drag as unknown as Ref<HTMLDivElement>}
+                role="button"
+                tabIndex={0}
+                className="flex-shrink-0 flex items-center self-start pt-0.5 touch-none text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--vj-accent)]"
+                aria-label="Kéo để đổi thứ tự trong ngày"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') e.preventDefault();
+                }}
+              >
+                <GripVertical className="w-4.5 h-4.5 shrink-0" />
+              </div>
 
             {/* Image + icon overlay */}
             <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 relative">
               <img
                 src={location.image}
                 alt={location.name}
-                className="w-full h-full object-cover"
+                draggable={false}
+                className="w-full h-full object-cover select-none pointer-events-none"
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="strict-origin-when-cross-origin"
@@ -129,12 +146,12 @@ export default function TimelineBlock({
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0">
-              <h3 className="font-extrabold text-slate-900 leading-snug truncate">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <h3 className="font-extrabold text-slate-900 leading-snug line-clamp-2 break-words">
                 {location.name}
               </h3>
 
-              <div className="flex items-center gap-2 text-xs text-slate-700 mt-1">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700 mt-1">
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 border border-slate-200">
                   <Clock className="w-3.5 h-3.5" />
                   {item.startTime}–{item.endTime}
@@ -199,8 +216,8 @@ export default function TimelineBlock({
           {isEditing && (
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[var(--vj-accent)] to-[var(--vj-accent-2)] animate-pulse" />
           )}
-        </Card>
-      </div>
+          </Card>
+        </div>
     </div>
   );
 }

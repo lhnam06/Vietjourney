@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -11,7 +11,7 @@ import {
   Navigation,
   Plus,
 } from 'lucide-react';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -19,15 +19,23 @@ import { mockLocations, mockTimeline, mockUsers, TimelineItem, Location, mockTri
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
 import { toast } from 'sonner';
-import { deleteTimelineItem, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
+import { deleteTimelineItem, loadExtraLocations, loadTripData, mergeExtraLocation, saveTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
+import { minutesToTime, timeToMinutes } from '../lib/timetableLayout';
+import { clampIsoDateToTripRange } from '../lib/tripDateUtils';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Button as UIButton } from '../components/ui/button';
+
+type DiscoveryNavState = {
+  fromDiscovery?: { place: Location; date?: string };
+};
 
 export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
 
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(() => {
@@ -40,6 +48,16 @@ export default function Workspace() {
   const [timeEditorId, setTimeEditorId] = useState<string | null>(null);
   const [timeStart, setTimeStart] = useState('09:00');
   const [timeEnd, setTimeEnd] = useState('10:00');
+  const [extraLocations, setExtraLocations] = useState<Record<string, Location>>({});
+  const discoveryHandledRef = useRef<string | null>(null);
+  const prevTripIdRef = useRef(tripId);
+
+  useEffect(() => {
+    if (prevTripIdRef.current !== tripId) {
+      prevTripIdRef.current = tripId;
+      discoveryHandledRef.current = null;
+    }
+  }, [tripId]);
 
   useEffect(() => {
     setLastTripId(tripId);
@@ -53,28 +71,61 @@ export default function Workspace() {
     }
   }, [tripId]);
 
+  useEffect(() => {
+    setExtraLocations(loadExtraLocations(tripId));
+  }, [tripId]);
+
+  const resolveLocation = useCallback(
+    (id: string) => extraLocations[id] ?? mockLocations.find((l) => l.id === id),
+    [extraLocations]
+  );
+
   const moveTimelineItem = (dragIndex: number, hoverIndex: number) => {
     setTimelineItems((prev) => {
       const positions: number[] = [];
       prev.forEach((t, i) => {
         if (t.date === selectedDate) positions.push(i);
       });
-      const dayItems = positions.map((i) => prev[i]);
+      const dayItems = positions.map((i) => prev[i]!);
       const dragItem = dayItems[dragIndex];
       if (!dragItem) return prev;
       const reordered = dayItems.slice();
       reordered.splice(dragIndex, 1);
       reordered.splice(hoverIndex, 0, dragItem);
+
+      const durM = (it: TimelineItem) =>
+        Math.max(15, timeToMinutes(it.endTime) - timeToMinutes(it.startTime));
+      const dayStartAnchor = Math.min(...dayItems.map((it) => timeToMinutes(it.startTime)));
+      let cursor = dayStartAnchor;
+      const retimed = reordered.map((it) => {
+        const d = durM(it);
+        let startM = cursor;
+        let endM = startM + d;
+        if (endM > 24 * 60 - 1) {
+          endM = 24 * 60 - 1;
+          startM = Math.max(0, endM - d);
+        }
+        cursor = endM;
+        return {
+          ...it,
+          date: selectedDate,
+          startTime: minutesToTime(startM),
+          endTime: minutesToTime(endM),
+        };
+      });
+
       const next = prev.slice();
       positions.forEach((pos, idx) => {
-        next[pos] = reordered[idx]!;
+        next[pos] = retimed[idx]!;
       });
-      // persist
+
       try {
         const stored = loadTripData(tripId);
-        if (stored) {
-          upsertTimelineItem(tripId, stored.trip, next[0] as any, stored.timeline, stored.transactions);
-        }
+        saveTripData(tripId, {
+          trip: stored?.trip ?? trip,
+          timeline: next,
+          transactions: stored?.transactions ?? mockTransactions,
+        });
       } catch {
         // ignore
       }
@@ -83,8 +134,10 @@ export default function Workspace() {
   };
 
   const addQuickActivity = (locationId?: string) => {
-    const location = mockLocations.find((l) => l.id === (locationId ?? mockLocations[0]?.id));
-    if (!location) return;
+    const placeId = locationId ?? mockLocations[0]?.id;
+    if (!placeId) return;
+    const loc = resolveLocation(placeId);
+    if (!loc) return;
 
     const last = timelineItems
       .filter((t) => t.date === selectedDate)
@@ -99,15 +152,15 @@ export default function Workspace() {
       return dt.toTimeString().slice(0, 5);
     })();
 
-    const id = `timeline-${Date.now()}`;
-    const next: TimelineItem = { id, locationId: location.id, startTime, endTime, date: selectedDate };
+    const itemId = `timeline-${Date.now()}`;
+    const next: TimelineItem = { id: itemId, locationId: loc.id, startTime, endTime, date: selectedDate };
     setTimelineItems((prev) => {
       const updated = [...prev, next];
       upsertTimelineItem(tripId, trip, next, mockTimeline, mockTransactions);
       return updated;
     });
-    setEditingItem(id);
-    toast.success('Đã thêm hoạt động', { description: location.name });
+    setEditingItem(itemId);
+    toast.success('Đã thêm hoạt động', { description: loc.name });
   };
 
   const dates = useMemo(() => {
@@ -125,6 +178,63 @@ export default function Workspace() {
       setSelectedDate(d);
     }
   }, [searchParams, dates]);
+
+  useEffect(() => {
+    const state = location.state as DiscoveryNavState | null;
+    const bundle = state?.fromDiscovery;
+    const place = bundle?.place;
+    if (!place?.id) {
+      discoveryHandledRef.current = null;
+      return;
+    }
+
+    const preferredDate = bundle.date;
+    const rawDay =
+      preferredDate && /^\d{4}-\d{2}-\d{2}$/.test(preferredDate)
+        ? preferredDate
+        : (() => {
+            const stored = loadTripData(tripId);
+            const timeline = stored?.timeline?.length ? stored.timeline : mockTimeline;
+            const uniq = Array.from(new Set(timeline.map((t) => t.date))).sort();
+            return uniq[0] ?? new Date().toISOString().slice(0, 10);
+          })();
+    const day = clampIsoDateToTripRange(trip.startDate, trip.endDate, rawDay);
+
+    const token = `${place.id}|${day}`;
+    if (discoveryHandledRef.current === token) return;
+    discoveryHandledRef.current = token;
+
+    mergeExtraLocation(tripId, place);
+    setExtraLocations((prev) => ({ ...prev, [place.id]: place }));
+
+    setSelectedDate(day);
+
+    const tripRow = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+    const itemId = `timeline-${Date.now()}`;
+    setTimelineItems((prev) => {
+      const stored = loadTripData(tripId);
+      const baseline =
+        prev.length > 0 ? prev : stored?.timeline?.length ? stored.timeline : mockTimeline;
+      const last = baseline
+        .filter((t) => t.date === day)
+        .slice()
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+        .at(-1);
+      const startTime = last ? last.endTime : '09:00';
+      const endTime = (() => {
+        const dt = new Date(`2000-01-01T${startTime}`);
+        dt.setMinutes(dt.getMinutes() + 60);
+        return dt.toTimeString().slice(0, 5);
+      })();
+      const next: TimelineItem = { id: itemId, locationId: place.id, startTime, endTime, date: day };
+      upsertTimelineItem(tripId, tripRow, next, mockTimeline, mockTransactions);
+      return [...baseline, next];
+    });
+    setEditingItem(itemId);
+    toast.success('Đã thêm hoạt động', { description: place.name });
+
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} });
+  }, [location.state, location.pathname, location.search, navigate, tripId, trip.startDate, trip.endDate]);
 
   const visibleTimelineItems = useMemo(
     () => timelineItems.filter((t) => t.date === selectedDate),
@@ -198,13 +308,13 @@ export default function Workspace() {
 
   // Get locations from timeline items
   const timelineLocations = visibleTimelineItems
-    .map((item) => mockLocations.find((loc) => loc.id === item.locationId))
+    .map((item) => resolveLocation(item.locationId))
     .filter((loc): loc is Location => loc !== undefined);
 
   // Get coordinates for the route
   const routeCoordinates: [number, number][] = visibleTimelineItems.map((item) => {
-    const location = mockLocations.find((loc) => loc.id === item.locationId);
-    return location ? [location.lat, location.lng] : [0, 0];
+    const loc = resolveLocation(item.locationId);
+    return loc ? [loc.lat, loc.lng] : [0, 0];
   });
 
   const getTransportMethod = (index: number) => {
@@ -221,12 +331,12 @@ export default function Workspace() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full bg-[var(--vj-bg)]">
-        <div className="h-full max-w-[1440px] mx-auto w-full p-4 lg:p-6 flex flex-col lg:flex-row gap-5 min-h-0">
+        <div className="h-full max-w-[var(--vj-content-wide-max)] mx-auto w-full px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] flex flex-col lg:flex-row gap-[var(--vj-layout-gap)] min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
-          <div className="w-full lg:w-[540px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
+          <div className="w-full lg:w-[540px] lg:max-w-full bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0 min-w-0">
           {/* Sticky header */}
           <div className="sticky top-0 z-20 border-b border-[var(--vj-border)] bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
-            <div className="p-5">
+            <div className="p-[var(--vj-inset)]">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-white tracking-tight">Lịch Trình Chuyến Đi</h2>
@@ -326,8 +436,8 @@ export default function Workspace() {
           </div>
 
           {/* Timeline Items */}
-          <ScrollArea className="flex-1 min-h-0 p-5 bg-[var(--vj-primary)]">
-            <div className="space-y-4">
+          <ScrollArea className="flex-1 min-h-0 p-[var(--vj-inset)] bg-[var(--vj-primary)]">
+            <div className="space-y-4 pr-2 min-w-0">
               {visibleTimelineItems.length === 0 && (
                 <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-white/90">
                   <div className="font-extrabold">Chưa có hoạt động cho ngày này</div>
@@ -335,8 +445,8 @@ export default function Workspace() {
                 </div>
               )}
               {visibleTimelineItems.map((item, index) => {
-                const location = mockLocations.find((loc) => loc.id === item.locationId);
-                if (!location) return null;
+                const place = resolveLocation(item.locationId);
+                if (!place) return null;
 
                 const isEditing = editingItem === item.id;
                 const transport = getTransportMethod(index);
@@ -348,7 +458,7 @@ export default function Workspace() {
                     <TimelineBlock
                       index={index}
                       item={item}
-                      location={location}
+                      location={place}
                       moveItem={moveTimelineItem}
                       isEditing={isEditing}
                       onEditStart={() => setEditingItem(item.id)}
@@ -373,14 +483,17 @@ export default function Workspace() {
                       }}
                     />
 
-                    {/* Transportation Widget */}
+                    {/* Transportation Widget — same grid as timeline cards so pills align with card column */}
                     {index < visibleTimelineItems.length - 1 && (
-                      <div className="flex items-center justify-center gap-3 my-3 sm:ml-14">
-                        <div className="flex items-center gap-2 text-xs text-white/90 bg-white/10 px-4 py-2 rounded-2xl border border-white/15 shadow-sm">
-                          <TransportIcon className="w-4 h-4 text-white/90" />
-                          <div className="leading-tight">
-                            <div className="font-extrabold">{transport.label}</div>
-                            <div className="text-white/70 tabular-nums">{transport.time}</div>
+                      <div className="flex gap-3 my-3 min-w-0">
+                        <div className="w-14 shrink-0" aria-hidden />
+                        <div className="flex-1 min-w-0 flex justify-start">
+                          <div className="inline-flex items-center gap-2 text-xs text-white/90 bg-white/10 px-3 sm:px-4 py-2 rounded-2xl border border-white/15 shadow-sm max-w-full">
+                            <TransportIcon className="w-4 h-4 text-white/90 shrink-0" />
+                            <div className="leading-tight min-w-0">
+                              <div className="font-extrabold">{transport.label}</div>
+                              <div className="text-white/70 tabular-nums">{transport.time}</div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -392,7 +505,7 @@ export default function Workspace() {
           </ScrollArea>
 
           {/* Add Activity Button */}
-          <div className="p-5 border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
+          <div className="p-[var(--vj-inset)] border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
             <Button
               className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium rounded-xl h-11"
               onClick={() => addQuickActivity()}

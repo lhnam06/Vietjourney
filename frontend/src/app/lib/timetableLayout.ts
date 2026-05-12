@@ -9,6 +9,14 @@ export function timeToMinutes(t: string): number {
   return (hh || 0) * 60 + (mm || 0);
 }
 
+/** Clamp to same calendar day [00:00 .. 23:59] for itinerary rows. */
+export function minutesToTime(totalMinutes: number): string {
+  const m = Math.max(0, Math.min(24 * 60 - 1, totalMinutes));
+  const h = Math.floor(m / 60);
+  const mi = m % 60;
+  return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+}
+
 export function daySpanMinutes(): number {
   return (TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR) * 60;
 }
