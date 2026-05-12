@@ -129,7 +129,6 @@ export default function Discovery() {
   const [recoRetryKey, setRecoRetryKey] = useState(0);
   /** Public places catalog from `POST /api/v1/places/filter`. */
   const [catalogLocations, setCatalogLocations] = useState<Location[]>([]);
-  const [catalogAttempted, setCatalogAttempted] = useState(false);
   const [catalogUniverse, setCatalogUniverse] = useState<Location[] | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -141,10 +140,26 @@ export default function Discovery() {
   const tripUsers = mockUsers.filter((u) => trip.participants.includes(u.id));
   const effectiveCenter: [number, number] = userCenter ?? HCMC_CENTER;
 
+  const activeFilterCount =
+    Number(categoryFilter !== 'all') +
+    Number(districtFilter !== 'all') +
+    Number(minRatingFilter > 0) +
+    Number(priceFilter !== 'all') +
+    Number(selectedTagGroup !== 'all') +
+    selectedTagValues.length;
+
+  const hasActiveFilters = activeFilterCount > 0;
+  const usingPersonalizedBase = isAuthenticated && !hasActiveFilters && !!recommendedLocations;
+
   const baseLocations = useMemo(() => {
-    if (catalogAttempted) return catalogLocations;
+    if (usingPersonalizedBase && recommendedLocations) {
+      return recommendedLocations;
+    }
+    if (catalogLocations.length > 0) {
+      return catalogLocations;
+    }
     return recommendedLocations ?? mockLocations;
-  }, [catalogAttempted, catalogLocations, recommendedLocations]);
+  }, [usingPersonalizedBase, recommendedLocations, catalogLocations]);
   const optionSourceLocations =
     catalogUniverse ?? catalogLocations ?? recommendedLocations ?? mockLocations;
 
@@ -188,14 +203,6 @@ export default function Discovery() {
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'vi'))
       .slice(0, 18);
   }, [optionSourceLocations, selectedTagGroup]);
-
-  const activeFilterCount =
-    Number(categoryFilter !== 'all') +
-    Number(districtFilter !== 'all') +
-    Number(minRatingFilter > 0) +
-    Number(priceFilter !== 'all') +
-    Number(selectedTagGroup !== 'all') +
-    selectedTagValues.length;
 
   const filteredLocations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -353,7 +360,6 @@ export default function Discovery() {
       } finally {
         if (!cancelled) {
           setCatalogLoading(false);
-          setCatalogAttempted(true);
         }
       }
     })();
@@ -527,7 +533,7 @@ export default function Discovery() {
               {catalogLoading && (
                 <p className="mt-1.5 text-xs font-medium text-white/80">Đang tải danh sách địa điểm từ máy chủ…</p>
               )}
-              {!catalogLoading && catalogLocations.length > 0 && !recommendedLocations && (
+              {!catalogLoading && catalogLocations.length > 0 && !usingPersonalizedBase && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
                   <MapPin className="size-3.5" />
                   Đang xem dữ liệu thật từ API (ưu tiên khu TP.HCM)
@@ -536,7 +542,7 @@ export default function Discovery() {
               {isAuthenticated && recoLoading && (
                 <p className="mt-2 text-xs font-medium text-white/85">Đang tải gợi ý cá nhân…</p>
               )}
-              {isAuthenticated && !recoLoading && recommendedLocations && (
+              {isAuthenticated && !recoLoading && usingPersonalizedBase && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
                   <Sparkles className="size-3.5" />
                   Gợi ý cá nhân từ tài khoản của bạn
