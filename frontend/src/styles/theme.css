@@ -1,7 +1,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 16px;
+  /* Slight fluid type + rhythm (scales with viewport width) */
+  --font-size: clamp(14px, 0.22vw + 13.1px, 16px);
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -52,6 +53,18 @@
   --vj-accent-2: #ff7d4d;
   --vj-text-on-dark: rgba(255, 255, 255, 0.92);
   --vj-text-on-dark-muted: rgba(255, 255, 255, 0.72);
+
+  /* Layout — align shell spacing with user resolution */
+  --vj-content-max: min(92vw, 1400px);
+  --vj-content-wide-max: min(94vw, 1440px);
+  --vj-page-pad-x: clamp(0.75rem, 1.55vw + 0.35rem, 1.75rem);
+  --vj-page-pad-y: clamp(0.5rem, 0.9vw + 0.25rem, 1.125rem);
+  --vj-section-pad-x: clamp(0.85rem, 1.75vw + 0.35rem, 1.6rem);
+  --vj-section-pad-y: clamp(0.85rem, 1.5vw + 0.35rem, 1.35rem);
+  --vj-inset: clamp(1rem, 1.85vw + 0.45rem, 1.5rem);
+  --vj-stack-gap: clamp(0.7rem, 1.1vw + 0.4rem, 1.35rem);
+  --vj-layout-gap: clamp(0.85rem, 1.65vw + 0.35rem, 1.65rem);
+  --vj-scroll-chrome: clamp(5rem, 9vh + 2rem, 8.5rem);
 }
 
 .dark {
@@ -162,21 +175,21 @@
   }
 
   h1 {
-    font-size: var(--text-2xl);
+    font-size: clamp(1.375rem, 2vw + 1rem, 1.75rem);
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    line-height: 1.35;
   }
 
   h2 {
-    font-size: var(--text-xl);
+    font-size: clamp(1.2rem, 1.4vw + 0.95rem, 1.375rem);
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    line-height: 1.4;
   }
 
   h3 {
-    font-size: var(--text-lg);
+    font-size: clamp(1.05rem, 0.9vw + 0.9rem, 1.125rem);
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    line-height: 1.45;
   }
 
   h4 {

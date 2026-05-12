@@ -50,7 +50,7 @@ export default function Root() {
     <div className="h-screen flex flex-col bg-[var(--vj-bg)]">
       {/* Top Navigation (matches reference screenshot) */}
       <header className="h-16 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)]">
-        <div className="h-full max-w-[1400px] mx-auto px-6 flex items-center justify-between">
+        <div className="h-full w-full max-w-[var(--vj-content-max)] mx-auto px-[var(--vj-page-pad-x)] flex items-center justify-between gap-[var(--vj-layout-gap)]">
           <Link
             to="/"
             className="h-12 sm:h-14 flex items-center rounded-xl bg-white/18 border border-white/20 px-2.5 py-1.5 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:bg-white/22 transition-colors"
@@ -65,7 +65,7 @@ export default function Root() {
             />
           </Link>
 
-          <nav className="flex items-center gap-8">
+          <nav className="flex items-center flex-wrap justify-center sm:justify-start gap-x-[clamp(0.85rem,2.4vw,2rem)] gap-y-2">
             {navItems.map((item) => {
               const isActive =
                 item.disabled

@@ -1,3 +1,4 @@
+import React from 'react';
 import type { Location } from '../data/mockData';
 import LeafletMapView from './LeafletMapView';
 
@@ -7,6 +8,7 @@ interface SimpleMapProps {
   userLocation?: [number, number];
   showRoute?: boolean;
   routeCoordinates?: [number, number][];
+  onAddToItinerary?: (location: Location) => void;
 }
 
 export default function SimpleMap({
@@ -15,6 +17,7 @@ export default function SimpleMap({
   userLocation,
   showRoute = false,
   routeCoordinates = [],
+  onAddToItinerary,
 }: SimpleMapProps) {
   return (
     <LeafletMapView
@@ -23,6 +26,7 @@ export default function SimpleMap({
       userLocation={userLocation}
       showRoute={showRoute}
       routeCoordinates={routeCoordinates}
+      onAddToItinerary={onAddToItinerary}
     />
   );
 }

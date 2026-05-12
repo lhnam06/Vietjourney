@@ -61,8 +61,8 @@ export default function Budget() {
     <div className="h-full bg-[var(--vj-bg)] overflow-hidden">
       <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)] px-6 py-5">
-          <div className="max-w-[1440px] mx-auto w-full flex items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)] px-[var(--vj-page-pad-x)] py-[var(--vj-section-pad-y)]">
+          <div className="max-w-[var(--vj-content-wide-max)] mx-auto w-full flex items-center justify-between gap-[var(--vj-layout-gap)]">
             <div>
               <h1 className="text-3xl font-bold text-white mb-1 tracking-tight">Quản Lý Ngân Sách</h1>
               <p className="text-white/85">{trip.name}</p>
@@ -83,7 +83,7 @@ export default function Budget() {
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="max-w-[1440px] mx-auto p-4 lg:p-6 space-y-5">
+          <div className="max-w-[var(--vj-content-wide-max)] mx-auto px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] space-y-[var(--vj-stack-gap)]">
             {/* Budget Summary Card - NGÂN SÁCH */}
             <Card className="p-6 bg-gradient-to-br from-[var(--vj-primary)] to-[var(--vj-primary-2)] text-white shadow-xl border border-[var(--vj-border)] rounded-2xl">
               <div className="flex items-start justify-between mb-6">

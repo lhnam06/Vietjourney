@@ -1,4 +1,4 @@
-import type { TimelineItem, Transaction, Trip } from '../data/mockData';
+import type { Location, TimelineItem, Transaction, Trip } from '../data/mockData';
 
 type TripData = {
   trip: Trip;
@@ -8,6 +8,29 @@ type TripData = {
 
 const keyForTrip = (tripId: string) => `vj:trip:${tripId}`;
 const keyLastTrip = `vj:lastTripId`;
+const keyExtraLocations = (tripId: string) => `vj:tripExtraLocations:${tripId}`;
+
+export function loadExtraLocations(tripId: string): Record<string, Location> {
+  try {
+    const raw = localStorage.getItem(keyExtraLocations(tripId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, Location>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Persist places from Discovery/API so timeline items can resolve outside `mockLocations`. */
+export function mergeExtraLocation(tripId: string, location: Location) {
+  const cur = loadExtraLocations(tripId);
+  cur[location.id] = location;
+  try {
+    localStorage.setItem(keyExtraLocations(tripId), JSON.stringify(cur));
+  } catch {
+    // ignore
+  }
+}
 
 export function getLastTripId(fallback = 'trip-1') {
   try {
