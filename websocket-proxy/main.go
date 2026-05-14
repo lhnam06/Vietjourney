@@ -123,6 +123,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		var msg ProposalMessage
+		if err := json.Unmarshal(message, &msg); err == nil && msg.Type == "PROPOSAL_SUBMIT" {
+			log.Printf("Received proposal from user for timeline %s", timelineId)
+			go submitProposalToBackend(timelineId, msg)
+			continue
+		}
+
 		// Simply validate if payload is JSON, then broadcast to Redis.
 		// NO business logic verification.
 		var payload map[string]interface{}
@@ -137,10 +144,51 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func submitProposalToBackend(timelineId string, msg ProposalMessage) {
+	backendURL := os.Getenv("BACKEND_URL")
+	if backendURL == "" {
+		backendURL = "http://localhost:8082"
+	}
+
+	url := fmt.Sprintf("%s/api/v1/timelines/%s/proposals", backendURL, timelineId)
+	
+	// Flatten the frontend's nested structure to match backend's SubmitProposalRequest
+	// Frontend sends { type: 'PROPOSAL_SUBMIT', payload: { action: 'ADD', data: {...} }, ... }
+	changeType, _ := msg.Payload["action"].(string)
+	actualPayload, _ := msg.Payload["data"].(map[string]interface{})
+
+	backendReq := map[string]interface{}{
+		"changeType":  changeType,
+		"payload":     actualPayload,
+		"baseVersion": msg.BaseVersion,
+	}
+
+	payloadBytes, _ := json.Marshal(backendReq)
+	req, _ := http.NewRequest("POST", url, strings.NewReader(string(payloadBytes)))
+	req.Header.Set("Content-Type", "application/json")
+	if msg.Token != "" {
+		req.Header.Set("Authorization", "Bearer " + msg.Token)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Failed to forward proposal to backend: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Backend returned error for proposal: %s", resp.Status)
+	} else {
+		log.Printf("Proposal successfully saved to backend for timeline %s", timelineId)
+	}
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8081" // Changed from 8080 to avoid backend conflict
+		port = "8081" 
 	}
 
 	http.HandleFunc("/ws/timeline/", handleWebSocket)

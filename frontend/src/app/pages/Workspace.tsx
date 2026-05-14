@@ -51,26 +51,39 @@ import {
   addTimelineEvent, 
   deleteTimelineEvent, 
   moveTimelineEvent, 
-  reorderTimelineEvent 
+  reorderTimelineEvent,
+  getPendingProposals
 } from '../lib/timelineApi';
 import {
   enqueueRecommendationInteraction,
   flushRecommendationInteractionQueue,
 } from '../lib/recommendationInteractionQueue';
 import { buildInteractionBase } from '../lib/recommendationUtils';
+import ProposalSidebar from '../components/ProposalSidebar';
+
+const isoLocalDateTimeToHHmm = (iso: string) => {
+  if (!iso) return '';
+  return iso.slice(11, 16);
+};
 
 export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
   const [searchParams] = useSearchParams();
   const { user, token, loading: authLoading, isAuthenticated } = useAuth();
-  const { lastMessage } = useTimelineSocket(tripId, token ?? "dummy_token");
+  const { lastMessage, sendProposal } = useTimelineSocket(tripId, token ?? "dummy_token");
 
   const isMockTrip = tripId === 'trip-1'; 
 
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   const [tripMetadata, setTripMetadata] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingProposals, setPendingProposals] = useState<any[]>([]);
+
+  const isOwner = useMemo(() => {
+    if (!user || !tripMetadata) return false;
+    return user.id === tripMetadata.ownerId;
+  }, [user, tripMetadata]);
 
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
@@ -83,6 +96,7 @@ export default function Workspace() {
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [addDetailsDialogOpen, setAddDetailsDialogOpen] = useState(false);
   const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<Location | null>(null);
+  const [proposalSidebarOpen, setProposalSidebarOpen] = useState(false);
 
   const fetchTimeline = useCallback(async (isAutoRefresh = false) => {
     console.log("[Workspace] fetchTimeline called", { tripId, authLoading, hasToken: !!token, isAutoRefresh });
@@ -126,6 +140,14 @@ export default function Workspace() {
       if (items && items.length > 0 && !selectedDate) {
         setSelectedDate(items[0].date);
       }
+
+      // Fetch pending proposals for Ghost UI
+      try {
+        const proposals = await getPendingProposals(tripId, token!);
+        setPendingProposals(proposals || []);
+      } catch (e) {
+        console.error("[Workspace] Failed to fetch proposals:", e);
+      }
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') return;
@@ -162,8 +184,20 @@ export default function Workspace() {
     const dragItem = dayItems[dragIndex];
     if (!dragItem) return;
 
+    if (!isOwner) {
+      // Contributor: Send proposal instead of direct update
+      sendProposal(tripId, tripMetadata?.version || 1, "MOVE", {
+        eventId: dragItem.id,
+        orderIndex: hoverIndex,
+        startTime: dragItem.startTime,
+        endTime: dragItem.endTime
+      });
+      toast.info("Đã gửi đề xuất thay đổi");
+      return;
+    }
+
     try {
-      // Optimistic update for UI smoothness
+      // Optimistic update for UI smoothness (Owner only for now)
       setTimelineItems(prev => {
         const next = [...prev];
         const globalDragIdx = prev.findIndex(t => t.id === dragItem.id);
@@ -200,28 +234,45 @@ export default function Workspace() {
     // Persist the trip ID in localStorage for "Thời khóa biểu" and "Lịch trình của tôi" to find.
     setLastTripId(tripId);
     
-    try {
-      const dateStr = item.date || selectedDate || new Date().toISOString().slice(0, 10);
-      
-      // Clean ID to prevent double-prefixing in DB, but avoid picking longitude (last part of fallback IDs)
-      let cleanExternalId = item.locationId;
-      if (item.locationId.includes(':')) {
-        const parts = item.locationId.split(':');
-        const lastPart = parts[parts.length - 1];
-        // If last part is a number (longitude), it's a fallback ID, we should try to find a better part or keep the whole
-        if (lastPart && !isNaN(Number(lastPart)) && parts.length > 2) {
-          // It's likely category:name:lat:lng, let's keep it as is or handle specifically
-          cleanExternalId = item.locationId; 
-        } else {
-          cleanExternalId = lastPart || item.locationId;
-        }
+    const dateStr = item.date || selectedDate || new Date().toISOString().slice(0, 10);
+    
+    // Clean ID to prevent double-prefixing in DB
+    let cleanExternalId = item.locationId;
+    if (item.locationId.includes(':')) {
+      const parts = item.locationId.split(':');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && !isNaN(Number(lastPart)) && parts.length > 2) {
+        cleanExternalId = item.locationId; 
+      } else {
+        cleanExternalId = lastPart || item.locationId;
       }
+    }
 
-      // Determine category with fallback
-      const rawCategory = (item as any).category || selectedLocationForAdd?.category || selectedLocationForAdd?.recommendation?.category || 'ACTIVITY';
-      const category = rawCategory.toString().toUpperCase();
-      const validCategory = ['ACTIVITY', 'FOOD', 'DRINK', 'LODGING'].includes(category) ? category : 'ACTIVITY';
+    // Determine category with fallback
+    const rawCategory = (item as any).category || selectedLocationForAdd?.category || selectedLocationForAdd?.recommendation?.category || 'ACTIVITY';
+    const category = rawCategory.toString().toUpperCase();
+    const validCategory = ['ACTIVITY', 'FOOD', 'DRINK', 'LODGING'].includes(category) ? category : 'ACTIVITY';
 
+    if (!isOwner) {
+      // Contributor: Send proposal instead of direct update
+      sendProposal(tripId, tripMetadata?.version || 1, "ADD", {
+        externalPlaceId: cleanExternalId,
+        category: validCategory,
+        startTime: `${dateStr}T${item.startTime}:00`,
+        endTime: `${dateStr}T${item.endTime}:00`,
+        notes: item.notes,
+        orderIndex: 0,
+        status: 'PLANNED',
+        latitude: selectedLocationForAdd?.lat,
+        longitude: selectedLocationForAdd?.lng,
+        placeName: selectedLocationForAdd?.name
+      });
+      toast.info("Đã gửi đề xuất thêm hoạt động");
+      setAddDetailsDialogOpen(false);
+      return;
+    }
+
+    try {
       const newEvent = await addTimelineEvent(tripId, {
         externalPlaceId: cleanExternalId,
         category: validCategory,
@@ -253,10 +304,52 @@ export default function Workspace() {
     }
   };
 
+  const mappedProposals = useMemo(() => {
+    return pendingProposals
+      .filter(p => p.status === 'PENDING')
+      .map(p => {
+        const payload = p.payload;
+        const date = (payload.startTime || '').slice(0, 10);
+        
+        // Handle ADD/MOVE to create ghost items
+        if (p.changeType === 'ADD' || p.changeType === 'MOVE') {
+          return {
+            id: `proposal-${p.id}`,
+            locationId: payload.externalPlaceId || '',
+            startTime: isoLocalDateTimeToHHmm(payload.startTime || ''),
+            endTime: isoLocalDateTimeToHHmm(payload.endTime || ''),
+            date,
+            notes: payload.notes,
+            isPending: true,
+            authorUsername: p.authorUsername,
+            proposalId: p.id,
+            latitude: payload.latitude !== undefined ? Number(payload.latitude) : (payload.lat !== undefined ? Number(payload.lat) : undefined),
+            longitude: payload.longitude !== undefined ? Number(payload.longitude) : (payload.lng !== undefined ? Number(payload.lng) : undefined),
+            placeName: payload.placeName || payload.name
+          } as TimelineItem & { isPending: boolean; authorUsername: string; proposalId: string; latitude?: number; longitude?: number; placeName?: string };
+        }
+        return null;
+      })
+      .filter(Boolean) as (TimelineItem & { isPending: boolean; authorUsername: string; proposalId: string; latitude?: number; longitude?: number; placeName?: string })[];
+  }, [pendingProposals]);
+
+  useEffect(() => {
+    if (mappedProposals.length > 0) {
+      console.log("[Workspace] Mapped Proposals for Ghost UI:", mappedProposals.map(p => ({
+        id: p.id,
+        place: p.placeName,
+        coords: [p.latitude, p.longitude],
+        isPending: p.isPending
+      })));
+    }
+  }, [mappedProposals]);
+
   const dates = useMemo(() => {
-    const uniq = Array.from(new Set(timelineItems.map((t) => t.date))).sort();
+    const itemDates = timelineItems.map((t) => t.date);
+    const proposalDates = mappedProposals.map((p) => p.date);
+    const uniq = Array.from(new Set([...itemDates, ...proposalDates])).filter(Boolean).sort();
     return uniq.length ? uniq : [new Date().toISOString().slice(0, 10)];
-  }, [timelineItems]);
+  }, [timelineItems, mappedProposals]);
 
   useEffect(() => {
     if (!dates.includes(selectedDate)) setSelectedDate(dates[0]);
@@ -269,10 +362,13 @@ export default function Workspace() {
     }
   }, [searchParams, dates]);
 
-  const visibleTimelineItems = useMemo(
-    () => timelineItems.filter((t) => t.date === selectedDate),
-    [timelineItems, selectedDate],
-  );
+  const visibleTimelineItems = useMemo(() => {
+    const actualItems = timelineItems.filter((t) => t.date === selectedDate);
+    const ghostItems = mappedProposals.filter((p) => p.date === selectedDate);
+    
+    // Combine and sort by start time
+    return [...actualItems, ...ghostItems].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [timelineItems, mappedProposals, selectedDate]);
 
   const overlaps = useMemo(() => {
     const toMinutes = (t: string) => {
@@ -309,6 +405,18 @@ export default function Workspace() {
 
     try {
       const dateStr = item.date || new Date().toISOString().slice(0, 10);
+      
+      if (!isOwner) {
+        sendProposal(tripId, tripMetadata?.version || 1, "MOVE", {
+          eventId: timeEditorId,
+          startTime: `${dateStr}T${timeStart}:00`,
+          endTime: `${dateStr}T${timeEnd}:00`,
+        });
+        toast.info("Đã gửi đề xuất thay đổi thời gian");
+        setTimeEditorOpen(false);
+        return;
+      }
+
       await moveTimelineEvent(tripId, timeEditorId, {
         startTime: `${dateStr}T${timeStart}:00`,
         endTime: `${dateStr}T${timeEnd}:00`,
@@ -348,75 +456,69 @@ export default function Workspace() {
 
   // Get locations from timeline items - show locations for the selected day only
   const timelineLocations = useMemo(() => {
-    console.log("[Workspace] Mapping timeline locations", { 
-      itemsCount: visibleTimelineItems.length,
-      metaKeys: tripMetadata ? Object.keys(tripMetadata.placesByLocationId || {}) : [] 
-    });
-
-    return visibleTimelineItems
+    const locations = visibleTimelineItems
       .map((item) => {
-        // 1. Try direct lookup from metadata
+        const isPending = (item as any).isPending || false;
+        const authorUsername = (item as any).authorUsername;
+        const proposalLat = (item as any).latitude;
+        const proposalLng = (item as any).longitude;
+
+        // 1. Try payload coordinates first (for Ghost Pins) - checking both full names and short names
+        const finalLat = proposalLat !== undefined ? Number(proposalLat) : ((item as any).lat !== undefined ? Number((item as any).lat) : undefined);
+        const finalLng = proposalLng !== undefined ? Number(proposalLng) : ((item as any).lng !== undefined ? Number((item as any).lng) : undefined);
+
+        if (isPending && finalLat !== undefined && finalLng !== undefined && Number.isFinite(finalLat) && Number.isFinite(finalLng)) {
+          return {
+            id: item.id,
+            name: (item as any).placeName || 'Địa điểm đề xuất',
+            lat: finalLat,
+            lng: finalLng,
+            image: '',
+            category: (item.category || 'activity').toLowerCase(),
+            isPending: true,
+            authorUsername: authorUsername
+          } as Location & { isPending: boolean; authorUsername: string };
+        }
+
+        // 2. Try lookup from tripMetadata (for both real and ghost items if payload is missing)
         let dbPlace = tripMetadata?.placesByLocationId?.[item.locationId];
-        
-        // 2. If not found, try stripping prefixes or matching by raw ID
         if (!dbPlace) {
           const cleanId = item.locationId.includes(':') ? item.locationId.split(':').pop() : item.locationId;
           dbPlace = Object.values(tripMetadata?.placesByLocationId || {}).find(p => String(p.id) === String(cleanId));
         }
 
-        // 3. Last resort: check if any place in metadata has the same name (useful for fuzzy matches)
-        if (!dbPlace) {
-          const mockLoc = mockLocations.find(l => l.id === item.locationId);
-          if (mockLoc) {
-            dbPlace = Object.values(tripMetadata?.placesByLocationId || {}).find(p => p.name === mockLoc.name);
-          }
-        }
-        
-        // Debug exactly what we found
-        if (dbPlace) {
-          console.log(`[Workspace] Found candidate for ${item.locationId}:`, { 
-            id: dbPlace.id, 
-            lat: dbPlace.latitude, 
-            lng: dbPlace.longitude 
-          });
-        }
-
-        // Check for valid coordinates
-        const hasDbCoords = dbPlace && 
-                          dbPlace.latitude !== null && dbPlace.latitude !== undefined &&
-                          dbPlace.longitude !== null && dbPlace.longitude !== undefined;
-
-        if (hasDbCoords) {
-          console.log(`[Workspace] Found DB coordinates for ${item.locationId}:`, { lat: dbPlace.latitude, lng: dbPlace.longitude });
+        if (dbPlace && dbPlace.latitude != null && dbPlace.longitude != null) {
           return {
-            id: item.locationId,
+            id: isPending ? item.id : item.locationId,
             name: dbPlace.name || 'Địa điểm',
             lat: Number(dbPlace.latitude),
             lng: Number(dbPlace.longitude),
             image: dbPlace.imageUrl || '',
-            tags: dbPlace.district ? [dbPlace.district] : [],
             category: (item.category || 'activity').toLowerCase(),
-            rating: Number(dbPlace.rating || 0),
-            price: 0,
-            description: dbPlace.address || '',
-            weather: 'both',
-            vibe: 'moderate',
-            budget: '$',
-            duration: 60
-          } as Location;
+            isPending: isPending,
+            authorUsername: authorUsername
+          } as Location & { isPending: boolean; authorUsername?: string };
         }
         
+        // 3. Last resort: Mock data
         let fallback: Location | undefined;
-        if (isMockTrip) {
+        if (isMockTrip || isPending) { // Also check mock for pending if DB failed
           fallback = mockLocations.find((loc) => loc.id === item.locationId);
-          if (fallback) {
-            console.log(`[Workspace] Using mock fallback for ${item.locationId}`);
-          }
         }
-        return fallback;
+
+        if (fallback) {
+          return { ...fallback, id: isPending ? item.id : fallback.id, isPending: isPending, authorUsername };
+        }
+
+        console.warn(`[Workspace] No coordinates found for item:`, item.id, item.locationId);
+        return null;
       })
-      .filter((loc): loc is Location => loc !== undefined && Number.isFinite(loc.lat) && Number.isFinite(loc.lng));
-  }, [timelineItems, visibleTimelineItems, tripMetadata, isMockTrip]);
+      .filter((loc): loc is Location & { isPending: boolean; authorUsername?: string } => 
+        loc !== null && Number.isFinite(loc.lat) && Number.isFinite(loc.lng));
+
+    console.log("[Workspace] Map pins to render:", locations.map(l => ({ name: l.name, pending: l.isPending })));
+    return locations;
+  }, [visibleTimelineItems, tripMetadata, isMockTrip]);
 
   // Use the first location as the map center, or fallback to HCMC
   const mapCenter = useMemo<[number, number]>(() => {
@@ -520,6 +622,15 @@ export default function Workspace() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap justify-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setProposalSidebarOpen(!proposalSidebarOpen)}
+                    className={`h-8 border-white/25 text-white hover:bg-white/15 ${proposalSidebarOpen ? 'bg-white/20' : 'bg-white/10'}`}
+                  >
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    Đề xuất
+                  </Button>
                   <Button size="sm" variant="outline" className="h-8 bg-white/10 border-white/25 text-white hover:bg-white/15" asChild>
                     <Link to={`/timetable/${tripId}`}>
                       <CalendarRange className="w-4 h-4 mr-1.5" />
@@ -606,18 +717,35 @@ export default function Workspace() {
                 </div>
               )}
               {visibleTimelineItems.map((item, index) => {
-                const dbPlace = tripMetadata?.placesByLocationId?.[item.locationId];
-                const location = dbPlace ? {
-                  id: item.locationId,
-                  name: dbPlace.name,
-                  lat: dbPlace.latitude,
-                  lng: dbPlace.longitude,
-                  image: dbPlace.imageUrl || '',
-                  category: (item.category || 'activity').toLowerCase()
-                } : mockLocations.find((loc) => loc.id === item.locationId);
+                const isPending = (item as any).isPending || false;
+                const authorUsername = (item as any).authorUsername;
 
-                const displayName = dbPlace?.name || (tripMetadata?.labelByLocationId?.[item.locationId]) || 'Hoạt động';
-                const displayImage = dbPlace?.imageUrl || location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
+                // CRITICAL FIX: Correctly resolve location for Ghost Items
+                let location: any = null;
+                if (isPending && (item as any).latitude !== undefined) {
+                  location = {
+                    id: item.locationId,
+                    name: (item as any).placeName || 'Địa điểm đề xuất',
+                    lat: (item as any).latitude,
+                    lng: (item as any).longitude,
+                    image: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80',
+                    category: (item.category || 'activity').toLowerCase(),
+                    isPending: true
+                  };
+                } else {
+                  const dbPlace = tripMetadata?.placesByLocationId?.[item.locationId];
+                  location = dbPlace ? {
+                    id: item.locationId,
+                    name: dbPlace.name,
+                    lat: dbPlace.latitude,
+                    lng: dbPlace.longitude,
+                    image: dbPlace.imageUrl || '',
+                    category: (item.category || 'activity').toLowerCase()
+                  } : mockLocations.find((loc) => loc.id === item.locationId);
+                }
+
+                const displayName = location?.name || (tripMetadata?.labelByLocationId?.[item.locationId]) || 'Hoạt động';
+                const displayImage = location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
                 const isEditing = editingItem === item.id;
                 const transport = getTransportMethod(index);
                 const TransportIcon = transport.icon;
@@ -637,13 +765,25 @@ export default function Workspace() {
                       onEditStart={() => setEditingItem(item.id)}
                       onEditEnd={() => setEditingItem(null)}
                       isLast={index === visibleTimelineItems.length - 1}
-                      ownerName={ownerUser?.name?.split(' ').slice(-1)[0]}
+                      ownerName={isPending ? authorUsername : (ownerUser?.name?.split(' ').slice(-1)[0])}
                       hasOverlap={overlaps.has(item.id)}
+                      isPending={isPending}
                       onEditTime={() => openTimeEditor(item.id)}
                       onDuplicate={async () => {
                         if (!token) return;
+                        const dateStr = item.date || new Date().toISOString().slice(0, 10);
+                        if (!isOwner) {
+                          sendProposal(tripId, tripMetadata?.version || 1, "ADD", {
+                            externalPlaceId: item.locationId,
+                            category: 'ACTIVITY',
+                            startTime: `${dateStr}T${item.startTime}:00`,
+                            endTime: `${dateStr}T${item.endTime}:00`,
+                            notes: item.notes
+                          });
+                          toast.info("Đã gửi đề xuất nhân bản");
+                          return;
+                        }
                         try {
-                          const dateStr = item.date || new Date().toISOString().slice(0, 10);
                           await addTimelineEvent(tripId, {
                             externalPlaceId: item.locationId,
                             category: 'ACTIVITY',
@@ -659,6 +799,11 @@ export default function Workspace() {
                       }}
                       onRemove={async () => {
                         if (!token) return;
+                        if (!isOwner) {
+                          sendProposal(tripId, tripMetadata?.version || 1, "DELETE", { eventId: item.id });
+                          toast.info("Đã gửi đề xuất xóa");
+                          return;
+                        }
                         try {
                           await deleteTimelineEvent(tripId, item.id, token);
                           toast.success('Đã xoá hoạt động');
@@ -861,6 +1006,17 @@ export default function Workspace() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {proposalSidebarOpen && (
+        <ProposalSidebar 
+          timelineId={tripId} 
+          token={token!} 
+          currentVersion={tripMetadata?.version || 1}
+          onMerged={() => fetchTimeline(true)}
+          isOwner={isOwner}
+          currentUsername={user?.username}
+        />
+      )}
     </DndProvider>
   );
 }
