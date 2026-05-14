@@ -46,6 +46,7 @@ export type ApiTimelineDetail = {
   members?: ApiTimelineMember[];
   events?: ApiTimelineEvent[];
   activeInviteCode?: string | null;
+  version?: number;
 };
 
 export type ApiResetInviteCodeResponse = {
@@ -153,6 +154,8 @@ export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
     destination: string;
     startDate: string;
     endDate: string;
+    ownerId: string;
+    version: number;
   };
 } {
   const labelByLocationId: Record<string, string> = {};
@@ -210,12 +213,14 @@ export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
     labelByLocationId,
     placesByLocationId,
     tripMeta: {
-      id: detail.id,
-      title: detail.title || 'Chuyến đi không tên',
-      destination: detail.description?.trim() || '',
+      id: detail.id || '',
+      title: detail.title || '',
+      destination: detail.description || 'Vietnam',
       startDate: detail.startDate || '',
       endDate: detail.endDate || '',
-    },
+      ownerId: detail.ownerId || '',
+      version: detail.version || 1
+    }
   };
 }
 export async function createTimeline(
@@ -233,4 +238,22 @@ export async function createTimeline(
     body: JSON.stringify(body),
     accessToken,
   });
+}
+
+export async function getPendingProposals(timelineId: string, accessToken: string) {
+  return requestJson<any[]>(`/api/v1/timelines/${encodeURIComponent(timelineId)}/proposals`, {
+    accessToken,
+  });
+}
+
+export async function decideProposal(
+  timelineId: string,
+  proposalId: string,
+  status: 'ACCEPTED' | 'REJECTED',
+  accessToken: string
+) {
+  return requestJson<void>(
+    `/api/v1/timelines/${encodeURIComponent(timelineId)}/proposals/${encodeURIComponent(proposalId)}/decide?status=${status}`,
+    { method: 'PATCH', accessToken }
+  );
 }

@@ -51,5 +51,20 @@ export function useTimelineSocket(tripId: string, token: string | null) {
     }
   };
 
-  return { isConnected, lastMessage, sendEvent };
+  const sendProposal = (timelineId: string, baseVersion: number, changeType: string, payload: any) => {
+    if (ws.current && isConnected) {
+      ws.current.send(JSON.stringify({
+        type: 'PROPOSAL_SUBMIT',
+        timeline_id: timelineId,
+        base_version: baseVersion,
+        payload: {
+          action: changeType,
+          data: payload
+        },
+        token: token
+      }));
+    }
+  };
+
+  return { isConnected, lastMessage, sendEvent, sendProposal };
 }

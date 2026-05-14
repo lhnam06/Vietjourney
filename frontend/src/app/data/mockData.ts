@@ -15,6 +15,8 @@ export interface Location {
   vibe: 'quiet' | 'vibrant' | 'moderate';
   budget: '$' | '$$' | '$$$';
   duration: number; // in minutes
+  isPending?: boolean;
+  authorUsername?: string;
   /** Present for server-backed places — used when recording recommendation interactions */
   recommendation?: {
     category: string;

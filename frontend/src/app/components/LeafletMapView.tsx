@@ -17,7 +17,7 @@ interface LeafletMapViewProps {
   routeCoordinates?: LatLng[];
 }
 
-const createCustomIcon = (category: string = 'activity', index?: number) => {
+const createCustomIcon = (category: string = 'activity', index?: number, isPending?: boolean) => {
   const colors: Record<string, string> = {
     food: '#f59e0b', // Amber
     drink: '#3b82f6', // Blue
@@ -25,14 +25,17 @@ const createCustomIcon = (category: string = 'activity', index?: number) => {
     default: '#FF6B35' // Vietjourney Orange
   };
   
-  const color = colors[category.toLowerCase()] || colors.default;
+  const baseColor = colors[category.toLowerCase()] || colors.default;
+  const color = isPending ? '#94a3b8' : baseColor; // Gray for pending proposals
+  const borderStyle = isPending ? 'border: 2px dashed #475569;' : 'border: 2px solid white;';
+  
   const label = index !== undefined ? `<div style="position:absolute;top:-8px;right:-8px;background:white;color:${color};width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-center;font-size:10px;font-weight:900;border:2px solid ${color};box-shadow:0 2px 4px rgba(0,0,0,0.2)">${index + 1}</div>` : '';
 
   return L.divIcon({
     className: 'vj-custom-marker',
     html: `
-      <div style="position:relative;">
-        <div style="width:24px;height:24px;border-radius:50% 50% 50% 0;background:${color};transform:rotate(-45deg);border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>
+      <div style="position:relative; opacity: ${isPending ? '0.85' : '1'};">
+        <div style="width:24px;height:24px;border-radius:50% 50% 50% 0;background:${color};transform:rotate(-45deg); ${borderStyle} box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>
         <div style="width:8px;height:8px;border-radius:50%;background:white;position:absolute;top:8px;left:8px;"></div>
         ${label}
       </div>
@@ -130,28 +133,56 @@ export default function LeafletMapView({
         />
       )}
 
-      {locations.map((loc, idx) => (
-        <Marker 
-          key={loc.id} 
-          position={{ lat: loc.lat, lng: loc.lng }} 
-          icon={createCustomIcon(loc.category, showRoute ? idx : undefined)}
-        >
-          <Popup>
-            <div style={{ minWidth: 180 }}>
-              <div style={{ marginBottom: 4, fontWeight: 800 }}>
-                {showRoute ? `${idx + 1}. ` : ''}
-                {loc.name}
+      {locations.map((loc, idx) => {
+        const isPending = (loc as any).isPending || false;
+        const authorUsername = (loc as any).authorUsername;
+        
+        return (
+          <Marker 
+            key={loc.id} 
+            position={{ lat: loc.lat, lng: loc.lng }} 
+            icon={createCustomIcon(loc.category, showRoute ? idx : undefined, isPending)}
+          >
+            <Popup>
+              <div style={{ minWidth: 180 }}>
+                {isPending && (
+                  <div style={{ 
+                    marginBottom: 8, 
+                    padding: '4px 8px', 
+                    background: '#fffbeb', 
+                    border: '1px solid #fde68a', 
+                    borderRadius: 6,
+                    color: '#92400e',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}>
+                    <span style={{ fontSize: 14 }}>💡</span> Đề xuất bởi {authorUsername || 'Thành viên'}
+                  </div>
+                )}
+                <div style={{ marginBottom: 4, fontWeight: 800 }}>
+                  {showRoute ? `${idx + 1}. ` : ''}
+                  {loc.name}
+                </div>
+                {!isPending && <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.85 }}>{loc.description}</div>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  {!isPending && (
+                    <>
+                      <span>⭐ {loc.rating}</span>
+                      <span style={{ opacity: 0.4 }}>•</span>
+                      <span style={{ color: '#FF6B35', fontWeight: 800 }}>{formatVND(loc.price)}</span>
+                    </>
+                  )}
+                  {isPending && <span style={{ color: '#92400e', fontStyle: 'italic' }}>Chưa có thông tin chi tiết</span>}
+                </div>
               </div>
-              <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.85 }}>{loc.description}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                <span>⭐ {loc.rating}</span>
-                <span style={{ opacity: 0.4 }}>•</span>
-                <span style={{ color: '#FF6B35', fontWeight: 800 }}>{formatVND(loc.price)}</span>
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+            </Popup>
+          </Marker>
+        );
+      })}
 
       {userLocation && Number.isFinite(userLocation[0]) && Number.isFinite(userLocation[1]) ? (
         <Marker position={{ lat: userLocation[0], lng: userLocation[1] }} icon={userMarkerIcon}>
