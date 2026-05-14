@@ -216,5 +216,6 @@ public class TimelineEventService {
         for (int i = 0; i < dayEvents.size(); i++) {
             dayEvents.get(i).setOrderIndex(i);
         }
+        timelineEventRepository.saveAll(dayEvents);
     }
 }

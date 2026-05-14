@@ -47,11 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('[AuthContext] Bootstrap timed out, setting loading to false');
+        setLoading(false);
+      }
+    }, 5000);
+
     (async () => {
       setLoading(true);
       await bootstrap();
-      setLoading(false);
+      clearTimeout(timeout);
+      if (mounted) {
+        setLoading(false);
+      }
     })();
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
   }, [bootstrap]);
 
   const value = useMemo<AuthContextType>(
