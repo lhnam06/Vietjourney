@@ -1,43 +1,44 @@
 const { Client } = require('pg');
 
-async function test() {
-  const client = new Client({
-    connectionString: 'postgresql://REMOVED_SUPABASE_USERNAME:REMOVED_SUPABASE_PASSWORD@REMOVED_SUPABASE_HOST:5432/postgres'
-  });
+const client = new Client({
+  connectionString: "postgresql://REMOVED_SUPABASE_USERNAME:REMOVED_SUPABASE_PASSWORD@REMOVED_SUPABASE_HOST:5432/postgres"
+});
 
+async function fetchEvents() {
+  const tripId = '3f973731-fe01-4a12-b8c2-3d76793505cd';
+  console.log(`\n=== FETCHING ALL EVENTS FOR TIMELINE ID: ${tripId} ===\n`);
+  
   try {
     await client.connect();
-    console.log('✅ Successfully connected to the database.');
     
-    const targetId = '3f973731-fe01-4a12-b8c2-3d76793505cd';
+    // Fetch events ordered by order_index
+    const res = await client.query(
+      'SELECT * FROM timeline_events WHERE timeline_id = $1 ORDER BY order_index ASC',
+      [tripId]
+    );
     
-    console.log(`\n--- Fetching Trip Info for ID: ${targetId} ---`);
-    const timelineRes = await client.query('SELECT id, title, start_date, end_date FROM timelines WHERE id = $1', [targetId]);
-    
-    if (timelineRes.rows.length === 0) {
-      console.log(`⚠️ Trip not found in database.`);
+    if (res.rows.length === 0) {
+      console.log('[INFO] No events found for this timeline.');
     } else {
-      console.log(timelineRes.rows[0]);
+      console.table(res.rows.map(row => ({
+        ID: row.id,
+        PlaceID: row.external_place_id,
+        Category: row.category,
+        Start: row.start_time,
+        End: row.end_time,
+        Order: row.order_index,
+        Status: row.status
+      })));
+      
+      console.log('\n--- Full Detail of First Event Sample ---');
+      console.log(JSON.stringify(res.rows[0], null, 2));
     }
     
-    console.log(`\n--- Fetching Events for Trip ID: ${targetId} ---`);
-    const eventsRes = await client.query(`
-      SELECT id, external_place_id, category, start_time, end_time, order_index 
-      FROM timeline_events 
-      WHERE timeline_id = $1 
-      ORDER BY start_time ASC
-    `, [targetId]);
-    
-    console.log(`Found ${eventsRes.rows.length} events:`);
-    if (eventsRes.rows.length > 0) {
-      console.table(eventsRes.rows);
-    }
-
   } catch (err) {
-    console.error('❌ Database query failed:', err);
+    console.error('[ERROR] Failed to query database:', err.message);
   } finally {
     await client.end();
   }
 }
 
-test();
+fetchEvents();

@@ -23,7 +23,7 @@ public class PlaceQueryRepositoryImpl implements PlaceQueryRepository {
               id,
               name,
               address,
-              category,
+              '%s' AS category,
               district,
               rating,
               latitude,
@@ -143,7 +143,11 @@ public class PlaceQueryRepositoryImpl implements PlaceQueryRepository {
         List<String> tables = resolveTables(category);
         List<String> parts = new ArrayList<>();
         for (String table : tables) {
-            parts.add(UNION_SELECT_TEMPLATE.formatted(table));
+            String catName = "ACTIVITY";
+            if (table.contains("food")) catName = "FOOD";
+            else if (table.contains("drink")) catName = "DRINK";
+            
+            parts.add(UNION_SELECT_TEMPLATE.formatted(catName, table));
         }
         return String.join(" UNION ALL ", parts);
     }
