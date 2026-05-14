@@ -24,7 +24,7 @@ public class PlaceMapper {
 
     public PlaceResponse toResponse(Tuple tuple) {
         return PlaceResponse.builder()
-                .id(get(tuple, "id", String.class))
+                .id(getString(tuple, "id"))
                 .name(get(tuple, "name", String.class))
                 .address(get(tuple, "address", String.class))
                 .category(get(tuple, "category", String.class))
@@ -37,6 +37,15 @@ public class PlaceMapper {
                 .minPrice(parsePriceRangeLower(get(tuple, "price_range", String.class)))
                 .maxPrice(parsePriceRangeUpper(get(tuple, "price_range", String.class)))
                 .build();
+    }
+
+    private String getString(Tuple tuple, String alias) {
+        try {
+            Object val = tuple.get(alias);
+            return val != null ? val.toString() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private <T> T get(Tuple tuple, String alias, Class<T> type) {

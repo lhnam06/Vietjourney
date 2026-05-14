@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -11,24 +11,40 @@ import {
   Navigation,
   Plus,
   TrendingUp,
+  MapPin,
+  Star,
+  Pencil,
 } from 'lucide-react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription,
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '../components/ui/dialog';
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../components/ui/popover';
+import { Info } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { Button } from '../components/ui/button';
+import { Button as UIButton } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { mockLocations, mockUsers, TimelineItem, Location, mockTrips } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
 import { toast } from 'sonner';
 import { setLastTripId } from '../lib/tripStorage';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
 import SearchPlacesDialog from '../components/SearchPlacesDialog';
 import { Input } from '../components/ui/input';
-import { Button as UIButton } from '../components/ui/button';
 import { useTimelineSocket } from '../hooks/useTimelineSocket';
 import { useAuth } from '../context/AuthContext';
-import { Badge } from '../components/ui/badge';
 import { 
   getTimelineDetail, 
   mapApiTimelineToTimetable, 
@@ -37,7 +53,6 @@ import {
   moveTimelineEvent, 
   reorderTimelineEvent 
 } from '../lib/timelineApi';
-import { getStoredToken } from '../lib/authApi';
 import {
   enqueueRecommendationInteraction,
   flushRecommendationInteractionQueue,
@@ -48,8 +63,7 @@ export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
   const [searchParams] = useSearchParams();
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
-  const token = getStoredToken();
+  const { user, token, loading: authLoading, isAuthenticated } = useAuth();
   const { lastMessage } = useTimelineSocket(tripId, token ?? "dummy_token");
 
   const isMockTrip = tripId === 'trip-1'; 
@@ -59,6 +73,7 @@ export default function Workspace() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [timeEditorOpen, setTimeEditorOpen] = useState(false);
   const [timeEditorId, setTimeEditorId] = useState<string | null>(null);
@@ -69,18 +84,13 @@ export default function Workspace() {
   const [addDetailsDialogOpen, setAddDetailsDialogOpen] = useState(false);
   const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<Location | null>(null);
 
-  const fetchTimeline = async () => {
-    console.log("[Workspace] fetchTimeline called", { tripId, authLoading, hasToken: !!user?.token });
+  const fetchTimeline = useCallback(async (isAutoRefresh = false) => {
+    console.log("[Workspace] fetchTimeline called", { tripId, authLoading, hasToken: !!token, isAutoRefresh });
     
-    // 1. If we are still waiting for auth to initialize, just keep waiting
-    if (authLoading) {
-      console.log("[Workspace] Auth still loading, skipping fetch...");
-      return;
-    }
+    if (authLoading) return;
     
-    // 2. If we have no token OR an invalid tripId, we can't fetch anything.
     if (!token || !tripId || tripId === 'undefined' || (tripId === 'trip-1' && !isAuthenticated)) {
-      console.warn("[Workspace] Cannot fetch timeline: missing token or invalid/default tripId", { tripId, hasToken: !!token });
+      console.log("[Workspace] Skipping fetch", { hasToken: !!token, tripId, isAuthenticated });
       setIsLoading(false);
       return;
     }
@@ -88,27 +98,30 @@ export default function Workspace() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-      console.error("[Workspace] API fetch timed out after 10s");
-      toast.error("Yêu cầu quá hạn. Vui lòng thử lại.");
+      console.error("[Workspace] API fetch timed out");
       setIsLoading(false);
     }, 10000);
 
     try {
-      console.log("[Workspace] Starting API fetch for", tripId);
-      setIsLoading(true); 
+      if (!isAutoRefresh) setIsLoading(true); 
+      console.log("[Workspace] Calling getTimelineDetail...");
       const detail = await getTimelineDetail(tripId, token!, controller.signal);
-      clearTimeout(timeoutId);
-      console.log("[Workspace] API response received", detail);
-      
-      if (!detail) {
-        throw new Error("No timeline detail returned from API");
+      console.log("[Workspace] getTimelineDetail success:", !!detail);
+      if (detail) {
+        console.log("[Workspace] API Response Events:", detail.events?.map(ev => ({
+          id: ev.id,
+          cat: ev.category,
+          extId: ev.externalPlaceId,
+          hasPlace: !!ev.place
+        })));
       }
-
-      const { items, tripMeta } = mapApiTimelineToTimetable(detail);
-      console.log("[Workspace] Data mapped", { itemCount: items?.length, tripMeta });
+      clearTimeout(timeoutId);
       
+      if (!detail) throw new Error("No timeline detail");
+
+      const { items, tripMeta, placesByLocationId } = mapApiTimelineToTimetable(detail);
       setTimelineItems(items || []);
-      setTripMetadata(tripMeta);
+      setTripMetadata({ ...tripMeta, placesByLocationId });
       
       if (items && items.length > 0 && !selectedDate) {
         setSelectedDate(items[0].date);
@@ -117,12 +130,10 @@ export default function Workspace() {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') return;
       console.error("[Workspace] Failed to fetch timeline:", error);
-      toast.error("Không thể tải dữ liệu lộ trình");
     } finally {
-      console.log("[Workspace] fetchTimeline finished, setting isLoading to false");
       setIsLoading(false);
     }
-  };
+  }, [tripId, token, authLoading, isAuthenticated, selectedDate]);
 
   useEffect(() => {
     fetchTimeline();
@@ -131,11 +142,13 @@ export default function Workspace() {
 
   useEffect(() => {
     if (lastMessage) {
-      console.log("[Workspace] Real-time event received:", lastMessage);
-      // Refresh data when a change is detected from other users
-      fetchTimeline();
+      const timer = setTimeout(() => {
+        console.log("[Workspace] Debounced real-time refresh");
+        fetchTimeline(true);
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [lastMessage]);
+  }, [lastMessage, fetchTimeline]);
 
   const trip = useMemo(() => {
     if (tripMetadata) return tripMetadata;
@@ -190,14 +203,28 @@ export default function Workspace() {
     try {
       const dateStr = item.date || selectedDate || new Date().toISOString().slice(0, 10);
       
-      // Clean ID to prevent double-prefixing in DB
-      const cleanExternalId = item.locationId.includes(':') 
-        ? item.locationId.split(':').pop()! 
-        : item.locationId;
+      // Clean ID to prevent double-prefixing in DB, but avoid picking longitude (last part of fallback IDs)
+      let cleanExternalId = item.locationId;
+      if (item.locationId.includes(':')) {
+        const parts = item.locationId.split(':');
+        const lastPart = parts[parts.length - 1];
+        // If last part is a number (longitude), it's a fallback ID, we should try to find a better part or keep the whole
+        if (lastPart && !isNaN(Number(lastPart)) && parts.length > 2) {
+          // It's likely category:name:lat:lng, let's keep it as is or handle specifically
+          cleanExternalId = item.locationId; 
+        } else {
+          cleanExternalId = lastPart || item.locationId;
+        }
+      }
+
+      // Determine category with fallback
+      const rawCategory = (item as any).category || selectedLocationForAdd?.category || selectedLocationForAdd?.recommendation?.category || 'ACTIVITY';
+      const category = rawCategory.toString().toUpperCase();
+      const validCategory = ['ACTIVITY', 'FOOD', 'DRINK', 'LODGING'].includes(category) ? category : 'ACTIVITY';
 
       const newEvent = await addTimelineEvent(tripId, {
         externalPlaceId: cleanExternalId,
-        category: 'ACTIVITY',
+        category: validCategory,
         startTime: `${dateStr}T${item.startTime}:00`,
         endTime: `${dateStr}T${item.endTime}:00`,
         notes: item.notes,
@@ -319,16 +346,91 @@ export default function Workspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [editingItem, timelineItems]);
 
-  // Get locations from timeline items
-  const timelineLocations = visibleTimelineItems
-    .map((item) => mockLocations.find((loc) => loc.id === item.locationId))
-    .filter((loc): loc is Location => loc !== undefined);
+  // Get locations from timeline items - show locations for the selected day only
+  const timelineLocations = useMemo(() => {
+    console.log("[Workspace] Mapping timeline locations", { 
+      itemsCount: visibleTimelineItems.length,
+      metaKeys: tripMetadata ? Object.keys(tripMetadata.placesByLocationId || {}) : [] 
+    });
+
+    return visibleTimelineItems
+      .map((item) => {
+        // 1. Try direct lookup from metadata
+        let dbPlace = tripMetadata?.placesByLocationId?.[item.locationId];
+        
+        // 2. If not found, try stripping prefixes or matching by raw ID
+        if (!dbPlace) {
+          const cleanId = item.locationId.includes(':') ? item.locationId.split(':').pop() : item.locationId;
+          dbPlace = Object.values(tripMetadata?.placesByLocationId || {}).find(p => String(p.id) === String(cleanId));
+        }
+
+        // 3. Last resort: check if any place in metadata has the same name (useful for fuzzy matches)
+        if (!dbPlace) {
+          const mockLoc = mockLocations.find(l => l.id === item.locationId);
+          if (mockLoc) {
+            dbPlace = Object.values(tripMetadata?.placesByLocationId || {}).find(p => p.name === mockLoc.name);
+          }
+        }
+        
+        // Debug exactly what we found
+        if (dbPlace) {
+          console.log(`[Workspace] Found candidate for ${item.locationId}:`, { 
+            id: dbPlace.id, 
+            lat: dbPlace.latitude, 
+            lng: dbPlace.longitude 
+          });
+        }
+
+        // Check for valid coordinates
+        const hasDbCoords = dbPlace && 
+                          dbPlace.latitude !== null && dbPlace.latitude !== undefined &&
+                          dbPlace.longitude !== null && dbPlace.longitude !== undefined;
+
+        if (hasDbCoords) {
+          console.log(`[Workspace] Found DB coordinates for ${item.locationId}:`, { lat: dbPlace.latitude, lng: dbPlace.longitude });
+          return {
+            id: item.locationId,
+            name: dbPlace.name || 'Địa điểm',
+            lat: Number(dbPlace.latitude),
+            lng: Number(dbPlace.longitude),
+            image: dbPlace.imageUrl || '',
+            tags: dbPlace.district ? [dbPlace.district] : [],
+            category: (item.category || 'activity').toLowerCase(),
+            rating: Number(dbPlace.rating || 0),
+            price: 0,
+            description: dbPlace.address || '',
+            weather: 'both',
+            vibe: 'moderate',
+            budget: '$',
+            duration: 60
+          } as Location;
+        }
+        
+        let fallback: Location | undefined;
+        if (isMockTrip) {
+          fallback = mockLocations.find((loc) => loc.id === item.locationId);
+          if (fallback) {
+            console.log(`[Workspace] Using mock fallback for ${item.locationId}`);
+          }
+        }
+        return fallback;
+      })
+      .filter((loc): loc is Location => loc !== undefined && Number.isFinite(loc.lat) && Number.isFinite(loc.lng));
+  }, [timelineItems, visibleTimelineItems, tripMetadata, isMockTrip]);
+
+  // Use the first location as the map center, or fallback to HCMC
+  const mapCenter = useMemo<[number, number]>(() => {
+    if (timelineLocations.length > 0) {
+      return [timelineLocations[0].lat, timelineLocations[0].lng];
+    }
+    return [10.7769, 106.7009]; // HCMC Center
+  }, [timelineLocations]);
 
   // Get coordinates for the route
-  const routeCoordinates: [number, number][] = visibleTimelineItems.map((item) => {
-    const location = mockLocations.find((loc) => loc.id === item.locationId);
-    return location ? [location.lat, location.lng] : [0, 0];
-  });
+  const routeCoordinates: [number, number][] = useMemo(() => 
+    timelineLocations.map((loc) => [loc.lat, loc.lng]),
+    [timelineLocations]
+  );
 
   const getTransportMethod = (index: number) => {
     // Alternate between motorbike and walking for Vietnam context
@@ -436,11 +538,52 @@ export default function Workspace() {
               </div>
 
               <div className="mt-3 flex items-center justify-between text-xs text-white/70">
-                <span className="inline-flex items-center gap-1.5">
-                  <GripVertical className="w-3.5 h-3.5" />
-                  Kéo thả để sắp xếp
-                </span>
-                <span className="inline-flex items-center gap-1.5">
+                <div className="flex flex-col gap-1">
+                  <span className="inline-flex items-center gap-1.5">
+                    <GripVertical className="w-3.5 h-3.5" />
+                    Kéo thả để sắp xếp
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="underline decoration-dotted underline-offset-2 hover:text-white transition-colors cursor-help">
+                          Hướng dẫn tránh trùng lịch
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-4 bg-slate-900 border-slate-800 text-white shadow-xl rounded-xl z-[1001]">
+                        <div className="flex gap-3">
+                          <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 h-fit">
+                            <Info className="w-4 h-4" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="font-bold text-sm leading-none">Quy tắc thời gian</h4>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              Hệ thống cho phép các hoạt động "chạm" nhau nhưng không được "chồng" lên nhau.
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800">
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-green-500 mb-1">Hợp lệ (✅)</div>
+                                <div className="text-[10px] text-slate-500 bg-slate-800/50 p-1.5 rounded">
+                                  Mục A: 08:00 - 09:00<br/>
+                                  Mục B: 09:00 - 10:00
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-rose-500 mb-1">Trùng (❌)</div>
+                                <div className="text-[10px] text-slate-500 bg-slate-800/50 p-1.5 rounded">
+                                  Mục A: 08:00 - 09:30<br/>
+                                  Mục B: 09:00 - 10:00
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </span>
+                </div>
+                <span className="inline-flex items-center gap-1.5 self-end">
                   ⌘/Ctrl + ↑/↓
                   <span className="text-white/55">để di chuyển mục đã chọn</span>
                 </span>
@@ -463,13 +606,22 @@ export default function Workspace() {
                 </div>
               )}
               {visibleTimelineItems.map((item, index) => {
-                const location = mockLocations.find((loc) => loc.id === item.locationId);
-                if (!location) return null;
+                const dbPlace = tripMetadata?.placesByLocationId?.[item.locationId];
+                const location = dbPlace ? {
+                  id: item.locationId,
+                  name: dbPlace.name,
+                  lat: dbPlace.latitude,
+                  lng: dbPlace.longitude,
+                  image: dbPlace.imageUrl || '',
+                  category: (item.category || 'activity').toLowerCase()
+                } : mockLocations.find((loc) => loc.id === item.locationId);
 
+                const displayName = dbPlace?.name || (tripMetadata?.labelByLocationId?.[item.locationId]) || 'Hoạt động';
+                const displayImage = dbPlace?.imageUrl || location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
                 const isEditing = editingItem === item.id;
                 const transport = getTransportMethod(index);
                 const TransportIcon = transport.icon;
-                const owner = mockUsers[index % mockUsers.length];
+                const ownerUser = mockUsers[index % mockUsers.length];
                 
                 return (
                   <div key={item.id}>
@@ -477,12 +629,15 @@ export default function Workspace() {
                       index={index}
                       item={item}
                       location={location}
+                      displayName={displayName}
+                      displayImage={displayImage}
                       moveItem={moveTimelineItem}
                       isEditing={isEditing}
+                      onClick={() => setDetailsItemId(item.id)}
                       onEditStart={() => setEditingItem(item.id)}
                       onEditEnd={() => setEditingItem(null)}
                       isLast={index === visibleTimelineItems.length - 1}
-                      ownerName={owner?.name?.split(' ').slice(-1)[0]}
+                      ownerName={ownerUser?.name?.split(' ').slice(-1)[0]}
                       hasOverlap={overlaps.has(item.id)}
                       onEditTime={() => openTimeEditor(item.id)}
                       onDuplicate={async () => {
@@ -570,6 +725,7 @@ export default function Workspace() {
 
           <SimpleMap
             locations={timelineLocations}
+            center={mapCenter}
             showRoute={true}
             routeCoordinates={routeCoordinates}
           />
@@ -581,6 +737,9 @@ export default function Workspace() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Chỉnh sửa thời gian</DialogTitle>
+            <DialogDescription>
+              Thay đổi thời gian bắt đầu và kết thúc cho hoạt động này.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2">
             <Input type="time" value={timeStart} onChange={(e) => setTimeStart(e.target.value)} />
@@ -620,6 +779,88 @@ export default function Workspace() {
           defaultDate={selectedDate}
         />
       )}
+      {/* Event Details Dialog */}
+      <Dialog open={!!detailsItemId} onOpenChange={(open) => !open && setDetailsItemId(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Chi tiết hoạt động</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const item = timelineItems.find(t => t.id === detailsItemId);
+            if (!item) return null;
+            
+            const dbPlace = tripMetadata?.placesByLocationId?.[item.locationId];
+            const location = dbPlace ? {
+              id: item.locationId,
+              name: dbPlace.name,
+              lat: dbPlace.latitude,
+              lng: dbPlace.longitude,
+              image: dbPlace.imageUrl || '',
+              address: dbPlace.address,
+              rating: dbPlace.rating
+            } : mockLocations.find(l => l.id === item.locationId);
+            
+            const displayName = dbPlace?.name || location?.name || tripMetadata?.labelByLocationId?.[item.locationId] || 'Hoạt động';
+            const displayImage = dbPlace?.imageUrl || location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
+            const address = dbPlace?.address || location?.address;
+            const rating = dbPlace?.rating || location?.rating;
+            
+            return (
+              <div className="py-4 space-y-5">
+                {/* Event Header - Time & Status */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                    <Clock className="w-5 h-5 text-[var(--vj-accent)]" />
+                    <span>{item.startTime} - {item.endTime}</span>
+                  </div>
+                  <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200 uppercase text-[10px]">
+                    {item.category || 'HOẠT ĐỘNG'}
+                  </Badge>
+                </div>
+
+                {/* User Notes - High Priority */}
+                <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
+                  <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Pencil className="w-3.5 h-3.5" />
+                    Ghi chú của bạn
+                  </h4>
+                  <p className="text-sm text-slate-700 leading-relaxed italic">
+                    {item.notes?.trim() ? item.notes : "Không có ghi chú nào cho hoạt động này."}
+                  </p>
+                </div>
+
+                {/* Place Context - Secondary */}
+                <div className="border border-slate-100 rounded-xl overflow-hidden bg-white shadow-sm">
+                  <div className="flex gap-3 p-3">
+                    <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0 border border-slate-200">
+                      <img
+                        src={displayImage}
+                        alt={displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0 py-0.5">
+                      <h4 className="text-sm font-bold text-slate-900 truncate mb-1">{displayName}</h4>
+                      {address && (
+                        <div className="flex items-start gap-1 text-xs text-slate-500 line-clamp-2">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span>{address}</span>
+                        </div>
+                      )}
+                      {rating && (
+                        <div className="flex items-center gap-1 text-xs text-amber-500 font-bold mt-1">
+                          <Star className="w-3 h-3 fill-current" />
+                          <span>{rating}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </DndProvider>
   );
 }

@@ -144,6 +144,7 @@ export function recommendedPlaceToLocation(p: RecommendedPlace): Location {
     lng,
     price: p.maxPrice ?? p.minPrice ?? 0,
     rating: p.rating ?? 0,
+    category: p.category,
     tags: tagList.length ? tagList : [p.category],
     weather: inferWeatherFromTags(p.tags),
     vibe: inferVibeFromTags(p.tags),
