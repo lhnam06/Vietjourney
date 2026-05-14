@@ -3,6 +3,7 @@
 export interface Location {
   id: string;
   name: string;
+  category: string;
   description: string;
   image: string;
   lat: number;
@@ -70,6 +71,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-1',
     name: 'Phở Phú Vương — Sáng nhẹ',
+    category: 'food',
     description: 'Phở tái nạm sáng cuối tuần — khu quen của dân quận trung tâm',
     image: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&q=80',
     lat: 10.7723,
@@ -85,6 +87,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-2',
     name: 'Chợ Bến Thành',
+    category: 'activity',
     description: 'Ngã tư ẩm thực và quà lưu niệm của Sài Gòn',
     image: 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80',
     lat: 10.772,
@@ -100,6 +103,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-3',
     name: 'Bún Thịt Nướng Chợ Lớn',
+    category: 'food',
     description: 'Thơm mỡ hành và nước mắm chua ngọt đặc trưng Nam Bộ',
     image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&q=80',
     lat: 10.7542,
@@ -115,6 +119,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-4',
     name: 'Cà phê sân thượng Pasteur',
+    category: 'drink',
     description: 'Ngắm nhịp phố Sài Gòn từ trên cao với cold brew',
     image: 'https://images.unsplash.com/photo-1511920170033-f8396924c348?w=800&q=80',
     lat: 10.7801,
@@ -130,6 +135,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-5',
     name: 'Phố đi bộ Nguyễn Huệ',
+    category: 'activity',
     description: 'Quảng trường đi bộ, nhạc nước cuối tuần và view Bitexco',
     image: 'https://images.unsplash.com/photo-1544984243-ec57ea16fe25?w=800&q=80',
     lat: 10.7756,
@@ -145,6 +151,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-6',
     name: 'Nhà thờ Đức Bà',
+    category: 'activity',
     description: 'Biểu tượng kiến trúc Sài Gòn thời thuộc Pháp',
     image: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80',
     lat: 10.7797,
@@ -160,6 +167,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-7',
     name: 'Nhà hát Thành phố',
+    category: 'activity',
     description: 'Kiến trúc cổ điển gần đường Lê Lợi',
     image: 'https://images.unsplash.com/photo-1580041065738-e72023775cdc?w=800&q=80',
     lat: 10.7765,
@@ -175,6 +183,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-8',
     name: 'Bảo tàng Chứng tích Chiến tranh',
+    category: 'activity',
     description: 'Không gian lịch sử hiện đại ở Quận 3',
     image: 'https://images.unsplash.com/photo-1577720643272-265f09367432?w=800&q=80',
     lat: 10.7793,
@@ -190,6 +199,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-9',
     name: 'Thức ăn đường phố Hoàng Diệu',
+    category: 'food',
     description: 'Bánh tráng nướng, ốc và món ăn khuya',
     image: 'https://images.unsplash.com/photo-1604797332671-e601c4f89f91?w=800&q=80',
     lat: 10.7872,
@@ -205,6 +215,7 @@ export const mockLocations: Location[] = [
   {
     id: 'loc-10',
     name: 'Dinh Độc Lập',
+    category: 'activity',
     description: 'Di tích lịch sử và kiến trúc công sở Sài Gòn xưa',
     image: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80',
     lat: 10.7773,

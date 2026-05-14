@@ -17,21 +17,37 @@ interface LeafletMapViewProps {
   routeCoordinates?: LatLng[];
 }
 
-const defaultMarkerIcon = L.icon({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+const createCustomIcon = (category: string = 'activity', index?: number) => {
+  const colors: Record<string, string> = {
+    food: '#f59e0b', // Amber
+    drink: '#3b82f6', // Blue
+    activity: '#10b981', // Emerald
+    default: '#FF6B35' // Vietjourney Orange
+  };
+  
+  const color = colors[category.toLowerCase()] || colors.default;
+  const label = index !== undefined ? `<div style="position:absolute;top:-8px;right:-8px;background:white;color:${color};width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-center;font-size:10px;font-weight:900;border:2px solid ${color};box-shadow:0 2px 4px rgba(0,0,0,0.2)">${index + 1}</div>` : '';
+
+  return L.divIcon({
+    className: 'vj-custom-marker',
+    html: `
+      <div style="position:relative;">
+        <div style="width:24px;height:24px;border-radius:50% 50% 50% 0;background:${color};transform:rotate(-45deg);border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>
+        <div style="width:8px;height:8px;border-radius:50%;background:white;position:absolute;top:8px;left:8px;"></div>
+        ${label}
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
+  });
+};
 
 const userMarkerIcon = L.divIcon({
   className: 'vj-user-marker',
-  html: '<div style="width:14px;height:14px;border-radius:50%;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,.25)"></div>',
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
+  html: '<div style="width:16px;height:16px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 4px rgba(239,68,68,0.2), 0 2px 10px rgba(0,0,0,0.3);animation: pulse 2s infinite;"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
 });
 
 const formatVND = (amount: number) => {
@@ -115,7 +131,11 @@ export default function LeafletMapView({
       )}
 
       {locations.map((loc, idx) => (
-        <Marker key={loc.id} position={{ lat: loc.lat, lng: loc.lng }} icon={defaultMarkerIcon}>
+        <Marker 
+          key={loc.id} 
+          position={{ lat: loc.lat, lng: loc.lng }} 
+          icon={createCustomIcon(loc.category, showRoute ? idx : undefined)}
+        >
           <Popup>
             <div style={{ minWidth: 180 }}>
               <div style={{ marginBottom: 4, fontWeight: 800 }}>

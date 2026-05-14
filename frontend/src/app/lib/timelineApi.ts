@@ -146,6 +146,7 @@ export async function reorderTimelineEvent(
 export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
   items: TimelineItem[];
   labelByLocationId: Record<string, string>;
+  placesByLocationId: Record<string, ApiTimelinePlace>;
   tripMeta: {
     id: string;
     title: string;
@@ -155,11 +156,13 @@ export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
   };
 } {
   const labelByLocationId: Record<string, string> = {};
+  const placesByLocationId: Record<string, ApiTimelinePlace> = {};
   
   if (!detail) {
     return {
       items: [],
       labelByLocationId: {},
+      placesByLocationId: {},
       tripMeta: { id: '', title: '', destination: '', startDate: '', endDate: '' }
     };
   }
@@ -178,12 +181,19 @@ export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
       }
 
       // Reconstruct the frontend locationId using the same logic as recommendationUtils
-      const locationId = ev.place?.id ?? `${rawCat}:${cleanId}`;
+      // IMPORTANT: Always use string IDs for consistent lookup
+      const placeIdStr = ev.place?.id ? String(ev.place.id) : null;
+      const locationId = placeIdStr || `${rawCat}:${cleanId}`;
       
       const name = ev.place?.name?.trim() || 'Hoạt động';
       labelByLocationId[locationId] = name;
+      if (ev.place) {
+        placesByLocationId[locationId] = ev.place;
+      }
 
       const date = ev.startTime ? ev.startTime.slice(0, 10) : new Date().toISOString().slice(0, 10);
+      
+      console.log(`[timelineApi] Mapped event ${ev.id}:`, { locationId, hasPlace: !!ev.place });
       
       return {
         id: ev.id,
@@ -198,6 +208,7 @@ export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
   return {
     items,
     labelByLocationId,
+    placesByLocationId,
     tripMeta: {
       id: detail.id,
       title: detail.title || 'Chuyến đi không tên',

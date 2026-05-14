@@ -9,7 +9,7 @@ import { onLocationImageError } from '../lib/imagePlaceholder';
 interface TimelineBlockProps {
   index: number;
   item: TimelineItem;
-  location: Location;
+  location?: Location | null; // Made optional/nullable
   moveItem: (dragIndex: number, hoverIndex: number) => void;
   isEditing: boolean;
   onEditStart: () => void;
@@ -20,11 +20,16 @@ interface TimelineBlockProps {
   onEditTime?: () => void;
   onRemove?: () => void;
   onDuplicate?: () => void;
+  onClick?: () => void;
+  // New: direct data fallback from API
+  displayName?: string;
+  displayImage?: string;
 }
 
 const ItemType = 'TIMELINE_ITEM';
 
-function getActivityIcon(location: Location) {
+function getActivityIcon(location: Location | null | undefined) {
+  if (!location || !location.tags) return MapPin;
   const tags = location.tags.join(' ').toLowerCase();
   const name = location.name.toLowerCase();
 
@@ -48,6 +53,9 @@ export default function TimelineBlock({
   onEditTime,
   onRemove,
   onDuplicate,
+  onClick,
+  displayName,
+  displayImage,
 }: TimelineBlockProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -96,12 +104,15 @@ export default function TimelineBlock({
         {/* Card */}
         <Card
           ref={ref}
-          className={`relative overflow-hidden transition-all cursor-move bg-white/95 border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,.18)] hover:shadow-[0_14px_34px_rgba(0,0,0,.22)] rounded-2xl ${
+          className={`relative overflow-hidden transition-all cursor-pointer bg-white/95 border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,.18)] hover:shadow-[0_14px_34px_rgba(0,0,0,.22)] rounded-2xl ${
             isDragging ? 'opacity-50' : ''
           } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
             isEditing ? 'ring-2 ring-[var(--vj-accent)] ring-offset-2 shadow-lg' : ''
           } ${hasOverlap ? 'ring-2 ring-rose-500 ring-offset-2' : ''}`}
-          onClick={onEditStart}
+          onClick={() => {
+            onClick?.();
+            onEditStart();
+          }}
         >
           <div className="flex gap-3 p-3">
             {/* Drag Handle */}
@@ -112,8 +123,8 @@ export default function TimelineBlock({
             {/* Image + icon overlay */}
             <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 relative">
               <img
-                src={location.image}
-                alt={location.name}
+                src={displayImage || location?.image}
+                alt={displayName || location?.name}
                 className="w-full h-full object-cover"
                 loading="lazy"
                 decoding="async"
@@ -131,7 +142,7 @@ export default function TimelineBlock({
             {/* Content */}
             <div className="flex-1 min-w-0">
               <h3 className="font-extrabold text-slate-900 leading-snug truncate">
-                {location.name}
+                {displayName || location?.name || 'Hoạt động'}
               </h3>
 
               <div className="flex items-center gap-2 text-xs text-slate-700 mt-1">
