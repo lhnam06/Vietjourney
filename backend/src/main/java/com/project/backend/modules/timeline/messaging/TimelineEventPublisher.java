@@ -25,6 +25,11 @@ public class TimelineEventPublisher {
         );
         
         log.info("Publishing event to {}: {}", channel, type);
-        redisTemplate.convertAndSend(channel, message);
+        try {
+            redisTemplate.convertAndSend(channel, message);
+        } catch (Exception e) {
+            log.error("Failed to publish event to Redis: {}", e.getMessage());
+            // Don't rethrow - Redis failures shouldn't break the main flow
+        }
     }
 }

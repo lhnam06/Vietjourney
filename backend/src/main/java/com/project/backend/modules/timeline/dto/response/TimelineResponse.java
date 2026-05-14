@@ -24,4 +24,5 @@ public class TimelineResponse {
     String ownerDisplayName;
     List<TimelineMemberResponse> members;
     List<TimelineEventResponse> events;
+    String activeInviteCode;
 }

@@ -10,116 +10,220 @@ import {
   MoreHorizontal,
   Navigation,
   Plus,
+  TrendingUp,
 } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, mockTimeline, mockUsers, TimelineItem, Location, mockTrips, mockTransactions } from '../data/mockData';
+import { mockLocations, mockUsers, TimelineItem, Location, mockTrips } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
 import { toast } from 'sonner';
-import { deleteTimelineItem, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
+import { setLastTripId } from '../lib/tripStorage';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import AddToItineraryDialog from '../components/AddToItineraryDialog';
+import SearchPlacesDialog from '../components/SearchPlacesDialog';
 import { Input } from '../components/ui/input';
 import { Button as UIButton } from '../components/ui/button';
 import { useTimelineSocket } from '../hooks/useTimelineSocket';
 import { useAuth } from '../context/AuthContext';
+import { Badge } from '../components/ui/badge';
+import { 
+  getTimelineDetail, 
+  mapApiTimelineToTimetable, 
+  addTimelineEvent, 
+  deleteTimelineEvent, 
+  moveTimelineEvent, 
+  reorderTimelineEvent 
+} from '../lib/timelineApi';
+import { getStoredToken } from '../lib/authApi';
+import {
+  enqueueRecommendationInteraction,
+  flushRecommendationInteractionQueue,
+} from '../lib/recommendationInteractionQueue';
+import { buildInteractionBase } from '../lib/recommendationUtils';
 
 export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
-  const { lastMessage } = useTimelineSocket(tripId, user?.token ?? "dummy_token");
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const token = getStoredToken();
+  const { lastMessage } = useTimelineSocket(tripId, token ?? "dummy_token");
 
-  useEffect(() => {
-    if (lastMessage) {
-      console.log("[Workspace] Real-time event received:", lastMessage);
-      // In a full implementation, we would update the timelineItems state here
-      // while avoiding echo-loops from our own actions.
-    }
-  }, [lastMessage]);
-  const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  const isMockTrip = tripId === 'trip-1'; 
 
-  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(() => {
-    const stored = typeof window !== 'undefined' ? loadTripData(tripId) : null;
-    return stored?.timeline?.length ? stored.timeline : mockTimeline;
-  });
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
+  const [tripMetadata, setTripMetadata] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => mockTimeline[0]?.date ?? new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [timeEditorOpen, setTimeEditorOpen] = useState(false);
   const [timeEditorId, setTimeEditorId] = useState<string | null>(null);
   const [timeStart, setTimeStart] = useState('09:00');
   const [timeEnd, setTimeEnd] = useState('10:00');
 
-  useEffect(() => {
-    setLastTripId(tripId);
-    const stored = loadTripData(tripId);
-    if (stored?.timeline?.length) {
-      setTimelineItems(stored.timeline);
-      setSelectedDate(stored.timeline[0]?.date ?? new Date().toISOString().slice(0, 10));
-    } else {
-      setTimelineItems(mockTimeline);
-      setSelectedDate(mockTimeline[0]?.date ?? new Date().toISOString().slice(0, 10));
-    }
-  }, [tripId]);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [addDetailsDialogOpen, setAddDetailsDialogOpen] = useState(false);
+  const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<Location | null>(null);
 
-  const moveTimelineItem = (dragIndex: number, hoverIndex: number) => {
-    setTimelineItems((prev) => {
-      const positions: number[] = [];
-      prev.forEach((t, i) => {
-        if (t.date === selectedDate) positions.push(i);
-      });
-      const dayItems = positions.map((i) => prev[i]);
-      const dragItem = dayItems[dragIndex];
-      if (!dragItem) return prev;
-      const reordered = dayItems.slice();
-      reordered.splice(dragIndex, 1);
-      reordered.splice(hoverIndex, 0, dragItem);
-      const next = prev.slice();
-      positions.forEach((pos, idx) => {
-        next[pos] = reordered[idx]!;
-      });
-      // persist
-      try {
-        const stored = loadTripData(tripId);
-        if (stored) {
-          upsertTimelineItem(tripId, stored.trip, next[0] as any, stored.timeline, stored.transactions);
-        }
-      } catch {
-        // ignore
+  const fetchTimeline = async () => {
+    console.log("[Workspace] fetchTimeline called", { tripId, authLoading, hasToken: !!user?.token });
+    
+    // 1. If we are still waiting for auth to initialize, just keep waiting
+    if (authLoading) {
+      console.log("[Workspace] Auth still loading, skipping fetch...");
+      return;
+    }
+    
+    // 2. If we have no token OR an invalid tripId, we can't fetch anything.
+    if (!token || !tripId || tripId === 'undefined' || (tripId === 'trip-1' && !isAuthenticated)) {
+      console.warn("[Workspace] Cannot fetch timeline: missing token or invalid/default tripId", { tripId, hasToken: !!token });
+      setIsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.error("[Workspace] API fetch timed out after 10s");
+      toast.error("Yêu cầu quá hạn. Vui lòng thử lại.");
+      setIsLoading(false);
+    }, 10000);
+
+    try {
+      console.log("[Workspace] Starting API fetch for", tripId);
+      setIsLoading(true); 
+      const detail = await getTimelineDetail(tripId, token!, controller.signal);
+      clearTimeout(timeoutId);
+      console.log("[Workspace] API response received", detail);
+      
+      if (!detail) {
+        throw new Error("No timeline detail returned from API");
       }
-      return next;
-    });
+
+      const { items, tripMeta } = mapApiTimelineToTimetable(detail);
+      console.log("[Workspace] Data mapped", { itemCount: items?.length, tripMeta });
+      
+      setTimelineItems(items || []);
+      setTripMetadata(tripMeta);
+      
+      if (items && items.length > 0 && !selectedDate) {
+        setSelectedDate(items[0].date);
+      }
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') return;
+      console.error("[Workspace] Failed to fetch timeline:", error);
+      toast.error("Không thể tải dữ liệu lộ trình");
+    } finally {
+      console.log("[Workspace] fetchTimeline finished, setting isLoading to false");
+      setIsLoading(false);
+    }
   };
 
-  const addQuickActivity = (locationId?: string) => {
-    const location = mockLocations.find((l) => l.id === (locationId ?? mockLocations[0]?.id));
-    if (!location) return;
+  useEffect(() => {
+    fetchTimeline();
+    setLastTripId(tripId);
+  }, [tripId, token, authLoading]);
 
-    const last = timelineItems
-      .filter((t) => t.date === selectedDate)
-      .slice()
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
-      .at(-1);
+  useEffect(() => {
+    if (lastMessage) {
+      console.log("[Workspace] Real-time event received:", lastMessage);
+      // Refresh data when a change is detected from other users
+      fetchTimeline();
+    }
+  }, [lastMessage]);
 
-    const startTime = last ? last.endTime : '09:00';
-    const endTime = (() => {
-      const dt = new Date(`2000-01-01T${startTime}`);
-      dt.setMinutes(dt.getMinutes() + 60);
-      return dt.toTimeString().slice(0, 5);
-    })();
+  const trip = useMemo(() => {
+    if (tripMetadata) return tripMetadata;
+    return mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  }, [tripMetadata, tripId]);
 
-    const id = `timeline-${Date.now()}`;
-    const next: TimelineItem = { id, locationId: location.id, startTime, endTime, date: selectedDate };
-    setTimelineItems((prev) => {
-      const updated = [...prev, next];
-      upsertTimelineItem(tripId, trip, next, mockTimeline, mockTransactions);
-      return updated;
-    });
-    setEditingItem(id);
-    toast.success('Đã thêm hoạt động', { description: location.name });
+  const moveTimelineItem = async (dragIndex: number, hoverIndex: number) => {
+    if (!token) return;
+    
+    const dayItems = timelineItems.filter((t) => t.date === selectedDate);
+    const dragItem = dayItems[dragIndex];
+    if (!dragItem) return;
+
+    try {
+      // Optimistic update for UI smoothness
+      setTimelineItems(prev => {
+        const next = [...prev];
+        const globalDragIdx = prev.findIndex(t => t.id === dragItem.id);
+        const targetItem = dayItems[hoverIndex];
+        const globalHoverIdx = prev.findIndex(t => t.id === targetItem.id);
+        
+        const [moved] = next.splice(globalDragIdx, 1);
+        next.splice(globalHoverIdx, 0, moved!);
+        return next;
+      });
+
+      await reorderTimelineEvent(tripId, dragItem.id, { orderIndex: hoverIndex }, token);
+    } catch (error) {
+      console.error('[Workspace] Failed to reorder:', error);
+      toast.error('Không thể sắp xếp lại');
+      fetchTimeline(); // Rollback
+    }
+  };
+
+  const handleSelectLocation = (location: Location) => {
+    setSelectedLocationForAdd(location);
+    setSearchDialogOpen(false);
+    setAddDetailsDialogOpen(true);
+  };
+
+  const handleCreateActivity = async (item: TimelineItem, tx?: any) => {
+    if (!token) return;
+
+    if (isMockTrip) {
+      toast.error('Bạn đang ở chế độ xem mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật để lưu hoạt động.');
+      return;
+    }
+    
+    // Persist the trip ID in localStorage for "Thời khóa biểu" and "Lịch trình của tôi" to find.
+    setLastTripId(tripId);
+    
+    try {
+      const dateStr = item.date || selectedDate || new Date().toISOString().slice(0, 10);
+      
+      // Clean ID to prevent double-prefixing in DB
+      const cleanExternalId = item.locationId.includes(':') 
+        ? item.locationId.split(':').pop()! 
+        : item.locationId;
+
+      const newEvent = await addTimelineEvent(tripId, {
+        externalPlaceId: cleanExternalId,
+        category: 'ACTIVITY',
+        startTime: `${dateStr}T${item.startTime}:00`,
+        endTime: `${dateStr}T${item.endTime}:00`,
+        notes: item.notes,
+        orderIndex: 0,
+        status: 'PLANNED'
+      }, token);
+      
+      if (newEvent) {
+        toast.success('Đã thêm hoạt động');
+        // Log the interaction if we have a selected location for context
+        if (selectedLocationForAdd) {
+          enqueueRecommendationInteraction({
+            ...buildInteractionBase(selectedLocationForAdd),
+            eventType: 'ADD_TO_TIMELINE',
+          });
+          void flushRecommendationInteractionQueue();
+        }
+        fetchTimeline();
+      }
+    } catch (error: any) {
+      console.error('[Workspace] Failed to add activity:', error);
+      // Show the actual backend error message if available
+      const errorMsg = error?.message || 'Không thể thêm hoạt động';
+      const errorCode = error?.code || 'unknown';
+      toast.error(`${errorMsg} (Mã: ${errorCode})`);
+    }
   };
 
   const dates = useMemo(() => {
@@ -171,16 +275,23 @@ export default function Workspace() {
     setTimeEditorOpen(true);
   };
 
-  const saveTimeEditor = () => {
-    if (!timeEditorId) return;
-    setTimelineItems((prev) => {
-      const idx = prev.findIndex((t) => t.id === timeEditorId);
-      if (idx < 0) return prev;
-      const updated = prev.slice();
-      updated[idx] = { ...updated[idx]!, startTime: timeStart, endTime: timeEnd };
-      upsertTimelineItem(tripId, trip, updated[idx]!, mockTimeline, mockTransactions);
-      return updated;
-    });
+  const saveTimeEditor = async () => {
+    if (!timeEditorId || !token) return;
+    const item = timelineItems.find(t => t.id === timeEditorId);
+    if (!item) return;
+
+    try {
+      const dateStr = item.date || new Date().toISOString().slice(0, 10);
+      await moveTimelineEvent(tripId, timeEditorId, {
+        startTime: `${dateStr}T${timeStart}:00`,
+        endTime: `${dateStr}T${timeEnd}:00`,
+      }, token);
+      toast.success('Đã cập nhật thời gian');
+      fetchTimeline();
+    } catch (error) {
+      console.error('[Workspace] Failed to update time:', error);
+      toast.error('Cập nhật thất bại');
+    }
     setTimeEditorOpen(false);
   };
 
@@ -316,7 +427,7 @@ export default function Workspace() {
                   <Button
                     size="sm"
                     className="h-8 bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white shadow-sm"
-                    onClick={() => addQuickActivity()}
+                    onClick={() => setSearchDialogOpen(true)}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Thêm hoạt động
@@ -340,7 +451,12 @@ export default function Workspace() {
           {/* Timeline Items */}
           <ScrollArea className="flex-1 min-h-0 p-5 bg-[var(--vj-primary)]">
             <div className="space-y-4">
-              {visibleTimelineItems.length === 0 && (
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-white/70">
+                  <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
+                  <p className="text-sm font-medium">Đang tải dữ liệu lộ trình...</p>
+                </div>
+              ) : visibleTimelineItems.length === 0 && (
                 <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-white/90">
                   <div className="font-extrabold">Chưa có hoạt động cho ngày này</div>
                   <div className="text-sm text-white/70 mt-1">Bấm “Thêm hoạt động” hoặc thêm từ trang Khám Phá.</div>
@@ -369,19 +485,32 @@ export default function Workspace() {
                       ownerName={owner?.name?.split(' ').slice(-1)[0]}
                       hasOverlap={overlaps.has(item.id)}
                       onEditTime={() => openTimeEditor(item.id)}
-                      onDuplicate={() => {
-                        const clone: TimelineItem = { ...item, id: `act-${Date.now()}` };
-                        setTimelineItems((prev) => {
-                          const updated = [...prev, clone];
-                          upsertTimelineItem(tripId, trip, clone, mockTimeline, mockTransactions);
-                          return updated;
-                        });
-                        toast.success('Đã nhân bản hoạt động');
+                      onDuplicate={async () => {
+                        if (!token) return;
+                        try {
+                          const dateStr = item.date || new Date().toISOString().slice(0, 10);
+                          await addTimelineEvent(tripId, {
+                            externalPlaceId: item.locationId,
+                            category: 'ACTIVITY',
+                            startTime: `${dateStr}T${item.startTime}:00`,
+                            endTime: `${dateStr}T${item.endTime}:00`,
+                            notes: item.notes
+                          }, token);
+                          toast.success('Đã nhân bản hoạt động');
+                          fetchTimeline();
+                        } catch (error) {
+                          toast.error('Nhân bản thất bại');
+                        }
                       }}
-                      onRemove={() => {
-                        setTimelineItems((prev) => prev.filter((t) => t.id !== item.id));
-                        deleteTimelineItem(tripId, trip, item.id, mockTimeline, mockTransactions);
-                        toast.success('Đã xoá hoạt động');
+                      onRemove={async () => {
+                        if (!token) return;
+                        try {
+                          await deleteTimelineEvent(tripId, item.id, token);
+                          toast.success('Đã xoá hoạt động');
+                          fetchTimeline();
+                        } catch (error) {
+                          toast.error('Xoá thất bại');
+                        }
                       }}
                     />
 
@@ -407,7 +536,7 @@ export default function Workspace() {
           <div className="p-5 border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
             <Button
               className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium rounded-xl h-11"
-              onClick={() => addQuickActivity()}
+              onClick={() => setSearchDialogOpen(true)}
             >
               + Thêm Hoạt Động Mới
             </Button>
@@ -423,14 +552,13 @@ export default function Workspace() {
           <div className="absolute top-16 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 min-w-[220px]">
             <h3 className="font-bold text-sm text-[#0A4A6E] mb-2">Lộ Trình Tự Động</h3>
             <div className="flex items-center gap-3 text-xs text-slate-600">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-white/90">
                 <Clock className="w-3.5 h-3.5" />
-                <span>7.5 giờ</span>
+                <Badge variant="outline" className="border-white/20 text-white/90 text-[10px] font-medium h-5">7.5 giờ</Badge>
               </div>
-              <div className="w-px h-4 bg-slate-300" />
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-[#FF6B35]">Mức Độ Đông Đúc:</span>
-                <span className="text-amber-600 font-medium">Trung Bình</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-white/90">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <Badge variant="outline" className="border-white/20 text-white/90 text-[10px] font-medium h-5">Trung Bình</Badge>
               </div>
             </div>
           </div>
@@ -473,6 +601,25 @@ export default function Workspace() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SearchPlacesDialog
+        open={searchDialogOpen}
+        onOpenChange={setSearchDialogOpen}
+        onSelect={handleSelectLocation}
+      />
+
+      {trip && (
+        <AddToItineraryDialog
+          open={addDetailsDialogOpen}
+          onOpenChange={setAddDetailsDialogOpen}
+          tripId={tripId}
+          trip={trip}
+          location={selectedLocationForAdd}
+          users={mockUsers}
+          onCreate={handleCreateActivity}
+          defaultDate={selectedDate}
+        />
+      )}
     </DndProvider>
   );
 }

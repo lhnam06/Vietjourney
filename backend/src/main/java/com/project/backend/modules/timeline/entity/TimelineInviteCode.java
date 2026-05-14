@@ -29,6 +29,9 @@ public class TimelineInviteCode {
     @Column(name = "code_hash", nullable = false, length = 128)
     String codeHash;
 
+    @Column(name = "code", length = 10)
+    String code;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     TimelineMemberRole role;

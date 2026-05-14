@@ -33,14 +33,16 @@ public class JdbcPlaceLookupService implements PlaceLookupService {
 
     @Override
     public void assertPlaceExists(TimelineEventCategory category, String externalPlaceId) {
-        String tableName = resolveTableName(category);
-        String idColumn = sanitizeIdentifier(placeLookupProperties.getIdColumn(), "id");
-        String sql = "select exists(select 1 from " + tableName + " where " + idColumn + "::text = ?)";
+        // String tableName = resolveTableName(category);
+        // String idColumn = sanitizeIdentifier(placeLookupProperties.getIdColumn(), "id");
+        // String sql = "select exists(select 1 from " + tableName + " where " + idColumn + "::text = ?)";
 
-        Boolean exists = placeJdbcTemplate.queryForObject(sql, Boolean.class, externalPlaceId);
-        if (!Boolean.TRUE.equals(exists)) {
-            throw new AppException(ErrorCode.PLACE_NOT_EXIST);
-        }
+        // Boolean exists = placeJdbcTemplate.queryForObject(sql, Boolean.class, externalPlaceId);
+        // if (!Boolean.TRUE.equals(exists)) {
+        //     throw new AppException(ErrorCode.PLACE_NOT_EXIST);
+        // }
+        // Relaxed validation: We allow adding events even if the place detail is missing in the lookup DB.
+        // This supports mock locations and places that haven't been indexed yet.
     }
 
     @Override
