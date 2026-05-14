@@ -19,12 +19,32 @@ import com.project.backend.modules.timeline.event.TimelineChangeType;
 import com.project.backend.modules.timeline.event.TimelineChangedEvent;
 import com.project.backend.modules.timeline.event.TimelineMemberInvitedEvent;
 import com.project.backend.modules.timeline.enums.TimelineMemberRole;
+import com.project.backend.modules.timeline.dto.request.JoinTimelineByCodeRequest;
+import com.project.backend.modules.timeline.dto.request.ResetTimelineInviteCodeRequest;
+import com.project.backend.modules.timeline.dto.response.JoinTimelineByCodeResponse;
+import com.project.backend.modules.timeline.dto.response.ResetTimelineInviteCodeResponse;
+import com.project.backend.modules.timeline.entity.TimelineInviteCode;
+import com.project.backend.modules.timeline.repository.TimelineInviteCodeRepository;
 import com.project.backend.modules.timeline.repository.TimelineEventRepository;
 import com.project.backend.modules.timeline.repository.TimelineMemberRepository;
 import com.project.backend.modules.timeline.repository.TimelineRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -43,6 +63,7 @@ public class TimelineService {
     TimelineRepository timelineRepository;
     TimelineMemberRepository timelineMemberRepository;
     TimelineEventRepository timelineEventRepository;
+    TimelineInviteCodeRepository timelineInviteCodeRepository;
     UserRepository userRepository;
     TimelineSecurityService timelineSecurityService;
     PlaceLookupService placeLookupService;
@@ -92,7 +113,23 @@ public class TimelineService {
     @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public List<TimelineResponse> getMyTimelines() {
         User currentUser = getCurrentUser();
-        return timelineRepository.findAllByOwnerUsernameOrderByCreatedAtDesc(currentUser.getUsername()).stream()
+        
+        // 1. Get timelines where user is owner
+        List<Timeline> owned = timelineRepository.findAllByOwnerUsernameOrderByCreatedAtDesc(currentUser.getUsername());
+        
+        // 2. Get timelines where user is a member (but not necessarily owner)
+        List<Timeline> joined = timelineMemberRepository.findAllByUserUsername(currentUser.getUsername()).stream()
+                .map(TimelineMember::getTimeline)
+                // Filter out those already in 'owned' if needed, though usually owner is also in timeline_members
+                .filter(t -> !t.getOwner().getUsername().equals(currentUser.getUsername()))
+                .toList();
+
+        // Combine and sort by createdAt desc
+        List<Timeline> all = new java.util.ArrayList<>(owned);
+        all.addAll(joined);
+        all.sort(Comparator.comparing(Timeline::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        return all.stream()
                 .map(timeline -> toResponse(
                         timeline,
                         timelineMemberRepository.findAllByTimelineIdOrderByCreatedAtAsc(timeline.getId()),
@@ -168,6 +205,126 @@ public class TimelineService {
         timelineMemberRepository.delete(member);
     }
 
+    @Transactional
+    @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
+    public ResetTimelineInviteCodeResponse resetTimelineInviteCode(String timelineId, ResetTimelineInviteCodeRequest request) {
+        timelineSecurityService.requireOwnerAccess(timelineId);
+        Timeline timeline = getTimelineOrThrow(timelineId);
+        
+        timelineInviteCodeRepository.deactivateActiveByTimelineId(timelineId);
+
+        String rawCode = generateRandomCode(6);
+        String codeHash = sha256(rawCode);
+
+        TimelineInviteCode inviteCode = TimelineInviteCode.builder()
+                .timeline(timeline)
+                .codeHash(codeHash)
+                .code(rawCode)
+                .role(request.getRole())
+                .maxUses(request.getMaxUses() != null ? request.getMaxUses() : 0)
+                .usedCount(0)
+                .active(true)
+                .expiresAt(LocalDateTime.now().plusHours(request.getExpiresInHours() != null ? request.getExpiresInHours() : 72))
+                .createdBy(getCurrentUser())
+                .build();
+
+        timelineInviteCodeRepository.save(inviteCode);
+
+        return ResetTimelineInviteCodeResponse.builder()
+                .code(rawCode)
+                .role(inviteCode.getRole())
+                .maxUses(inviteCode.getMaxUses())
+                .expiresAt(inviteCode.getExpiresAt())
+                .build();
+    }
+
+    @Transactional
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
+    public JoinTimelineByCodeResponse joinTimelineByCode(JoinTimelineByCodeRequest request) {
+        String codeHash = sha256(request.getCode());
+        TimelineInviteCode inviteCode = timelineInviteCodeRepository.findActiveByCodeHashForUpdate(codeHash)
+                .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_INVITE_CODE_INVALID));
+
+        if (inviteCode.getExpiresAt().isBefore(LocalDateTime.now())) {
+            inviteCode.setActive(false);
+            timelineInviteCodeRepository.save(inviteCode);
+            throw new AppException(ErrorCode.TIMELINE_INVITE_CODE_INVALID);
+        }
+
+        if (inviteCode.getMaxUses() > 0 && inviteCode.getUsedCount() >= inviteCode.getMaxUses()) {
+            inviteCode.setActive(false);
+            timelineInviteCodeRepository.save(inviteCode);
+            throw new AppException(ErrorCode.TIMELINE_INVITE_CODE_INVALID);
+        }
+
+        User user = getCurrentUser();
+        Timeline timeline = inviteCode.getTimeline();
+
+        if (timeline.getOwner().getId().equals(user.getId())) {
+            throw new AppException(ErrorCode.TIMELINE_MEMBER_ALREADY_EXISTS);
+        }
+
+        boolean isNewMember = false;
+        TimelineMember member = timelineMemberRepository.findByTimelineIdAndUserUsername(timeline.getId(), user.getUsername())
+                .orElse(null);
+
+        if (member == null) {
+            member = TimelineMember.builder()
+                    .timeline(timeline)
+                    .user(user)
+                    .role(inviteCode.getRole())
+                    .build();
+            isNewMember = true;
+            inviteCode.setUsedCount(inviteCode.getUsedCount() + 1);
+            if (inviteCode.getMaxUses() > 0 && inviteCode.getUsedCount() >= inviteCode.getMaxUses()) {
+                inviteCode.setActive(false);
+            }
+            timelineInviteCodeRepository.save(inviteCode);
+            timelineMemberRepository.save(member);
+        }
+
+        if (isNewMember) {
+            applicationEventPublisher.publishEvent(TimelineMemberInvitedEvent.builder()
+                    .timelineId(timeline.getId())
+                    .timelineTitle(timeline.getTitle())
+                    .actorUsername(user.getUsername())
+                    .invitedUsername(user.getUsername())
+                    .role(member.getRole())
+                    .build());
+            publishTimelineChangedEvent(timeline, TimelineChangeType.TIMELINE_UPDATED);
+        }
+
+        return JoinTimelineByCodeResponse.builder()
+                .timelineId(timeline.getId())
+                .role(member.getRole())
+                .build();
+    }
+
+    private String generateRandomCode(int length) {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        SecureRandom rnd = new SecureRandom();
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++)
+            sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        return sb.toString();
+    }
+
+    private String sha256(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not found", e);
+        }
+    }
+
     @Transactional(readOnly = true)
     @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
     public List<TimelineEventResponse> getTimelineEvents(String timelineId, LocalDateTime rangeStart, LocalDateTime rangeEnd) {
@@ -233,6 +390,14 @@ public class TimelineService {
     }
 
     private TimelineResponse toResponse(Timeline timeline, List<TimelineMember> members, List<TimelineEvent> events) {
+        String activeInviteCode = null;
+        User currentUser = getCurrentUser();
+        if (timeline.getOwner().getId().equals(currentUser.getId())) {
+            activeInviteCode = timelineInviteCodeRepository.findByTimelineIdAndActiveTrue(timeline.getId())
+                    .map(TimelineInviteCode::getCode)
+                    .orElse(null);
+        }
+
         return TimelineResponse.builder()
                 .id(timeline.getId())
                 .title(timeline.getTitle())
@@ -245,6 +410,7 @@ public class TimelineService {
                 .ownerDisplayName(timeline.getOwner().getDisplayName())
                 .members(members.stream().map(this::toMemberResponse).toList())
                 .events(sortEventsForDisplay(events).stream().map(this::toEventResponse).toList())
+                .activeInviteCode(activeInviteCode)
                 .build();
     }
 

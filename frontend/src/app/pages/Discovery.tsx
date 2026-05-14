@@ -10,6 +10,7 @@ import { mockLocations, Location, mockTrips, mockUsers, mockTimeline, mockTransa
 import SimpleMap from '../components/SimpleMap';
 import { toast } from 'sonner';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
+import { addTimelineEvent } from '../lib/timelineApi';
 import { appendTransaction, getLastTripId, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
@@ -107,7 +108,6 @@ function backendRowKey(row: {
 }
 
 export default function Discovery() {
-  const { isAuthenticated } = useAuth();
   const [userCenter, setUserCenter] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle');
   const [searchQuery, setSearchQuery] = useState('');
@@ -134,10 +134,42 @@ export default function Discovery() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
+  const [realTimelines, setRealTimelines] = useState<any[]>([]);
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const listCardsRef = useRef<HTMLDivElement>(null);
-  const tripId = getLastTripId('trip-1');
-  const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  
+  const [currentTripId, setCurrentTripId] = useState(getLastTripId('trip-1'));
+
+  useEffect(() => {
+    const loadTimelines = async () => {
+      const token = getStoredToken();
+      if (isAuthenticated && token) {
+        try {
+          const timelines = await getMyTimelines(token);
+          setRealTimelines(timelines || []);
+          if (currentTripId === 'trip-1' && timelines && timelines.length > 0) {
+            // Auto-select the first real timeline for the user if they are on mock
+            setCurrentTripId(timelines[0].id);
+            setLastTripId(timelines[0].id);
+          }
+        } catch (err) {
+          console.error('[Discovery] Failed to fetch timelines:', err);
+        }
+      }
+    };
+    loadTimelines();
+  }, [isAuthenticated]);
+
+  const tripId = currentTripId;
+  const isMockTrip = tripId === 'trip-1'; 
+  const trip = useMemo(() => {
+    if (!isMockTrip && realTimelines.length > 0) {
+      const found = realTimelines.find(t => t.id === tripId);
+      if (found) return { ...found, destination: found.destination || 'Việt Nam', participants: [] };
+    }
+    return mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  }, [tripId, isMockTrip, realTimelines]);
   const tripUsers = mockUsers.filter((u) => trip.participants.includes(u.id));
   const effectiveCenter: [number, number] = userCenter ?? HCMC_CENTER;
 
@@ -468,6 +500,10 @@ export default function Discovery() {
       return;
     }
     if (!tagGroupOptions.includes(selectedTagGroup)) {
+      if (!user?.token || !tripId) {
+        setIsLoading(false);
+        return;
+      }
       setSelectedTagGroup('all');
       setSelectedTagValues([]);
       return;
@@ -508,7 +544,7 @@ export default function Discovery() {
   return (
     <div className="h-full flex bg-[var(--vj-bg)]">
       {/* Left Panel - Search & Filters & List */}
-      <div className="w-[500px] flex flex-col bg-[var(--vj-surface)] border-r border-[var(--vj-border)] m-4 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-[500px] flex flex-col bg-[var(--vj-surface)] border-r border-[var(--vj-border)] m-4 rounded-2xl overflow-hidden shadow-2xl relative z-[1050]">
         {/* Header */}
         <div className="p-6 border-b border-[var(--vj-border)] bg-gradient-to-br from-[var(--vj-primary)] via-[var(--vj-primary-2)] to-[#0f4b68]">
           <div className="flex items-center gap-3 mb-4">
@@ -951,8 +987,14 @@ export default function Discovery() {
         trip={trip}
         location={addLocation}
         users={tripUsers}
-        defaultDate={new Date().toISOString().slice(0, 10)}
-        onCreate={(item, tx) => {
+        defaultDate={trip.startDate || new Date().toISOString().slice(0, 10)}
+        onCreate={async (item, tx) => {
+          if (isMockTrip && isAuthenticated) {
+            toast.error('Bạn đang xem chuyến đi mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật trong trang "Chuyến đi của tôi" để lưu lại.');
+            navigate('/timelines');
+            return;
+          }
+
           if (isAuthenticated && addLocation) {
             enqueueRecommendationInteraction({
               ...buildInteractionBase(addLocation),
@@ -960,9 +1002,42 @@ export default function Discovery() {
             });
             void flushRecommendationInteractionQueue();
           }
+          
           setLastTripId(tripId);
-          upsertTimelineItem(tripId, trip, item, mockTimeline, mockTransactions);
-          if (tx) appendTransaction(tripId, trip, tx, mockTimeline, mockTransactions);
+          const token = getStoredToken();
+
+          if (token && !isMockTrip && addLocation) {
+            try {
+              console.log(`[Discovery] Persisting to real timeline: ${tripId}`);
+              const dateStr = item.date || new Date().toISOString().slice(0, 10);
+              const category = inferCategoryFromLocation(addLocation).toUpperCase();
+              
+              // De-prefix ID to prevent double-prefixing in database
+              const cleanExternalId = item.locationId.includes(':') 
+                ? item.locationId.split(':').pop()! 
+                : item.locationId;
+
+              await addTimelineEvent(tripId, {
+                externalPlaceId: cleanExternalId,
+                category: category, // Backend expects uppercase enum
+                startTime: `${dateStr}T${item.startTime}:00`,
+                endTime: `${dateStr}T${item.endTime}:00`,
+                notes: item.notes,
+                orderIndex: 0,
+                status: 'PLANNED'
+              }, token);
+              toast.success('Đã lưu vào cơ sở dữ liệu');
+            } catch (error: any) {
+              console.error('[Discovery] Failed to persist event to backend:', error);
+              toast.error(error.message || 'Lỗi kết nối máy chủ - không thể lưu dữ liệu');
+              return; // Don't proceed if backend save failed
+            }
+          } else if (!isAuthenticated) {
+            // Local storage only for guests
+            upsertTimelineItem(tripId, trip, item, mockTimeline, mockTransactions);
+            if (tx) appendTransaction(tripId, trip, tx, mockTimeline, mockTransactions);
+          }
+
           toast.success('Đã thêm vào lịch trình', { description: addLocation?.name });
           navigate(`/workspace/${tripId}`);
         }}

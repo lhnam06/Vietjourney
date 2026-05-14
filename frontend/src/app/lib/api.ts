@@ -22,9 +22,9 @@ export class ApiError extends Error {
 
 export async function requestJson<T>(
   path: string,
-  init: RequestInit & { accessToken?: string | null } = {}
+  init: RequestInit & { accessToken?: string | null; signal?: AbortSignal } = {}
 ): Promise<T> {
-  const { accessToken, headers: h, ...rest } = init;
+  const { accessToken, headers: h, signal, ...rest } = init;
   const headers = new Headers(h);
   if (!headers.has('Content-Type') && init.body) {
     headers.set('Content-Type', 'application/json');
@@ -33,7 +33,7 @@ export async function requestJson<T>(
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers, signal });
   const text = await res.text();
   let data: ApiEnvelope<unknown> | null = null;
   try {

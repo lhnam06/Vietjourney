@@ -54,6 +54,7 @@ public enum  ErrorCode {
     TIMELINE_EVENT_OVERLAP(5008, "Timeline event overlaps with an existing event", HttpStatus.BAD_REQUEST),
     TIMELINE_ACCESS_DENIED(5009, "You do not have access to this timeline", HttpStatus.FORBIDDEN),
     TIMELINE_CONCURRENT_MODIFICATION(5010, "Timeline was modified concurrently, please retry", HttpStatus.CONFLICT),
+    TIMELINE_INVITE_CODE_INVALID(5011, "Invalid or expired invite code", HttpStatus.BAD_REQUEST),
 
     NOTIFICATION_NOT_EXIST(6001, "Notification does not exist", HttpStatus.NOT_FOUND),
     NOTIFICATION_ACCESS_DENIED(6002, "You do not have access to this notification", HttpStatus.FORBIDDEN);

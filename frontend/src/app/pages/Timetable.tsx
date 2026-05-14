@@ -1,37 +1,82 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowLeft, CalendarRange } from 'lucide-react';
+import { ArrowLeft, CalendarRange, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import TripTimetable from '../components/TripTimetable';
-import { mockLocations, mockTimeline, mockTrips } from '../data/mockData';
+import { mockLocations } from '../data/mockData';
 import { eachTripDay, layoutsByDate } from '../lib/timetableLayout';
-import { loadTripData, setLastTripId } from '../lib/tripStorage';
+import { setLastTripId } from '../lib/tripStorage';
+import { useAuth } from '../context/AuthContext';
+import { getTimelineDetail, mapApiTimelineToTimetable } from '../lib/timelineApi';
+import { useTimelineSocket } from '../hooks/useTimelineSocket';
+import { toast } from 'sonner';
+import { getStoredToken } from '../lib/authApi';
 
 export default function Timetable() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam ?? 'trip-1';
   const navigate = useNavigate();
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const token = getStoredToken();
+  const { lastMessage } = useTimelineSocket(tripId, token ?? "dummy_token");
 
-  const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  const [timelineItems, setTimelineItems] = useState<any[]>([]);
+  const [labelByLocationId, setLabelByLocationId] = useState<Record<string, string>>({});
+  const [tripMetadata, setTripMetadata] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchTimeline = async (signal?: AbortSignal) => {
+    if (!token || !tripId || tripId === 'undefined' || (tripId === 'trip-1' && !isAuthenticated)) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const detail = await getTimelineDetail(tripId, token, signal);
+      if (detail) {
+        const { items, tripMeta, labelByLocationId: labels } = mapApiTimelineToTimetable(detail);
+        setTimelineItems(items);
+        setLabelByLocationId(labels);
+        setTripMetadata(tripMeta);
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
+      console.error("[Timetable] Failed to fetch:", error);
+      toast.error("Không thể tải dữ liệu thời khóa biểu");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
+    const controller = new AbortController();
+    fetchTimeline(controller.signal);
     setLastTripId(tripId);
-  }, [tripId]);
+    return () => controller.abort();
+  }, [tripId, token, authLoading]);
 
-  const timelineItems = useMemo(() => {
-    const stored = typeof window !== 'undefined' ? loadTripData(tripId) : null;
-    return stored?.timeline?.length ? stored.timeline : mockTimeline;
-  }, [tripId]);
+  useEffect(() => {
+    if (lastMessage) {
+      fetchTimeline();
+    }
+  }, [lastMessage]);
+
+  const trip = useMemo(() => {
+    return tripMetadata || { name: 'Đang tải...', destination: '', startDate: '', endDate: '' };
+  }, [tripMetadata]);
 
   const days = useMemo(
-    () => eachTripDay(trip.startDate, trip.endDate),
+    () => (trip.startDate && trip.endDate ? eachTripDay(trip.startDate, trip.endDate) : []),
     [trip.startDate, trip.endDate]
   );
 
   const layoutByDate = useMemo(() => layoutsByDate(timelineItems), [timelineItems]);
 
   const getLabel = (block: { locationId: string }) =>
-    mockLocations.find((l) => l.id === block.locationId)?.name ?? 'Hoạt động';
+    labelByLocationId[block.locationId] ||
+    mockLocations.find((l) => l.id === block.locationId)?.name ||
+    'Hoạt động';
 
   return (
     <div className="h-full bg-[var(--vj-bg)] overflow-auto">
@@ -69,9 +114,14 @@ export default function Timetable() {
           </div>
         </div>
 
-        {days.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 text-slate-500">
+            <Loader2 className="size-8 animate-spin mb-4 text-[var(--vj-accent)]" />
+            <p className="text-sm font-medium">Đang cập nhật thời khóa biểu...</p>
+          </div>
+        ) : days.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-600">
-            Chuyến đi chưa có khoảng ngày hợp lệ.
+            Chuyến đi chưa có khoảng ngày hợp lệ hoặc chưa có dữ liệu.
           </div>
         ) : (
           <TripTimetable
