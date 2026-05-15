@@ -60,7 +60,8 @@ public enum  ErrorCode {
     NOTIFICATION_ACCESS_DENIED(6002, "You do not have access to this notification", HttpStatus.FORBIDDEN),
     
     PROPOSAL_NOT_FOUND(7001, "Proposal does not exist", HttpStatus.NOT_FOUND),
-    INVALID_PROPOSAL_DATA(7002, "Invalid proposal data", HttpStatus.BAD_REQUEST);
+    INVALID_PROPOSAL_DATA(7002, "Invalid proposal data", HttpStatus.BAD_REQUEST),
+    PROPOSAL_ALREADY_PROCESSED(7003, "Proposal already processed", HttpStatus.BAD_REQUEST);
     int code;
     String message;
     HttpStatusCode statusCode;

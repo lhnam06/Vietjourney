@@ -152,7 +152,7 @@ export default function TimelineBlock({
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
-                <h3 className="font-extrabold text-slate-900 leading-snug truncate">
+                <h3 className="font-extrabold text-slate-900 leading-snug overflow-x-auto whitespace-nowrap scrollbar-hide py-0.5">
                   {displayName || location?.name || 'Hoạt động'}
                 </h3>
                 {isPending && (
