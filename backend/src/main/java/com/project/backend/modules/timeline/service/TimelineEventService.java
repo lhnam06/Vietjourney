@@ -8,6 +8,7 @@ import com.project.backend.modules.timeline.dto.request.ReorderTimelineEventRequ
 import com.project.backend.modules.timeline.dto.request.ResizeTimelineEventRequest;
 import com.project.backend.modules.timeline.dto.response.TimelineEventResponse;
 import com.project.backend.modules.place.service.PlaceLookupService;
+import com.project.backend.modules.place.dto.PlaceSummary;
 import com.project.backend.modules.timeline.entity.Timeline;
 import com.project.backend.modules.timeline.entity.TimelineEvent;
 import com.project.backend.modules.timeline.event.TimelineChangeType;
@@ -173,15 +174,24 @@ public class TimelineEventService {
             throw new AppException(ErrorCode.TIMELINE_EVENT_OUTSIDE_TIMELINE_RANGE);
         }
 
-        boolean overlapping = timelineEventRepository.existsOverlappingEvent(
+        List<TimelineEvent> overlaps = timelineEventRepository.findOverlappingEvents(
                 timeline.getId(),
                 eventId,
                 startTime,
                 endTime,
                 TimelineEventStatus.CANCELLED
         );
-        if (overlapping) {
-            throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP);
+
+        if (!overlaps.isEmpty()) {
+            TimelineEvent conflict = overlaps.get(0);
+            String placeName = placeLookupService.findPlace(conflict.getCategory(), conflict.getExternalPlaceId())
+                    .map(PlaceSummary::getName)
+                    .orElse("Địa điểm hiện tại");
+            
+            String conflictTime = conflict.getStartTime().toLocalTime().toString().substring(0, 5);
+            String errorMsg = String.format("Đề xuất bị xung đột với hoạt động '%s' lúc %s", placeName, conflictTime);
+            
+            throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP, errorMsg);
         }
     }
 

@@ -52,8 +52,9 @@ export default function ProposalSidebar({
       if (status === 'ACCEPTED') {
         onMerged();
       }
-    } catch (error) {
-      toast.error('Lỗi khi thực hiện thao tác');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Lỗi khi thực hiện thao tác';
+      toast.error(errorMsg);
     }
   };
 
