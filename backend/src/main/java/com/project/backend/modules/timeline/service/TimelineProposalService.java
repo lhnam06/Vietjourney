@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 
+import com.project.backend.modules.timeline.messaging.TimelineEventPublisher;
+
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -30,6 +32,7 @@ public class TimelineProposalService {
     UserRepository userRepository;
     TimelineSecurityService timelineSecurityService;
     TimelineEventService timelineEventService;
+    TimelineEventPublisher timelineEventPublisher;
     ObjectMapper objectMapper;
 
     @Transactional
@@ -76,6 +79,12 @@ public class TimelineProposalService {
         
         proposal.setStatus(status);
         timelineProposalRepository.save(proposal);
+
+        // Broadcast decision to clear shadow object on all clients
+        timelineEventPublisher.publishEvent(timelineId, "PROPOSAL_DECIDED", Map.of(
+                "id", proposalId,
+                "status", status.name()
+        ));
     }
 
     private void applyProposal(TimelineProposal proposal) {

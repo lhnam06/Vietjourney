@@ -53,6 +53,7 @@ export function useTimelineSocket(tripId: string, token: string | null) {
 
   const sendProposal = (timelineId: string, baseVersion: number, changeType: string, payload: any) => {
     if (ws.current && isConnected) {
+      console.log("[Socket] Sending proposal:", { type: changeType, timelineId });
       ws.current.send(JSON.stringify({
         type: 'PROPOSAL_SUBMIT',
         timeline_id: timelineId,
@@ -63,6 +64,9 @@ export function useTimelineSocket(tripId: string, token: string | null) {
         },
         token: token
       }));
+    } else {
+      console.warn("[Socket] Cannot send proposal: Not connected", { isConnected, hasWs: !!ws.current });
+      toast.error("Mất kết nối với máy chủ đồng bộ. Vui lòng thử lại sau giây lát.");
     }
   };
 

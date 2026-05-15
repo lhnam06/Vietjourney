@@ -34,7 +34,7 @@ import { Button } from '../components/ui/button';
 import { Button as UIButton } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
-import { ScrollArea } from '../components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '../components/ui/scroll-area';
 import { mockLocations, mockUsers, TimelineItem, Location, mockTrips } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
@@ -121,6 +121,7 @@ export default function Workspace() {
       console.log("[Workspace] Calling getTimelineDetail...");
       const detail = await getTimelineDetail(tripId, token!, controller.signal);
       console.log("[Workspace] getTimelineDetail success:", !!detail);
+      
       if (detail) {
         console.log("[Workspace] API Response Events:", detail.events?.map(ev => ({
           id: ev.id,
@@ -128,20 +129,18 @@ export default function Workspace() {
           extId: ev.externalPlaceId,
           hasPlace: !!ev.place
         })));
+        
+        const { items, tripMeta, placesByLocationId } = mapApiTimelineToTimetable(detail);
+        setTimelineItems(items || []);
+        setTripMetadata({ ...tripMeta, placesByLocationId });
+      } else {
+        // Handle empty timeline case without throwing error
+        setTimelineItems([]);
       }
+      
       clearTimeout(timeoutId);
-      
-      if (!detail) throw new Error("No timeline detail");
 
-      const { items, tripMeta, placesByLocationId } = mapApiTimelineToTimetable(detail);
-      setTimelineItems(items || []);
-      setTripMetadata({ ...tripMeta, placesByLocationId });
-      
-      if (items && items.length > 0 && !selectedDate) {
-        setSelectedDate(items[0].date);
-      }
-
-      // Fetch pending proposals for Ghost UI
+      // Fetch pending proposals for Ghost UI - ALWAYS fetch this even if timeline is empty
       try {
         const proposals = await getPendingProposals(tripId, token!);
         setPendingProposals(proposals || []);
@@ -164,11 +163,42 @@ export default function Workspace() {
 
   useEffect(() => {
     if (lastMessage) {
-      const timer = setTimeout(() => {
-        console.log("[Workspace] Debounced real-time refresh");
-        fetchTimeline(true);
-      }, 500);
-      return () => clearTimeout(timer);
+      console.log("[Workspace] WebSocket message received:", lastMessage.type);
+      
+      const isProposalEvent = lastMessage.type?.startsWith('PROPOSAL_');
+      
+      // Immediate local state updates for snappy UI responsiveness
+      if (lastMessage.type === 'PROPOSAL_UPDATED' || lastMessage.type === 'PROPOSAL_DECIDED') {
+        const decidedId = lastMessage.proposalId || lastMessage.data?.id;
+        if (decidedId) {
+          setPendingProposals(prev => prev.filter(p => String(p.id) !== String(decidedId)));
+        }
+      }
+
+      if (lastMessage.type === 'PROPOSAL_CREATED' || lastMessage.type === 'PROPOSAL_SUBMITTED') {
+        const newProposal = lastMessage.data;
+        if (newProposal && newProposal.status === 'PENDING') {
+          setPendingProposals(prev => {
+            const exists = prev.some(p => String(p.id) === String(newProposal.id));
+            if (exists) return prev;
+            return [...prev, newProposal];
+          });
+        }
+      }
+
+      // Mimic refresh: Force a fresh fetch from API for all proposal events
+      // This ensures that all items, metadata, and versions are in sync with the server
+      if (isProposalEvent) {
+        console.log("[Workspace] Mimicking refresh for proposal event");
+        // We use a very short delay to let the backend finish its transaction if needed
+        setTimeout(() => fetchTimeline(true), 100);
+      } else {
+        const timer = setTimeout(() => {
+          console.log("[Workspace] Debounced data refresh after other socket event");
+          fetchTimeline(true);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
     }
   }, [lastMessage, fetchTimeline]);
 
@@ -193,6 +223,7 @@ export default function Workspace() {
         endTime: dragItem.endTime
       });
       toast.info("Đã gửi đề xuất thay đổi");
+      setTimeout(() => fetchTimeline(true), 100);
       return;
     }
 
@@ -269,6 +300,7 @@ export default function Workspace() {
       });
       toast.info("Đã gửi đề xuất thêm hoạt động");
       setAddDetailsDialogOpen(false);
+      setTimeout(() => fetchTimeline(true), 100);
       return;
     }
 
@@ -305,33 +337,60 @@ export default function Workspace() {
   };
 
   const mappedProposals = useMemo(() => {
+    if (!pendingProposals.length) return [];
+    
+    console.log("[Workspace] Mapping pending proposals:", pendingProposals.length);
+    
     return pendingProposals
       .filter(p => p.status === 'PENDING')
       .map(p => {
-        const payload = p.payload;
-        const date = (payload.startTime || '').slice(0, 10);
-        
-        // Handle ADD/MOVE to create ghost items
-        if (p.changeType === 'ADD' || p.changeType === 'MOVE') {
-          return {
-            id: `proposal-${p.id}`,
-            locationId: payload.externalPlaceId || '',
-            startTime: isoLocalDateTimeToHHmm(payload.startTime || ''),
-            endTime: isoLocalDateTimeToHHmm(payload.endTime || ''),
-            date,
-            notes: payload.notes,
-            isPending: true,
-            authorUsername: p.authorUsername,
-            proposalId: p.id,
-            latitude: payload.latitude !== undefined ? Number(payload.latitude) : (payload.lat !== undefined ? Number(payload.lat) : undefined),
-            longitude: payload.longitude !== undefined ? Number(payload.longitude) : (payload.lng !== undefined ? Number(payload.lng) : undefined),
-            placeName: payload.placeName || payload.name
-          } as TimelineItem & { isPending: boolean; authorUsername: string; proposalId: string; latitude?: number; longitude?: number; placeName?: string };
+        try {
+          // Robust payload parsing: handle objects or JSON strings
+          let payload = p.payload;
+          if (typeof payload === 'string') {
+            try { payload = JSON.parse(payload); } catch (e) { return null; }
+          }
+          if (!payload) return null;
+
+          const rawStartTime = payload.startTime || payload.start_time || '';
+          const rawEndTime = payload.endTime || payload.end_time || '';
+          
+          // Improved date extraction: Ensure we have a YYYY-MM-DD format
+          let date = '';
+          if (rawStartTime.includes('T')) {
+            date = rawStartTime.split('T')[0];
+          } else if (/^\d{4}-\d{2}-\d{2}/.test(rawStartTime)) {
+            date = rawStartTime.slice(0, 10);
+          } else {
+            // Fallback: If no date in payload, use the first date of the trip or today
+            date = timelineItems[0]?.date || new Date().toISOString().slice(0, 10);
+          }
+
+          // Handle ADD/MOVE/DELETE to create ghost items
+          if (p.changeType === 'ADD' || p.changeType === 'MOVE' || p.changeType === 'DELETE') {
+            return {
+              id: `proposal-${p.id}`,
+              locationId: payload.externalPlaceId || payload.external_place_id || (p.changeType === 'DELETE' ? (payload.eventId || payload.event_id) : ''),
+              startTime: isoLocalDateTimeToHHmm(rawStartTime),
+              endTime: isoLocalDateTimeToHHmm(rawEndTime),
+              date: date,
+              notes: payload.notes,
+              isPending: true,
+              authorUsername: p.authorUsername,
+              proposalId: p.id,
+              changeType: p.changeType,
+              latitude: payload.latitude !== undefined ? Number(payload.latitude) : (payload.lat !== undefined ? Number(payload.lat) : undefined),
+              longitude: payload.longitude !== undefined ? Number(payload.longitude) : (payload.lng !== undefined ? Number(payload.lng) : undefined),
+              placeName: payload.placeName || payload.place_name || payload.name
+            } as any;
+          }
+        } catch (err) {
+          console.error("[Workspace] Error mapping proposal:", p.id, err);
         }
         return null;
       })
-      .filter(Boolean) as (TimelineItem & { isPending: boolean; authorUsername: string; proposalId: string; latitude?: number; longitude?: number; placeName?: string })[];
-  }, [pendingProposals]);
+      .filter(Boolean);
+  }, [pendingProposals, timelineItems]);
 
   useEffect(() => {
     if (mappedProposals.length > 0) {
@@ -352,7 +411,10 @@ export default function Workspace() {
   }, [timelineItems, mappedProposals]);
 
   useEffect(() => {
-    if (!dates.includes(selectedDate)) setSelectedDate(dates[0]);
+    if (dates.length > 0 && (!selectedDate || !dates.includes(selectedDate))) {
+      console.log("[Workspace] Auto-selecting initial date:", dates[0]);
+      setSelectedDate(dates[0]);
+    }
   }, [dates, selectedDate]);
 
   useEffect(() => {
@@ -550,31 +612,31 @@ export default function Workspace() {
       <div className="h-full bg-[var(--vj-bg)]">
         <div className="h-full max-w-[1440px] mx-auto w-full p-4 lg:p-6 flex flex-col lg:flex-row gap-5 min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
-          <div className="w-full lg:w-[540px] bg-[var(--vj-primary)] border border-[var(--vj-border)] flex flex-col rounded-2xl overflow-hidden shadow-2xl min-h-0">
+          <div className="w-full lg:w-[540px] bg-[var(--vj-primary)]/40 backdrop-blur-3xl border border-[var(--vj-border)] flex flex-col rounded-3xl shadow-[var(--vj-shadow-premium)] min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Sticky header */}
-          <div className="sticky top-0 z-20 border-b border-[var(--vj-border)] bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
-            <div className="p-5">
+          <div className="sticky top-0 z-20 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/80 via-[var(--vj-primary)]/40 to-transparent backdrop-blur-xl">
+            <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">Lịch Trình Chuyến Đi</h2>
-                  <p className="mt-1 text-xs text-white/80">{trip.name}</p>
+                  <h2 className="text-2xl font-black text-white tracking-tight drop-shadow-sm">Lịch Trình Chuyến Đi</h2>
+                  <p className="mt-1.5 text-xs font-medium text-white/70 uppercase tracking-widest">{trip.name}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-8 px-3 bg-white/10 border-white/20 text-white hover:bg-white/15"
-                    onClick={() => toast('Thêm tiện ích', { description: 'MVP: sắp ra mắt.' })}
+                    className="h-9 px-4 bg-white/5 border-white/10 text-white hover:bg-white/15 hover:border-white/20 transition-all duration-300 rounded-xl font-bold"
+                    onClick={() => toast('Thêm tiện ích', { description: 'Sắp ra mắt.' })}
                   >
-                    Thêm tiện ích
-                    <ChevronDown className="w-4 h-4 ml-2" />
+                    Tiện ích
+                    <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
                   </Button>
                   <Button
                     size="icon"
                     variant="outline"
-                    className="h-8 w-8 bg-white/10 border-white/20 text-white hover:bg-white/15"
+                    className="h-9 w-9 bg-white/5 border-white/10 text-white hover:bg-white/15 hover:border-white/20 transition-all duration-300 rounded-xl"
                     aria-label="More"
-                    onClick={() => toast('Tuỳ chọn', { description: 'MVP: sắp ra mắt.' })}
+                    onClick={() => toast('Tuỳ chọn', { description: 'Sắp ra mắt.' })}
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
@@ -703,8 +765,8 @@ export default function Workspace() {
           </div>
 
           {/* Timeline Items */}
-          <ScrollArea className="flex-1 min-h-0 p-5 bg-[var(--vj-primary)]">
-            <div className="space-y-4">
+          <ScrollArea className="flex-1 min-h-0 p-5 bg-[var(--vj-primary)] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+            <div className="space-y-4 min-w-max pb-4">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-white/70">
                   <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
@@ -802,6 +864,7 @@ export default function Workspace() {
                         if (!isOwner) {
                           sendProposal(tripId, tripMetadata?.version || 1, "DELETE", { eventId: item.id });
                           toast.info("Đã gửi đề xuất xóa");
+                          setTimeout(() => fetchTimeline(true), 100);
                           return;
                         }
                         try {
@@ -830,6 +893,7 @@ export default function Workspace() {
                 );
               })}
             </div>
+            <ScrollBar orientation="horizontal" className="bg-white/10" />
           </ScrollArea>
 
           {/* Add Activity Button */}
@@ -844,28 +908,34 @@ export default function Workspace() {
           </div>
 
           {/* Column 2: Map */}
-          <div className="flex-1 relative rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-[360px] lg:min-h-0">
+          <div className="flex-1 relative rounded-3xl overflow-hidden shadow-[var(--vj-shadow-premium)] border border-white/10 bg-white min-h-[400px] lg:min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Panel title like reference */}
-          <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-slate-200">
-            <h2 className="text-sm font-bold text-[#0b5d55]">Bản Đồ Lộ Trình</h2>
+          <div className="absolute top-6 left-6 z-[1000] bg-white/70 backdrop-blur-md rounded-2xl px-5 py-2.5 shadow-lg border border-white/30 transition-all duration-300 hover:bg-white/80">
+            <h2 className="text-sm font-black text-[#0b5d55] tracking-tight">Bản Đồ Lộ Trình</h2>
           </div>
-          <div className="absolute top-16 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 min-w-[220px]">
-            <h3 className="font-bold text-sm text-[#0A4A6E] mb-2">Lộ Trình Tự Động</h3>
-            <div className="flex items-center gap-3 text-xs text-slate-600">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-white/90">
-                <Clock className="w-3.5 h-3.5" />
-                <Badge variant="outline" className="border-white/20 text-white/90 text-[10px] font-medium h-5">7.5 giờ</Badge>
+          <div className="absolute top-20 left-6 z-[1000] bg-white/80 backdrop-blur-xl rounded-2xl p-5 shadow-xl border border-white/40 min-w-[240px] transition-all duration-500 hover:shadow-2xl hover:-translate-y-0.5">
+            <h3 className="font-black text-sm text-[#0A4A6E] mb-3 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Lộ Trình Tự Động
+            </h3>
+            <div className="flex items-center gap-4 text-xs text-slate-600 font-bold">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-emerald-600" />
+                <span>7.5 giờ</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-white/90">
-                <TrendingUp className="w-3.5 h-3.5" />
-                <Badge variant="outline" className="border-white/20 text-white/90 text-[10px] font-medium h-5">Trung Bình</Badge>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                <span>Trung Bình</span>
               </div>
             </div>
           </div>
 
-          <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-xl p-3 shadow-lg border border-slate-200">
-            <p className="text-xs font-semibold text-[#0A4A6E]">🗺️ {trip.destination}</p>
-            <p className="text-[11px] text-slate-500 mt-1">Tối ưu thứ tự di chuyển theo ngày đang chọn</p>
+          <div className="absolute bottom-6 left-6 z-[1000] bg-[#0b5d55]/90 backdrop-blur-xl rounded-2xl p-4 shadow-2xl border border-white/20 text-white min-w-[200px]">
+            <p className="text-sm font-black tracking-tight mb-1 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-emerald-400" />
+              {trip.destination}
+            </p>
+            <p className="text-[10px] text-white/70 font-medium leading-relaxed">Tối ưu thứ tự di chuyển theo ngày đang chọn</p>
           </div>
 
           <SimpleMap
@@ -1012,7 +1082,10 @@ export default function Workspace() {
           timelineId={tripId} 
           token={token!} 
           currentVersion={tripMetadata?.version || 1}
-          onMerged={() => fetchTimeline(true)}
+          onProposalDecided={(id) => {
+            setPendingProposals(prev => prev.filter(p => String(p.id) !== String(id)));
+            fetchTimeline(true);
+          }}
           isOwner={isOwner}
           currentUsername={user?.username}
         />

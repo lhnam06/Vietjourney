@@ -542,40 +542,34 @@ export default function Discovery() {
   };
 
   return (
-    <div className="h-full flex bg-[var(--vj-bg)]">
+    <div className="h-full flex bg-[var(--vj-bg)] p-4 lg:p-6 gap-6">
       {/* Left Panel - Search & Filters & List */}
-      <div className="w-[500px] flex flex-col bg-[var(--vj-surface)] border-r border-[var(--vj-border)] m-4 rounded-2xl overflow-hidden shadow-2xl relative z-[1050]">
+      <div className="w-[520px] flex flex-col bg-[var(--vj-surface)]/95 backdrop-blur-3xl border border-[var(--vj-border)] rounded-3xl shadow-[var(--vj-shadow-premium)] relative z-[1050] transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
         {/* Header */}
-        <div className="p-6 border-b border-[var(--vj-border)] bg-gradient-to-br from-[var(--vj-primary)] via-[var(--vj-primary-2)] to-[#0f4b68]">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-3xl">🇻🇳</span>
+        <div className="p-8 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/90 via-[var(--vj-primary-2)]/80 to-[#0f4b68]/70 backdrop-blur-xl">
+          <div className="flex items-center gap-4 mb-6">
+            <span className="text-4xl drop-shadow-md">🇻🇳</span>
             <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Khám Phá Việt Nam</h1>
-              <p className="text-white/85 text-sm">Chạm để tìm quán ăn, trải nghiệm và điểm check-in phù hợp gu của bạn</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium text-white/90">
-                <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1">
+              <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-sm">Khám Phá Việt Nam</h1>
+              <p className="text-white/70 text-sm font-medium mt-1">Tìm kiếm trải nghiệm phù hợp với gu của bạn</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-[11px] font-bold text-white/90 uppercase tracking-wider">
                   {trip.destination}
-                </span>
-                <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1">
-                  {baseLocations.length} địa điểm nguồn
                 </span>
               </div>
               {catalogLoading && (
-                <p className="mt-1.5 text-xs font-medium text-white/80">Đang tải danh sách địa điểm từ máy chủ…</p>
+                <p className="mt-2 text-xs font-bold text-white/60 animate-pulse">Đang đồng bộ dữ liệu…</p>
               )}
               {!catalogLoading && catalogLocations.length > 0 && !recommendedLocations && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
-                  <MapPin className="size-3.5" />
-                  Đang xem dữ liệu thật từ API (ưu tiên khu TP.HCM)
+                <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold text-white/90 border border-white/10">
+                  <MapPin className="size-3.5 text-emerald-400" />
+                  Dữ liệu thực tế từ API
                 </p>
               )}
-              {isAuthenticated && recoLoading && (
-                <p className="mt-2 text-xs font-medium text-white/85">Đang tải gợi ý cá nhân…</p>
-              )}
               {isAuthenticated && !recoLoading && recommendedLocations && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
-                  <Sparkles className="size-3.5" />
-                  Gợi ý cá nhân từ tài khoản của bạn
+                <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400/20 to-orange-400/20 px-4 py-1.5 text-xs font-bold text-white border border-amber-400/20">
+                  <Sparkles className="size-3.5 text-amber-400" />
+                  Gợi ý dành riêng cho bạn
                 </p>
               )}
               {isAuthenticated && !recoLoading && recoFallback === 'empty' && (
