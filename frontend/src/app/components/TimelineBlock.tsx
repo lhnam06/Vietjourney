@@ -25,6 +25,7 @@ interface TimelineBlockProps {
   displayName?: string;
   displayImage?: string;
   isPending?: boolean;
+  changeType?: "ADD" | "UPDATE" | "DELETE" | string;
 }
 
 const ItemType = 'TIMELINE_ITEM';
@@ -58,6 +59,7 @@ export default function TimelineBlock({
   displayName,
   displayImage,
   isPending = false,
+  changeType,
 }: TimelineBlockProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -107,10 +109,10 @@ export default function TimelineBlock({
         {/* Card */}
         <Card
           ref={ref}
-          className={`relative overflow-hidden transition-all bg-white/95 border shadow-[0_10px_25px_rgba(0,0,0,.18)] rounded-2xl ${
+          className={`relative overflow-hidden transition-all duration-500 ease-[var(--vj-ease-out-expo)] bg-white/95 border shadow-[var(--vj-shadow-premium)] rounded-2xl ${
             isPending 
-              ? 'border-dashed border-amber-500/50 cursor-default bg-amber-50/10' 
-              : 'border-white/25 cursor-pointer hover:shadow-[0_14px_34px_rgba(0,0,0,.22)]'
+              ? 'border-dashed border-amber-500/50 cursor-default bg-amber-50/10 shadow-sm' 
+              : 'border-white/25 cursor-pointer hover:shadow-[var(--vj-shadow-hover)] hover:-translate-y-1'
           } ${
             isDragging ? 'opacity-50' : ''
           } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
@@ -150,14 +152,18 @@ export default function TimelineBlock({
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1">
               <div className="flex items-center gap-2 mb-0.5">
-                <h3 className="font-extrabold text-slate-900 leading-snug overflow-x-auto whitespace-nowrap scrollbar-hide py-0.5">
+                <h3 className="font-extrabold text-slate-900 leading-snug whitespace-nowrap py-0.5">
                   {displayName || location?.name || 'Hoạt động'}
                 </h3>
                 {isPending && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-tighter">
-                    Đề xuất
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-tighter ${
+                    changeType === 'ADD' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                    changeType === 'DELETE' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                    'bg-amber-100 text-amber-700 border-amber-200'
+                  }`}>
+                    {changeType === 'ADD' ? 'Thêm mới' : changeType === 'DELETE' ? 'Xóa bỏ' : 'Cập nhật'}
                   </span>
                 )}
               </div>

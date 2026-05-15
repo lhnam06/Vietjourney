@@ -10,7 +10,7 @@ interface ProposalSidebarProps {
   timelineId: string;
   token: string;
   currentVersion: number;
-  onMerged: () => void;
+  onProposalDecided: (proposalId: string, status: 'ACCEPTED' | 'REJECTED') => void;
   isOwner: boolean;
   currentUsername?: string;
 }
@@ -19,7 +19,7 @@ export default function ProposalSidebar({
   timelineId, 
   token, 
   currentVersion, 
-  onMerged,
+  onProposalDecided,
   isOwner,
   currentUsername
 }: ProposalSidebarProps) {
@@ -49,9 +49,7 @@ export default function ProposalSidebar({
       await decideProposal(timelineId, proposalId, status, token);
       toast.success(status === 'ACCEPTED' ? 'Đã chấp nhận đề xuất' : 'Đã từ chối đề xuất');
       fetchProposals();
-      if (status === 'ACCEPTED') {
-        onMerged();
-      }
+      onProposalDecided(proposalId, status);
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || 'Lỗi khi thực hiện thao tác';
       toast.error(errorMsg);
