@@ -926,7 +926,7 @@ export default function Workspace() {
       )}
       {/* Event Details Dialog */}
       <Dialog open={!!detailsItemId} onOpenChange={(open) => !open && setDetailsItemId(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Chi tiết hoạt động</DialogTitle>
           </DialogHeader>
