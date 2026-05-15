@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
@@ -178,10 +179,31 @@ func submitProposalToBackend(timelineId string, msg ProposalMessage) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		log.Printf("Backend returned error for proposal: %s", resp.Status)
 	} else {
 		log.Printf("Proposal successfully saved to backend for timeline %s", timelineId)
+		
+		// Broadcast the new proposal event to all connected clients via Redis
+		broadcastMsg := map[string]interface{}{
+			"type": "PROPOSAL_CREATED",
+			"timestamp": time.Now().UnixMilli(),
+			// Since we don't have the full backend response object here, 
+			// we broadcast a generic event to trigger clients to fetch.
+			// The frontend logic already handles 'PROPOSAL_CREATED' by calling fetchTimeline.
+			"data": map[string]interface{}{
+				"status": "PENDING",
+				"changeType": changeType,
+				"payload": actualPayload,
+			},
+		}
+		broadcastBytes, _ := json.Marshal(broadcastMsg)
+		channelName := "timeline:" + timelineId
+		if err := redisClient.Publish(context.Background(), channelName, string(broadcastBytes)).Err(); err != nil {
+			log.Printf("Failed to broadcast PROPOSAL_CREATED to Redis: %v", err)
+		} else {
+			log.Printf("Broadcasted PROPOSAL_CREATED to Redis channel %s", channelName)
+		}
 	}
 }
 
