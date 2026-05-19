@@ -2,8 +2,12 @@ package com.project.backend.modules.timeline.controller;
 
 import com.project.backend.common.dto.ApiResponse;
 import com.project.backend.modules.timeline.dto.request.CreateTimelineRequest;
+import com.project.backend.modules.timeline.dto.request.JoinTimelineByCodeRequest;
+import com.project.backend.modules.timeline.dto.request.ResetTimelineInviteCodeRequest;
 import com.project.backend.modules.timeline.dto.request.UpdateTimelineRequest;
 import com.project.backend.modules.timeline.dto.request.UpsertTimelineMemberRequest;
+import com.project.backend.modules.timeline.dto.response.JoinTimelineByCodeResponse;
+import com.project.backend.modules.timeline.dto.response.ResetTimelineInviteCodeResponse;
 import com.project.backend.modules.timeline.dto.response.TimelineMemberResponse;
 import com.project.backend.modules.timeline.dto.response.TimelineResponse;
 import com.project.backend.modules.timeline.service.TimelineService;
@@ -74,5 +78,26 @@ public class TimelineController {
     public ApiResponse<Void> removeMember(@PathVariable String timelineId, @PathVariable String memberId) {
         timelineService.removeMember(timelineId, memberId);
         return ApiResponse.<Void>builder().build();
+    }
+
+    @PostMapping("/{timelineId}/invite-code/reset")
+    @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
+    public ApiResponse<ResetTimelineInviteCodeResponse> resetInviteCode(
+            @PathVariable String timelineId,
+            @RequestBody @Valid ResetTimelineInviteCodeRequest request
+    ) {
+        return ApiResponse.<ResetTimelineInviteCodeResponse>builder()
+                .result(timelineService.resetTimelineInviteCode(timelineId, request))
+                .build();
+    }
+
+    @PostMapping("/join-by-code")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
+    public ApiResponse<JoinTimelineByCodeResponse> joinByCode(
+            @RequestBody @Valid JoinTimelineByCodeRequest request
+    ) {
+        return ApiResponse.<JoinTimelineByCodeResponse>builder()
+                .result(timelineService.joinTimelineByCode(request))
+                .build();
     }
 }

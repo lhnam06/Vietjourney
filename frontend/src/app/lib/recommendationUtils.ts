@@ -1,43 +1,8 @@
 import type { Location } from '../data/mockData';
 import type { PlaceInteractionPayload, RecommendedPlace } from './recommendationApi';
 import type { PlaceResponse } from './placesApi';
-import { LOCATION_IMAGE_FALLBACK } from './imagePlaceholder';
 
-function extractFirstQuotedUrl(raw: string): string | null {
-  const t = raw.trim();
-  if (!t) return null;
-  const first = t.indexOf('"');
-  const second = first >= 0 ? t.indexOf('"', first + 1) : -1;
-  if (first >= 0 && second > first) return t.slice(first + 1, second);
-  return null;
-}
-
-/** Normalize DB/API image strings: JSON fragments, protocol-relative, strip junk. */
-export function normalizePlaceImageUrl(candidate: string | null | undefined): string | null {
-  if (candidate == null) return null;
-  let t = String(candidate).trim();
-  if (!t || t === 'null' || t === 'undefined') return null;
-  t = t.replace(/^["']+|["']+$/g, '');
-  if ((t.startsWith('[') || t.includes('\\"')) && t.includes('http')) {
-    const extracted = extractFirstQuotedUrl(t);
-    if (extracted) t = extracted.trim();
-  }
-  if (t.startsWith('//')) t = `https:${t}`;
-  if (t.startsWith('http://') || t.startsWith('https://')) return t;
-  if (t.startsWith('data:image/')) return t;
-  return null;
-}
-
-/** Pick first loadable absolute URL, else inline SVG fallback (avoids broken img icons). */
-export function pickPrimaryPlaceImage(images?: string[] | null): string {
-  if (images?.length) {
-    for (const raw of images) {
-      const n = normalizePlaceImageUrl(raw);
-      if (n) return n;
-    }
-  }
-  return LOCATION_IMAGE_FALLBACK;
-}
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1544984243-ec57ea16fe25?w=800&q=80';
 
 /** Map default center — TP. Hồ Chí Minh (Quận 1 vicinity). */
 export const HCMC_CENTER: [number, number] = [10.7769, 106.7009];
@@ -174,11 +139,12 @@ export function recommendedPlaceToLocation(p: RecommendedPlace): Location {
     id: stablePlaceId(p),
     name: p.name,
     description: p.address?.trim() ? p.address : 'Địa điểm được đề xuất',
-    image: pickPrimaryPlaceImage(p.images),
+    image: p.images?.[0] ?? PLACEHOLDER_IMAGE,
     lat,
     lng,
     price: p.maxPrice ?? p.minPrice ?? 0,
     rating: p.rating ?? 0,
+    category: p.category,
     tags: tagList.length ? tagList : [p.category],
     weather: inferWeatherFromTags(p.tags),
     vibe: inferVibeFromTags(p.tags),

@@ -23,8 +23,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import javax.crypto.spec.SecretKeySpec;
-import java.util.Arrays;
-import java.util.function.Consumer;
 
 @Configuration
 @EnableWebSecurity
@@ -69,12 +67,6 @@ public class SecurityConfig {
     @Value("${jwt.signer_key}")
     private String SECRET_KEY;
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
-    private String allowedOrigins;
-
-    @Value("${app.cors.allowed-origin-patterns:}")
-    private String allowedOriginPatterns;
-
     @Bean
     public JwtDecoder jwtDecoder(){
         SecretKeySpec secretKeySpec = new SecretKeySpec(SECRET_KEY.getBytes(), "HS512");
@@ -88,27 +80,16 @@ public class SecurityConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-        addCommaSeparatedValues(allowedOrigins, corsConfiguration::addAllowedOrigin);
-        addCommaSeparatedValues(allowedOriginPatterns, corsConfiguration::addAllowedOriginPattern);
+        corsConfiguration.addAllowedOrigin("http://localhost:5173");
+        corsConfiguration.addAllowedOrigin("http://localhost:3000");
 
         corsConfiguration.addAllowedMethod("*"); // Allow all GET, POST, PUT, DELETE
         corsConfiguration.addAllowedHeader("*"); // Allow all Header
-        corsConfiguration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfiguration);
 
         return new CorsFilter(source);
-    }
-
-    private void addCommaSeparatedValues(String values, Consumer<String> addValue) {
-        if (values == null || values.isBlank()) {
-            return;
-        }
-        Arrays.stream(values.split(","))
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .forEach(addValue);
     }
 
     @Bean

@@ -44,27 +44,27 @@
   /* Vietjourney palette tokens (brand) */
   --vj-bg: #073f3a;
   --vj-bg-2: #0a4f49;
-  --vj-surface: rgba(255, 255, 255, 0.92);
-  --vj-surface-2: rgba(255, 255, 255, 0.78);
-  --vj-border: rgba(255, 255, 255, 0.12);
+  --vj-surface: rgba(255, 255, 255, 0.94);
+  --vj-surface-2: rgba(255, 255, 255, 0.82);
+  --vj-border: rgba(255, 255, 255, 0.15);
   --vj-primary: #0b5d55;
   --vj-primary-2: #0a4f49;
   --vj-accent: #ff6b35;
   --vj-accent-2: #ff7d4d;
-  --vj-text-on-dark: rgba(255, 255, 255, 0.92);
-  --vj-text-on-dark-muted: rgba(255, 255, 255, 0.72);
+  --vj-text-on-dark: rgba(255, 255, 255, 0.96);
+  --vj-text-on-dark-muted: rgba(255, 255, 255, 0.75);
 
-  /* Layout — align shell spacing with user resolution */
-  --vj-content-max: min(92vw, 1400px);
-  --vj-content-wide-max: min(94vw, 1440px);
-  --vj-page-pad-x: clamp(0.75rem, 1.55vw + 0.35rem, 1.75rem);
-  --vj-page-pad-y: clamp(0.5rem, 0.9vw + 0.25rem, 1.125rem);
-  --vj-section-pad-x: clamp(0.85rem, 1.75vw + 0.35rem, 1.6rem);
-  --vj-section-pad-y: clamp(0.85rem, 1.5vw + 0.35rem, 1.35rem);
-  --vj-inset: clamp(1rem, 1.85vw + 0.45rem, 1.5rem);
-  --vj-stack-gap: clamp(0.7rem, 1.1vw + 0.4rem, 1.35rem);
-  --vj-layout-gap: clamp(0.85rem, 1.65vw + 0.35rem, 1.65rem);
-  --vj-scroll-chrome: clamp(5rem, 9vh + 2rem, 8.5rem);
+  /* Premium Glassmorphism & Effects */
+  --vj-glass-bg: rgba(255, 255, 255, 0.7);
+  --vj-glass-border: rgba(255, 255, 255, 0.3);
+  --vj-glass-blur: blur(12px);
+  --vj-shadow-premium: 0 20px 50px -12px rgba(0, 0, 0, 0.2);
+  --vj-shadow-hover: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
+  
+  /* Motion & Transitions */
+  --vj-ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --vj-transition-all: all 0.5s var(--vj-ease-out-expo);
+  --vj-transition-fast: all 0.2s ease-out;
 }
 
 .dark {

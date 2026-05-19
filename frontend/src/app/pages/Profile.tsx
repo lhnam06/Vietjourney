@@ -9,11 +9,12 @@ import { Slider } from '../components/ui/slider';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
-import { mockUsers, mockTrips } from '../data/mockData';
+import { mockUsers } from '../data/mockData';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
 import { ApiError } from '../lib/api';
 import { getMyRecommendationProfile, type UserRecommendationProfile } from '../lib/recommendationApi';
+import { getMyTimelines, type ApiTimelineDetail } from '../lib/timelineApi';
 
 function sortByScore<T extends { score: number }>(rows: T[]) {
   return [...rows].sort((a, b) => b.score - a.score);
@@ -22,7 +23,10 @@ function sortByScore<T extends { score: number }>(rows: T[]) {
 export default function Profile() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const currentUser = mockUsers[0];
-  const userTrips = mockTrips;
+
+  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>([]);
+  const [timelinesLoading, setTimelinesLoading] = useState(false);
+  const [timelinesError, setTimelinesError] = useState<string | null>(null);
 
   const [pace, setPace] = useState(currentUser.preferences.pace);
   const [budgetLevel, setBudgetLevel] = useState(currentUser.preferences.budgetLevel);
@@ -79,6 +83,36 @@ export default function Profile() {
       cancelled = true;
     };
   }, [isAuthenticated, authLoading, recoProfileRetry]);
+
+  useEffect(() => {
+    if (!isAuthenticated || authLoading) {
+      setTimelines([]);
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) return;
+
+    let cancelled = false;
+    setTimelinesLoading(true);
+    setTimelinesError(null);
+
+    void (async () => {
+      try {
+        const data = await getMyTimelines(token);
+        if (!cancelled) setTimelines(data ?? []);
+      } catch (e) {
+        if (!cancelled) {
+          setTimelinesError(e instanceof ApiError ? e.message : 'Không tải được danh sách chuyến đi.');
+        }
+      } finally {
+        if (!cancelled) setTimelinesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authLoading]);
 
   const sortedReco = useMemo(() => {
     if (!recoProfile) return null;
@@ -144,7 +178,7 @@ export default function Profile() {
 
               <div className="flex gap-6 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-[#0A4A6E]">{userTrips.length}</p>
+                  <p className="text-2xl font-bold text-[#0A4A6E]">{timelines.length}</p>
                   <p className="text-sm text-slate-600">Chuyến Đi</p>
                 </div>
                 <div className="w-px bg-slate-200" />
@@ -381,44 +415,69 @@ export default function Profile() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {userTrips.map((trip) => (
-                <Card
-                  key={trip.id}
-                  className="overflow-hidden hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-[#FF6B35]"
-                >
-                  <div className="relative h-40">
-                    <img
-                      src={trip.coverImage}
-                      alt={trip.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <h3 className="font-bold text-white text-lg mb-1">{trip.name}</h3>
-                      <div className="flex items-center gap-2 text-white/90 text-sm">
-                        <MapPin className="w-4 h-4" />
-                        <span>{trip.destination}</span>
+              {timelinesLoading && (
+                <>
+                  <Skeleton className="h-56 w-full rounded-xl" />
+                  <Skeleton className="h-56 w-full rounded-xl" />
+                </>
+              )}
+              
+              {!timelinesLoading && timelinesError && (
+                <div className="col-span-full">
+                   <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Lỗi</AlertTitle>
+                    <AlertDescription>{timelinesError}</AlertDescription>
+                  </Alert>
+                </div>
+              )}
+
+              {!timelinesLoading && !timelinesError && timelines.length === 0 && (
+                <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                  <p className="text-slate-500">Bạn chưa có chuyến đi nào.</p>
+                  <Button asChild variant="link" className="text-[#0A4A6E]">
+                    <Link to="/timelines">Tạo timeline ngay</Link>
+                  </Button>
+                </div>
+              )}
+
+              {!timelinesLoading && timelines.map((trip) => (
+                <Link key={trip.id} to={`/workspace/${trip.id}`}>
+                  <Card
+                    className="overflow-hidden h-full hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-[#FF6B35]"
+                  >
+                    <div className="relative h-40">
+                      <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                        <MapPin className="w-12 h-12 text-slate-400 opacity-20" />
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="font-bold text-white text-lg mb-1">{trip.title}</h3>
+                        <div className="flex items-center gap-2 text-white/90 text-sm">
+                          <MapPin className="w-4 h-4" />
+                          <span className="truncate">{trip.description || 'Chưa có mô tả'}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 text-slate-600">
-                        <Calendar className="w-4 h-4" />
-                        <span>
-                          {new Date(trip.startDate).toLocaleDateString('vi-VN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <Calendar className="w-4 h-4" />
+                          <span>
+                            {new Date(trip.startDate).toLocaleDateString('vi-VN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                        <Badge className="bg-[#0A4A6E]/10 text-[#0A4A6E] hover:bg-[#0A4A6E]/20">
+                          {trip.members?.length || 1} người
+                        </Badge>
                       </div>
-                      <Badge className="bg-[#0A4A6E]/10 text-[#0A4A6E] hover:bg-[#0A4A6E]/20">
-                        {trip.participants.length} người
-                      </Badge>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+                </Link>
               ))}
             </div>
           </Card>

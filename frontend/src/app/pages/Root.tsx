@@ -26,6 +26,8 @@ export default function Root() {
   const { user, isAuthenticated, signOut } = useAuth();
   
   const lastTripId = getLastTripId();
+  const isTripIdValid = lastTripId && lastTripId !== 'undefined';
+
   const navItems: {
     path: string;
     label: string;
@@ -34,14 +36,20 @@ export default function Root() {
   }[] = [
     { path: '/', label: 'Khám Phá', isActive: (p) => p === '/' },
     {
-      path: `/workspace/${lastTripId}`,
+      path: isTripIdValid ? `/workspace/${lastTripId}` : '/profile',
       label: 'Chuyến Đi Của Tôi',
-      isActive: (p) => p.startsWith('/workspace/'),
+      isActive: (p) => p.startsWith('/workspace/') || (p === '/profile' && !isTripIdValid),
     },
     {
-      path: `/timetable/${lastTripId}`,
+      path: isTripIdValid ? `/timetable/${lastTripId}` : '/profile',
       label: 'Thời khoá biểu',
       isActive: (p) => p.startsWith('/timetable/'),
+      disabled: !isTripIdValid,
+    },
+    {
+      path: '/timelines',
+      label: 'Quản lý Timeline',
+      isActive: (p) => p === '/timelines',
     },
     { path: '/community', label: 'Cộng Đồng', disabled: true },
   ];
@@ -49,8 +57,8 @@ export default function Root() {
   return (
     <div className="h-screen flex flex-col bg-[var(--vj-bg)]">
       {/* Top Navigation (matches reference screenshot) */}
-      <header className="h-16 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)]">
-        <div className="h-full w-full max-w-[var(--vj-content-max)] mx-auto px-[var(--vj-page-pad-x)] flex items-center justify-between gap-[var(--vj-layout-gap)]">
+      <header className="h-16 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] border-b border-[var(--vj-border)] relative z-[1100]">
+        <div className="h-full max-w-[1400px] mx-auto px-6 flex items-center justify-between">
           <Link
             to="/"
             className="h-12 sm:h-14 flex items-center rounded-xl bg-white/18 border border-white/20 px-2.5 py-1.5 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:bg-white/22 transition-colors"
@@ -65,7 +73,7 @@ export default function Root() {
             />
           </Link>
 
-          <nav className="flex items-center flex-wrap justify-center sm:justify-start gap-x-[clamp(0.85rem,2.4vw,2rem)] gap-y-2">
+          <nav className="flex items-center gap-8">
             {navItems.map((item) => {
               const isActive =
                 item.disabled
