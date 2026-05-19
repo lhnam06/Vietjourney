@@ -53,6 +53,22 @@ public interface TimelineEventRepository extends JpaRepository<TimelineEvent, St
     @Query("""
             select e from TimelineEvent e
             where e.timeline.id = :timelineId
+              and (:eventId is null or e.id <> :eventId)
+              and e.status <> :cancelledStatus
+              and e.startTime < :endTime
+              and e.endTime > :startTime
+            """)
+    List<TimelineEvent> findOverlappingEvents(
+            @Param("timelineId") String timelineId,
+            @Param("eventId") String eventId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("cancelledStatus") TimelineEventStatus cancelledStatus
+    );
+
+    @Query("""
+            select e from TimelineEvent e
+            where e.timeline.id = :timelineId
               and e.endTime > :rangeStart
               and e.startTime < :rangeEnd
             order by e.startTime asc, e.orderIndex asc, e.id asc
