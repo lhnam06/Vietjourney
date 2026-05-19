@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { AlertCircle, ListFilter, RefreshCw, Search, MapPin, Sparkles, Star, SlidersHorizontal, X } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { AlertCircle, RefreshCw, Search, MapPin, Sparkles, Star, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, Location, mockTrips } from '../data/mockData';
+import { mockLocations, Location, mockTrips, mockUsers, mockTimeline, mockTransactions } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
-import { getLastTripId, setLastTripId } from '../lib/tripStorage';
-import { clampIsoDateToTripRange } from '../lib/tripDateUtils';
+import { toast } from 'sonner';
+import AddToItineraryDialog from '../components/AddToItineraryDialog';
+import { addTimelineEvent } from '../lib/timelineApi';
+import { appendTransaction, getLastTripId, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
 import { getRecommendedPlaces } from '../lib/recommendationApi';
@@ -21,7 +23,6 @@ import { filterPlaces } from '../lib/placesApi';
 import {
   buildInteractionBase,
   HCMC_CENTER,
-  inferCategoryFromLocation,
   locationSearchText,
   placeApiRowToLocation,
   recommendedPlaceToLocation,
@@ -107,7 +108,6 @@ function backendRowKey(row: {
 }
 
 export default function Discovery() {
-  const { isAuthenticated } = useAuth();
   const [userCenter, setUserCenter] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle');
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,6 +119,8 @@ export default function Discovery() {
   const [selectedTagValues, setSelectedTagValues] = useState<string[]>([]);
   const [sortFilter, setSortFilter] = useState<SortFilter>('relevance');
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addLocation, setAddLocation] = useState<Location | null>(null);
   const [recommendedLocations, setRecommendedLocations] = useState<Location[] | null>(null);
   const [recoLoading, setRecoLoading] = useState(false);
   /** When personalized fetch fails or returns no rows, we fall back to mock data. */
@@ -132,24 +134,49 @@ export default function Discovery() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
-  /** When on: use POST /places/filter catalog and hide list/map until user applies filters or search. */
-  const [catalogBrowseActive, setCatalogBrowseActive] = useState(false);
+  const [realTimelines, setRealTimelines] = useState<any[]>([]);
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const listCardsRef = useRef<HTMLDivElement>(null);
-  const tripId = getLastTripId('trip-1');
-  const trip = mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  
+  const [currentTripId, setCurrentTripId] = useState(getLastTripId('trip-1'));
+
+  useEffect(() => {
+    const loadTimelines = async () => {
+      const token = getStoredToken();
+      if (isAuthenticated && token) {
+        try {
+          const timelines = await getMyTimelines(token);
+          setRealTimelines(timelines || []);
+          if (currentTripId === 'trip-1' && timelines && timelines.length > 0) {
+            // Auto-select the first real timeline for the user if they are on mock
+            setCurrentTripId(timelines[0].id);
+            setLastTripId(timelines[0].id);
+          }
+        } catch (err) {
+          console.error('[Discovery] Failed to fetch timelines:', err);
+        }
+      }
+    };
+    loadTimelines();
+  }, [isAuthenticated]);
+
+  const tripId = currentTripId;
+  const isMockTrip = tripId === 'trip-1'; 
+  const trip = useMemo(() => {
+    if (!isMockTrip && realTimelines.length > 0) {
+      const found = realTimelines.find(t => t.id === tripId);
+      if (found) return { ...found, destination: found.destination || 'Việt Nam', participants: [] };
+    }
+    return mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+  }, [tripId, isMockTrip, realTimelines]);
+  const tripUsers = mockUsers.filter((u) => trip.participants.includes(u.id));
   const effectiveCenter: [number, number] = userCenter ?? HCMC_CENTER;
 
-  const recoOrMockBase = useMemo(
-    () => recommendedLocations ?? mockLocations,
-    [recommendedLocations]
-  );
-
-  const effectiveBase = useMemo(
-    () => (catalogBrowseActive ? catalogLocations : recoOrMockBase),
-    [catalogBrowseActive, catalogLocations, recoOrMockBase]
-  );
-
+  const baseLocations = useMemo(() => {
+    if (catalogAttempted) return catalogLocations;
+    return recommendedLocations ?? mockLocations;
+  }, [catalogAttempted, catalogLocations, recommendedLocations]);
   const optionSourceLocations =
     catalogUniverse ?? catalogLocations ?? recommendedLocations ?? mockLocations;
 
@@ -203,48 +230,15 @@ export default function Discovery() {
     selectedTagValues.length;
 
   const filteredLocations = useMemo(() => {
-    const catalogApiNarrowed = catalogBrowseActive && catalogAttempted;
-    let rows = effectiveBase;
-
-    if (!catalogApiNarrowed) {
-      if (categoryFilter !== 'all') {
-        rows = rows.filter(
-          (l) => (l.recommendation?.category ?? inferCategoryFromLocation(l)) === categoryFilter
-        );
-      }
-      if (districtFilter !== 'all') {
-        rows = rows.filter((l) => (l.recommendation?.district ?? '').trim() === districtFilter);
-      }
-      if (minRatingFilter > 0) {
-        rows = rows.filter((l) => l.rating >= minRatingFilter);
-      }
-      if (selectedTagGroup !== 'all' && selectedTagValues.length > 0) {
-        rows = rows.filter((l) => {
-          const vals = l.recommendation?.tags?.[selectedTagGroup] ?? [];
-          return selectedTagValues.some((t) =>
-            vals.some((v) => v.trim().toLowerCase() === t.toLowerCase())
-          );
-        });
-      }
-      if (priceFilter === 'budget') {
-        rows = rows.filter((l) => l.price > 0 && l.price <= 100_000);
-      } else if (priceFilter === 'mid') {
-        rows = rows.filter((l) => l.price > 100_000 && l.price <= 300_000);
-      } else if (priceFilter === 'premium') {
-        rows = rows.filter((l) => l.price > 300_000);
-      } else if (priceFilter === 'free') {
-        rows = rows.filter((l) => l.price === 0);
-      }
-    }
-
     const q = searchQuery.trim().toLowerCase();
-    const searched =
-      q === '' ? rows : rows.filter((location) => locationSearchText(location).includes(q));
-
-    const filtered =
-      priceFilter === 'free'
-        ? searched.filter((location) => location.price === 0)
-        : searched;
+    const searched = q === ''
+      ? baseLocations
+      : baseLocations.filter((location) => locationSearchText(location).includes(q));
+    // Backend handles category/district/rating/price range/tag filters.
+    // Keep "free" as strict client-side check because backend range overlap can include non-zero prices.
+    const filtered = priceFilter === 'free'
+      ? searched.filter((location) => location.price === 0)
+      : searched;
 
     switch (sortFilter) {
       case 'rating':
@@ -262,27 +256,16 @@ export default function Discovery() {
         });
     }
   }, [
-    effectiveBase,
-    catalogBrowseActive,
-    catalogAttempted,
-    categoryFilter,
-    districtFilter,
-    minRatingFilter,
-    priceFilter,
-    selectedTagGroup,
-    selectedTagValues,
+    baseLocations,
     searchQuery,
+    priceFilter,
     sortFilter,
     effectiveCenter,
   ]);
 
-  const hasUserRefinement = activeFilterCount > 0 || searchQuery.trim().length > 0;
-  const visibleLocations =
-    catalogBrowseActive && !hasUserRefinement ? [] : filteredLocations;
-
   const nearbyRecommendationIds = useMemo(() => {
     return new Set(
-      visibleLocations
+      filteredLocations
         .slice()
         .sort(
           (a, b) =>
@@ -292,7 +275,7 @@ export default function Discovery() {
         .slice(0, MAX_NEARBY_RECOMMENDATIONS)
         .map((loc) => loc.id)
     );
-  }, [visibleLocations, effectiveCenter]);
+  }, [filteredLocations, effectiveCenter]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -470,14 +453,8 @@ export default function Discovery() {
   }, [isAuthenticated, recoRetryKey]);
 
   useEffect(() => {
-    if (catalogBrowseActive && !hasUserRefinement) {
-      setSelectedLocationId(null);
-    }
-  }, [catalogBrowseActive, hasUserRefinement]);
-
-  useEffect(() => {
     if (!isAuthenticated || !selectedLocationId) return;
-    const loc = visibleLocations.find((l) => l.id === selectedLocationId);
+    const loc = filteredLocations.find((l) => l.id === selectedLocationId);
     if (!loc) return;
     const handle = window.setTimeout(() => {
       enqueueRecommendationInteraction({
@@ -486,7 +463,7 @@ export default function Discovery() {
       });
     }, 3500);
     return () => window.clearTimeout(handle);
-  }, [isAuthenticated, selectedLocationId, visibleLocations]);
+  }, [isAuthenticated, selectedLocationId, filteredLocations]);
 
   useEffect(() => {
     if (!isAuthenticated || !listCardsRef.current) return;
@@ -496,7 +473,7 @@ export default function Discovery() {
           if (!en.isIntersecting || en.intersectionRatio < 0.42) continue;
           const id = (en.target as HTMLElement).dataset.placeId;
           if (!id) continue;
-          const loc = visibleLocations.find((l) => l.id === id);
+          const loc = filteredLocations.find((l) => l.id === id);
           if (!loc) continue;
           enqueueRecommendationInteraction({
             ...buildInteractionBase(loc),
@@ -508,7 +485,7 @@ export default function Discovery() {
     );
     listCardsRef.current.querySelectorAll<HTMLElement>('[data-place-id]').forEach((el) => obs.observe(el));
     return () => obs.disconnect();
-  }, [isAuthenticated, visibleLocations]);
+  }, [isAuthenticated, filteredLocations]);
 
   useEffect(() => {
     if (districtFilter === 'all') return;
@@ -523,6 +500,10 @@ export default function Discovery() {
       return;
     }
     if (!tagGroupOptions.includes(selectedTagGroup)) {
+      if (!user?.token || !tripId) {
+        setIsLoading(false);
+        return;
+      }
       setSelectedTagGroup('all');
       setSelectedTagValues([]);
       return;
@@ -532,29 +513,13 @@ export default function Discovery() {
   }, [selectedTagGroup, selectedTagValues.length, availableTagValues, tagGroupOptions]);
 
   const center: [number, number] = effectiveCenter;
-  const selectedLocation =
-    selectedLocationId == null
-      ? null
-      : visibleLocations.find((l) => l.id === selectedLocationId) ??
-        effectiveBase.find((l) => l.id === selectedLocationId) ??
-        recoOrMockBase.find((l) => l.id === selectedLocationId) ??
-        null;
+  const selectedLocation = selectedLocationId
+    ? baseLocations.find((l) => l.id === selectedLocationId) ?? null
+    : null;
 
-  const goToWorkspaceWithPlace = (place: Location) => {
-    setSelectedLocationId(place.id);
-    setLastTripId(tripId);
-    const today = new Date().toISOString().slice(0, 10);
-    const date = clampIsoDateToTripRange(trip.startDate, trip.endDate, today);
-    if (isAuthenticated) {
-      enqueueRecommendationInteraction({
-        ...buildInteractionBase(place),
-        eventType: 'ADD_TO_TIMELINE',
-      });
-      void flushRecommendationInteractionQueue();
-    }
-    navigate(`/workspace/${tripId}`, {
-      state: { fromDiscovery: { place, date } },
-    });
+  const openAdd = (location: Location) => {
+    setAddLocation(location);
+    setAddOpen(true);
   };
 
   const clearAllFilters = () => {
@@ -577,51 +542,34 @@ export default function Discovery() {
   };
 
   return (
-    <div className="h-full flex bg-[var(--vj-bg)] min-h-0">
+    <div className="h-full flex bg-[var(--vj-bg)] p-4 lg:p-6 gap-6">
       {/* Left Panel - Search & Filters & List */}
-      <div className="w-full max-w-[min(31.25rem,calc(100vw-2*var(--vj-page-pad-x)))] shrink-0 flex flex-col bg-[var(--vj-surface)] border border-[var(--vj-border)] m-[var(--vj-page-pad-x)] rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-[520px] flex flex-col bg-[var(--vj-surface)]/95 backdrop-blur-3xl border border-[var(--vj-border)] rounded-3xl shadow-[var(--vj-shadow-premium)] relative z-[1050] transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
         {/* Header */}
-        <div className="p-[var(--vj-inset)] border-b border-[var(--vj-border)] bg-gradient-to-br from-[var(--vj-primary)] via-[var(--vj-primary-2)] to-[#0f4b68]">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-3xl">🇻🇳</span>
+        <div className="p-8 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/90 via-[var(--vj-primary-2)]/80 to-[#0f4b68]/70 backdrop-blur-xl">
+          <div className="flex items-center gap-4 mb-6">
+            <span className="text-4xl drop-shadow-md">🇻🇳</span>
             <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Khám Phá Việt Nam</h1>
-              <p className="text-white/85 text-sm">Chạm để tìm quán ăn, trải nghiệm và điểm check-in phù hợp gu của bạn</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium text-white/90">
-                <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1">
+              <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-sm">Khám Phá Việt Nam</h1>
+              <p className="text-white/70 text-sm font-medium mt-1">Tìm kiếm trải nghiệm phù hợp với gu của bạn</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-[11px] font-bold text-white/90 uppercase tracking-wider">
                   {trip.destination}
                 </span>
-                <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1">
-                  {recoOrMockBase.length} điểm gợi ý / mẫu
-                </span>
-                {catalogBrowseActive ? (
-                  <span className="rounded-full border border-amber-300/50 bg-amber-400/20 px-2.5 py-1">
-                    Chế độ lọc danh mục
-                  </span>
-                ) : null}
-                <Link
-                  to={`/workspace/${tripId}`}
-                  className="rounded-full border border-white/35 bg-white/10 px-2.5 py-1 text-white/95 hover:bg-white/20 transition-colors"
-                >
-                  Chuyến đi: {trip.name}
-                </Link>
               </div>
               {catalogLoading && (
-                <p className="mt-1.5 text-xs font-medium text-white/80">Đang tải danh sách địa điểm từ máy chủ…</p>
+                <p className="mt-2 text-xs font-bold text-white/60 animate-pulse">Đang đồng bộ dữ liệu…</p>
               )}
               {!catalogLoading && catalogLocations.length > 0 && !recommendedLocations && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
-                  <MapPin className="size-3.5" />
-                  Đang xem dữ liệu thật từ API (ưu tiên khu TP.HCM)
+                <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold text-white/90 border border-white/10">
+                  <MapPin className="size-3.5 text-emerald-400" />
+                  Dữ liệu thực tế từ API
                 </p>
               )}
-              {isAuthenticated && recoLoading && (
-                <p className="mt-2 text-xs font-medium text-white/85">Đang tải gợi ý cá nhân…</p>
-              )}
               {isAuthenticated && !recoLoading && recommendedLocations && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
-                  <Sparkles className="size-3.5" />
-                  Gợi ý cá nhân từ tài khoản của bạn
+                <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400/20 to-orange-400/20 px-4 py-1.5 text-xs font-bold text-white border border-amber-400/20">
+                  <Sparkles className="size-3.5 text-amber-400" />
+                  Gợi ý dành riêng cho bạn
                 </p>
               )}
               {isAuthenticated && !recoLoading && recoFallback === 'empty' && (
@@ -660,37 +608,12 @@ export default function Discovery() {
               </button>
             )}
           </div>
-          <div className="mt-3">
-            <Button
-              type="button"
-              size="sm"
-              variant={catalogBrowseActive ? 'default' : 'secondary'}
-              className={
-                catalogBrowseActive
-                  ? 'w-full rounded-full bg-white text-slate-900 hover:bg-slate-100'
-                  : 'w-full rounded-full bg-white/15 text-white border border-white/30 hover:bg-white/25'
-              }
-              onClick={() => {
-                clearAllFilters();
-                setSearchQuery('');
-                setCatalogBrowseActive((v) => !v);
-              }}
-            >
-              <ListFilter className="size-4 mr-2" />
-              {catalogBrowseActive ? 'Quay lại gợi ý cá nhân' : 'Lọc danh mục (máy chủ)'}
-            </Button>
-            <p className="mt-1.5 text-[11px] text-white/75">
-              {catalogBrowseActive
-                ? 'Danh sách và bản đồ chỉ hiện sau khi bạn chọn bộ lọc hoặc nhập tìm kiếm.'
-                : 'Ưu tiên gợi ý từ hành vi của bạn (đăng nhập). Bấm nút trên để tìm theo danh mục đầy đủ.'}
-            </p>
-          </div>
         </div>
 
         {/* Scrollable content: Filters + Results + List */}
         <ScrollArea className="flex-1 min-h-0">
           {isAuthenticated && !recoLoading && recoFallback === 'error' && (
-            <div className="p-[var(--vj-inset)] pb-0">
+            <div className="p-4 pb-0">
               <Alert variant="destructive" className="border-red-200 bg-red-50/90 text-red-900 [&>svg]:text-red-600">
                 <AlertCircle />
                 <AlertTitle>Không tải được gợi ý cá nhân</AlertTitle>
@@ -711,7 +634,7 @@ export default function Discovery() {
             </div>
           )}
           {isAuthenticated && !recoLoading && recoFallback === 'empty' && (
-            <div className="p-[var(--vj-inset)] pb-0">
+            <div className="p-4 pb-0">
               <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
                 <AlertCircle className="text-amber-600" />
                 <AlertTitle>Chưa có đủ dữ liệu gợi ý</AlertTitle>
@@ -722,7 +645,7 @@ export default function Discovery() {
             </div>
           )}
           {!catalogLoading && catalogError && (
-            <div className="p-[var(--vj-inset)] pb-0">
+            <div className="p-4 pb-0">
               <Alert className="border-slate-300 bg-slate-50">
                 <AlertCircle className="text-slate-600" />
                 <AlertTitle>Không lấy được danh mục địa điểm từ backend</AlertTitle>
@@ -747,7 +670,7 @@ export default function Discovery() {
             </div>
           )}
           {/* Filters */}
-          <div className="p-[var(--vj-inset)] border-b border-slate-200 space-y-4 bg-white/70">
+          <div className="p-6 border-b border-slate-200 space-y-4 bg-white/70">
             <div className="flex items-center justify-between">
               <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                 <SlidersHorizontal className="size-3.5" />
@@ -898,25 +821,18 @@ export default function Discovery() {
           </div>
 
           {/* Results Count */}
-          <div className="px-[var(--vj-inset)] py-3 bg-slate-100 border-b border-slate-200">
+          <div className="px-6 py-3 bg-slate-100 border-b border-slate-200">
             <p className="text-sm text-slate-600 flex items-center justify-between gap-2">
               <span>
-                <span className="font-bold text-[var(--vj-primary)]">{visibleLocations.length}</span>{' '}
-                {catalogBrowseActive && !hasUserRefinement
-                  ? '— chọn bộ lọc hoặc tìm kiếm'
-                  : catalogBrowseActive
-                    ? 'địa điểm (danh mục)'
-                    : isAuthenticated && recommendedLocations
-                      ? 'địa điểm gợi ý'
-                      : 'địa điểm'}
+                <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
               </span>
               {(recoLoading && isAuthenticated) || catalogLoading ? (
                 <span className="ml-2 text-xs font-medium text-slate-500">Đồng bộ dữ liệu…</span>
               ) : null}
             </p>
-            {(hasUserRefinement || !catalogBrowseActive) && !catalogLoading && visibleLocations.length > 0 && (
+            {!catalogLoading && filteredLocations.length > 0 && (
               <p className="mt-1 text-xs text-slate-500">
-                {gpsStatus === 'granted' ? 'Gợi ý gần bạn' : 'Gợi ý gần trung tâm'}: {Math.min(MAX_NEARBY_RECOMMENDATIONS, visibleLocations.length)} địa điểm
+                {gpsStatus === 'granted' ? 'Gợi ý gần bạn' : 'Gợi ý gần trung tâm'}: {Math.min(MAX_NEARBY_RECOMMENDATIONS, filteredLocations.length)} địa điểm
               </p>
             )}
             {gpsStatus === 'denied' && (
@@ -925,16 +841,8 @@ export default function Discovery() {
           </div>
 
           {/* Location Cards List */}
-          <div ref={listCardsRef} className="p-[var(--vj-inset)] space-y-4">
-            {catalogBrowseActive && !hasUserRefinement ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-10 text-center">
-                <p className="text-sm font-semibold text-slate-800">Chưa hiển thị địa điểm danh mục</p>
-                <p className="mt-1 text-xs text-slate-600 max-w-sm mx-auto">
-                  Chọn bộ lọc hoặc nhập từ khóa để tải danh sách và điểm trên bản đồ từ máy chủ.
-                </p>
-              </div>
-            ) : null}
-            {(hasUserRefinement || !catalogBrowseActive) && visibleLocations.length === 0 ? (
+          <div ref={listCardsRef} className="p-4 space-y-4">
+            {filteredLocations.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-10 text-center">
                 <p className="text-sm font-semibold text-slate-800">Không có địa điểm khớp bộ lọc</p>
                 <p className="mt-1 text-xs text-slate-600 max-w-sm mx-auto">
@@ -942,11 +850,11 @@ export default function Discovery() {
                 </p>
               </div>
             ) : null}
-            {visibleLocations.map((location) => (
+            {filteredLocations.map((location) => (
               <Card
                 key={location.id}
                 data-place-id={location.id}
-                className={`p-[var(--vj-inset)] min-w-0 overflow-hidden hover:shadow-xl transition-all cursor-pointer border ${
+                className={`p-4 hover:shadow-xl transition-all cursor-pointer border ${
                   selectedLocationId === location.id
                     ? 'border-[var(--vj-accent)] shadow-lg ring-2 ring-[var(--vj-accent)]/20'
                     : 'border-slate-200 hover:border-[var(--vj-accent)]/50'
@@ -961,19 +869,19 @@ export default function Discovery() {
                   }
                 }}
               >
-                <div className="flex gap-3 sm:gap-4 min-w-0">
+                <div className="flex gap-4">
                   <img
                     src={location.image}
                     alt={location.name}
-                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl object-cover flex-shrink-0 shadow-sm"
+                    className="w-28 h-28 rounded-xl object-cover flex-shrink-0 shadow-sm"
                     loading="lazy"
                     decoding="async"
-                    referrerPolicy="no-referrer"
+                    referrerPolicy="strict-origin-when-cross-origin"
                     onError={onLocationImageError}
                   />
-                  <div className="flex-1 min-w-0 flex flex-col gap-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-[var(--vj-primary)] text-base sm:text-lg leading-tight min-w-0 flex-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-bold text-[var(--vj-primary)] text-lg leading-tight">
                         {location.name}
                       </h3>
                       <div className="flex items-center gap-1 flex-shrink-0">
@@ -981,10 +889,10 @@ export default function Discovery() {
                         <span className="text-sm font-semibold text-slate-700">{location.rating}</span>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 line-clamp-2">
+                    <p className="text-sm text-slate-600 mb-2 line-clamp-2">
                       {location.description}
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="mb-3 flex flex-wrap gap-1.5">
                       {nearbyRecommendationIds.has(location.id) && (
                         <Badge className="text-[11px] bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-200">
                           Gợi ý gần bạn
@@ -1002,31 +910,33 @@ export default function Discovery() {
                         </Badge>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {location.tags.slice(0, 3).map((tag) => (
-                        <Badge
-                          key={tag}
-                          variant="secondary"
-                          className="text-xs bg-[color-mix(in_oklab,var(--vj-primary)_10%,white)] text-[var(--vj-primary)] hover:bg-[color-mix(in_oklab,var(--vj-primary)_16%,white)]"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                      <div className="mr-auto text-[var(--vj-accent)] font-bold text-sm tabular-nums whitespace-nowrap">
-                        {formatVND(location.price)}
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap gap-1.5">
+                        {location.tags.slice(0, 3).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="text-xs bg-[color-mix(in_oklab,var(--vj-primary)_10%,white)] text-[var(--vj-primary)] hover:bg-[color-mix(in_oklab,var(--vj-primary)_16%,white)]"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
                       </div>
-                      <Button
-                        size="sm"
-                        className="h-8 shrink-0 rounded-full bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white px-3 sm:px-4 whitespace-nowrap"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          goToWorkspaceWithPlace(location);
-                        }}
-                      >
-                        Thêm lịch trình
-                      </Button>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="flex items-center gap-1 text-[var(--vj-accent)] font-bold text-sm">
+                          {formatVND(location.price)}
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-full bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white px-4"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAdd(location);
+                          }}
+                        >
+                          Thêm lịch trình
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1037,21 +947,19 @@ export default function Discovery() {
       </div>
 
       {/* Right Panel - Map */}
-      <div className="flex-1 relative m-[var(--vj-page-pad-x)] rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-0">
-        <div className="absolute top-[var(--vj-inset)] left-[var(--vj-inset)] z-[1000] bg-white/90 backdrop-blur-md rounded-xl p-[var(--vj-inset)] shadow-lg border border-slate-200 min-w-64 pointer-events-none">
+      <div className="flex-1 relative m-4 rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-0">
+        <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 min-w-64">
           <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-5 h-5 text-[#FF6B35] shrink-0" aria-hidden />
+            <MapPin className="w-5 h-5 text-[#FF6B35]" />
             <h3 className="font-bold text-[var(--vj-primary)]">
               {gpsStatus === 'granted' ? 'Bản đồ gần bạn' : 'Bản đồ TP. HCM'}
             </h3>
           </div>
           <p className="text-xs text-slate-600">
-            {catalogBrowseActive && !hasUserRefinement
-              ? 'Bản đồ chờ bộ lọc hoặc tìm kiếm'
-              : `Hiển thị ${visibleLocations.length} địa điểm`}
+            Hiển thị {filteredLocations.length} địa điểm
           </p>
           {selectedLocation && (
-            <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 pointer-events-auto">
+            <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
               <p className="text-xs font-semibold text-slate-900 line-clamp-1">{selectedLocation.name}</p>
               <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{selectedLocation.description}</p>
             </div>
@@ -1059,13 +967,75 @@ export default function Discovery() {
         </div>
 
         <SimpleMap
-          locations={visibleLocations}
+          locations={filteredLocations}
           center={center}
           userLocation={userCenter ?? undefined}
           showRoute={false}
-          onAddToItinerary={goToWorkspaceWithPlace}
         />
       </div>
+
+      <AddToItineraryDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        tripId={tripId}
+        trip={trip}
+        location={addLocation}
+        users={tripUsers}
+        defaultDate={trip.startDate || new Date().toISOString().slice(0, 10)}
+        onCreate={async (item, tx) => {
+          if (isMockTrip && isAuthenticated) {
+            toast.error('Bạn đang xem chuyến đi mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật trong trang "Chuyến đi của tôi" để lưu lại.');
+            navigate('/timelines');
+            return;
+          }
+
+          if (isAuthenticated && addLocation) {
+            enqueueRecommendationInteraction({
+              ...buildInteractionBase(addLocation),
+              eventType: 'ADD_TO_TIMELINE',
+            });
+            void flushRecommendationInteractionQueue();
+          }
+          
+          setLastTripId(tripId);
+          const token = getStoredToken();
+
+          if (token && !isMockTrip && addLocation) {
+            try {
+              console.log(`[Discovery] Persisting to real timeline: ${tripId}`);
+              const dateStr = item.date || new Date().toISOString().slice(0, 10);
+              const category = inferCategoryFromLocation(addLocation).toUpperCase();
+              
+              // De-prefix ID to prevent double-prefixing in database
+              const cleanExternalId = item.locationId.includes(':') 
+                ? item.locationId.split(':').pop()! 
+                : item.locationId;
+
+              await addTimelineEvent(tripId, {
+                externalPlaceId: cleanExternalId,
+                category: category, // Backend expects uppercase enum
+                startTime: `${dateStr}T${item.startTime}:00`,
+                endTime: `${dateStr}T${item.endTime}:00`,
+                notes: item.notes,
+                orderIndex: 0,
+                status: 'PLANNED'
+              }, token);
+              toast.success('Đã lưu vào cơ sở dữ liệu');
+            } catch (error: any) {
+              console.error('[Discovery] Failed to persist event to backend:', error);
+              toast.error(error.message || 'Lỗi kết nối máy chủ - không thể lưu dữ liệu');
+              return; // Don't proceed if backend save failed
+            }
+          } else if (!isAuthenticated) {
+            // Local storage only for guests
+            upsertTimelineItem(tripId, trip, item, mockTimeline, mockTransactions);
+            if (tx) appendTransaction(tripId, trip, tx, mockTimeline, mockTransactions);
+          }
+
+          toast.success('Đã thêm vào lịch trình', { description: addLocation?.name });
+          navigate(`/workspace/${tripId}`);
+        }}
+      />
     </div>
   );
 }

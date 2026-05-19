@@ -5,5 +5,10 @@
     "dev": "npm run dev -w @vietjourney/frontend",
     "build": "npm run build -w @vietjourney/frontend"
   },
-  "workspaces": ["frontend"]
+  "workspaces": [
+    "frontend"
+  ],
+  "dependencies": {
+    "pg": "^8.20.0"
+  }
 }

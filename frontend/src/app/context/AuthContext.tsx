@@ -12,6 +12,7 @@ import {
 
 interface AuthContextType {
   user: AuthUser | null;
+  token: string | null;
   isAuthenticated: boolean;
   loading: boolean;
   signInWithPassword: (username: string, password: string) => Promise<void>;
@@ -23,67 +24,103 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(getStoredToken());
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    console.log('[AuthContext] Token state changed:', token);
+  }, [token]);
+
+  useEffect(() => {
+    console.log('[AuthContext] User state changed:', user?.username);
+  }, [user]);
+
   const bootstrap = useCallback(async () => {
-    const token = getStoredToken();
-    if (!token) {
+    const storedToken = getStoredToken();
+    if (!storedToken) {
       setUser(null);
+      setToken(null);
       return;
     }
     try {
-      setUser(await getMyInfo(token));
+      const info = await getMyInfo(storedToken);
+      setUser(info);
+      setToken(storedToken);
       return;
     } catch {
       try {
-        const { token: newToken } = await refreshTokenRequest(token);
+        const { token: newToken } = await refreshTokenRequest(storedToken);
         setStoredToken(newToken);
+        setToken(newToken);
         setUser(await getMyInfo(newToken));
       } catch {
         setStoredToken(null);
+        setToken(null);
         setUser(null);
       }
     }
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('[AuthContext] Bootstrap timed out, setting loading to false');
+        setLoading(false);
+      }
+    }, 5000);
+
     (async () => {
       setLoading(true);
       await bootstrap();
-      setLoading(false);
+      clearTimeout(timeout);
+      if (mounted) {
+        setLoading(false);
+      }
     })();
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
   }, [bootstrap]);
 
   const value = useMemo<AuthContextType>(
     () => ({
       user,
+      token,
       isAuthenticated: !!user,
       loading,
       signInWithPassword: async (username, password) => {
-        const { token } = await loginRequest(username, password);
-        setStoredToken(token);
-        setUser(await getMyInfo(token));
+        console.log('[AuthContext] signInWithPassword called for:', username);
+        const { token: newToken } = await loginRequest(username, password);
+        console.log('[AuthContext] Login success, received token:', newToken ? 'YES' : 'NO');
+        setStoredToken(newToken);
+        setToken(newToken);
+        const info = await getMyInfo(newToken);
+        setUser(info);
       },
       signUp: async (args) => {
         await registerRequest(args);
-        const { token } = await loginRequest(args.username, args.password);
-        setStoredToken(token);
-        setUser(await getMyInfo(token));
+        const { token: newToken } = await loginRequest(args.username, args.password);
+        setStoredToken(newToken);
+        setToken(newToken);
+        setUser(await getMyInfo(newToken));
       },
       signOut: async () => {
-        const t = getStoredToken();
-        if (t) {
+        if (token) {
           try {
-            await logoutRequest(t);
+            await logoutRequest(token);
           } catch {
             /* still clear local session */
           }
         }
         setStoredToken(null);
+        setToken(null);
         setUser(null);
       },
     }),
-    [user, loading, bootstrap]
+    [user, token, loading, bootstrap]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

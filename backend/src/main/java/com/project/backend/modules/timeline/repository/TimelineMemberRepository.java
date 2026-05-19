@@ -16,4 +16,6 @@ public interface TimelineMemberRepository extends JpaRepository<TimelineMember, 
     boolean existsByTimelineIdAndUserUsernameAndRoleIn(String timelineId, String username, Collection<TimelineMemberRole> roles);
 
     List<TimelineMember> findAllByTimelineIdOrderByCreatedAtAsc(String timelineId);
+
+    List<TimelineMember> findAllByUserUsername(String username);
 }

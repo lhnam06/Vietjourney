@@ -2,9 +2,9 @@ spring:
   main:
     lazy-initialization: true
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres}
+    username: ${DB_USERNAME:postgres.jegerdfhcbrcziuuhsbe}
+    password: ${DB_PASSWORD:BripbPKL9y4AWz2A}
   flyway:
     baseline-on-migrate: true
     locations: classpath:db/migration
@@ -13,20 +13,14 @@ spring:
       ddl-auto: none
     show-sql: false
 server:
-  port: ${PORT:8080}
+  port: ${PORT:8082}
   address: 0.0.0.0
-
-app:
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
-    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}
-
 place:
   datasource:
-    enabled: ${PLACE_DB_ENABLED:false}
-    url: ${PLACE_DB_URL:}
-    username: ${PLACE_DB_USERNAME:}
-    password: ${PLACE_DB_PASSWORD:}
+    enabled: ${PLACE_DB_ENABLED:true}
+    url: ${PLACE_DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres}
+    username: ${PLACE_DB_USERNAME:postgres.jegerdfhcbrcziuuhsbe}
+    password: ${PLACE_DB_PASSWORD:BripbPKL9y4AWz2A}
   lookup:
     food-table: ${PLACE_DB_FOOD_TABLE:places_food}
     drink-table: ${PLACE_DB_DRINK_TABLE:places_drink}
@@ -34,6 +28,6 @@ place:
     id-column: ${PLACE_DB_ID_COLUMN:id}
 
 jwt:
-  signer_key: ${JWT_SIGNER_KEY}
+  signer_key: ${JWT_SIGNER_KEY:JbkeHOoV80MgJ5PuhqeC5sElK3DpLzNr7EExafczUD4oETLYQyEcg28TPug3MyyLy1Y34vDitUqvwjdZLiGZ1Z}
   valid_duration: 36000
   refreshable_duration: 604800

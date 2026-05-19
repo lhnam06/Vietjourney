@@ -22,4 +22,6 @@ public interface TimelineInviteCodeRepository extends JpaRepository<TimelineInvi
     Optional<TimelineInviteCode> findActiveByCodeHashForUpdate(@Param("codeHash") String codeHash);
 
     boolean existsByCodeHashAndActiveTrue(String codeHash);
+
+    Optional<TimelineInviteCode> findByTimelineIdAndActiveTrue(String timelineId);
 }

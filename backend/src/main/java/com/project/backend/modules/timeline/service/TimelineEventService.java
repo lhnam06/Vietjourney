@@ -8,6 +8,7 @@ import com.project.backend.modules.timeline.dto.request.ReorderTimelineEventRequ
 import com.project.backend.modules.timeline.dto.request.ResizeTimelineEventRequest;
 import com.project.backend.modules.timeline.dto.response.TimelineEventResponse;
 import com.project.backend.modules.place.service.PlaceLookupService;
+import com.project.backend.modules.place.dto.PlaceSummary;
 import com.project.backend.modules.timeline.entity.Timeline;
 import com.project.backend.modules.timeline.entity.TimelineEvent;
 import com.project.backend.modules.timeline.event.TimelineChangeType;
@@ -37,6 +38,7 @@ public class TimelineEventService {
     TimelineSecurityService timelineSecurityService;
     TimelineService timelineService;
     PlaceLookupService placeLookupService;
+    com.project.backend.modules.timeline.messaging.TimelineEventPublisher timelineEventPublisher;
 
     @Transactional(readOnly = true)
     @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
@@ -69,8 +71,10 @@ public class TimelineEventService {
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), event.getId(), request.getOrderIndex());
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_ADDED);
-        return timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
+        TimelineEventResponse response = timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_EVENT_NOT_EXIST)));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_ADDED", response);
+        return response;
     }
 
     @Transactional
@@ -93,7 +97,9 @@ public class TimelineEventService {
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_MOVED);
 
-        return timelineService.toEventResponse(event);
+        TimelineEventResponse response = timelineService.toEventResponse(event);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_MOVED", response);
+        return response;
     }
 
     @Transactional
@@ -117,7 +123,9 @@ public class TimelineEventService {
         }
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_RESIZED);
 
-        return timelineService.toEventResponse(event);
+        TimelineEventResponse response = timelineService.toEventResponse(event);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_RESIZED", response);
+        return response;
     }
 
     @Transactional
@@ -130,7 +138,9 @@ public class TimelineEventService {
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
         timelineService.publishTimelineChangedEvent(event.getTimeline(), TimelineChangeType.EVENT_REORDERED);
-        return timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
+        TimelineEventResponse response = timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_REORDERED", response);
+        return response;
     }
 
     @Transactional
@@ -145,6 +155,7 @@ public class TimelineEventService {
         timelineEventRepository.delete(event);
         normalizeDay(timelineId, eventDay, null, null);
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_DELETED);
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_DELETED", java.util.Map.of("eventId", eventId));
     }
 
     private TimelineEvent getEventOrThrow(String timelineId, String eventId) {
@@ -163,15 +174,24 @@ public class TimelineEventService {
             throw new AppException(ErrorCode.TIMELINE_EVENT_OUTSIDE_TIMELINE_RANGE);
         }
 
-        boolean overlapping = timelineEventRepository.existsOverlappingEvent(
+        List<TimelineEvent> overlaps = timelineEventRepository.findOverlappingEvents(
                 timeline.getId(),
                 eventId,
                 startTime,
                 endTime,
                 TimelineEventStatus.CANCELLED
         );
-        if (overlapping) {
-            throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP);
+
+        if (!overlaps.isEmpty()) {
+            TimelineEvent conflict = overlaps.get(0);
+            String placeName = placeLookupService.findPlace(conflict.getCategory(), conflict.getExternalPlaceId())
+                    .map(PlaceSummary::getName)
+                    .orElse("Địa điểm hiện tại");
+            
+            String conflictTime = conflict.getStartTime().toLocalTime().toString().substring(0, 5);
+            String errorMsg = String.format("Đề xuất bị xung đột với hoạt động '%s' lúc %s", placeName, conflictTime);
+            
+            throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP, errorMsg);
         }
     }
 
@@ -206,5 +226,6 @@ public class TimelineEventService {
         for (int i = 0; i < dayEvents.size(); i++) {
             dayEvents.get(i).setOrderIndex(i);
         }
+        timelineEventRepository.saveAll(dayEvents);
     }
 }
