@@ -1,4 +1,4 @@
-const DEFAULT_BASE = 'http://localhost:8080';
+const DEFAULT_BASE = 'https://vietjourney-backend.onrender.com';
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_BASE;
 
