@@ -112,6 +112,7 @@ export async function addTimelineEvent(
     endTime: string;
     notes?: string;
     orderIndex?: number;
+    status?: 'PLANNED' | 'CONFIRMED' | 'CANCELLED';
   },
   accessToken: string
 ) {
