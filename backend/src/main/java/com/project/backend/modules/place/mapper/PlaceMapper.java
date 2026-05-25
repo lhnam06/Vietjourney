@@ -32,8 +32,8 @@ public class PlaceMapper {
                 .rating(getDouble(tuple, "rating"))
                 .latitude(getDouble(tuple, "latitude"))
                 .longitude(getDouble(tuple, "longitude"))
-                .images(parseImages(get(tuple, "images", String.class)))
-                .tags(parseTags(get(tuple, "tags", String.class)))
+                .images(parseJson(get(tuple, "images", String.class), LIST_TYPE))
+                .tags(parseJson(get(tuple, "tags", String.class), TAGS_TYPE))
                 .minPrice(parsePriceRangeLower(get(tuple, "price_range", String.class)))
                 .maxPrice(parsePriceRangeUpper(get(tuple, "price_range", String.class)))
                 .build();
@@ -72,41 +72,8 @@ public class PlaceMapper {
         try {
             return objectMapper.readValue(raw, typeRef);
         } catch (Exception e) {
-            log.warn("Failed to parse JSON: {} - {}", raw, e.getMessage());
+            log.warn("Failed to parse JSON: {}", raw, e);
             return null;
-        }
-    }
-
-    // Parse Tags, handling both Map and fallback to List
-    private Map<String, List<String>> parseTags(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            return objectMapper.readValue(raw, TAGS_TYPE);
-        } catch (Exception e) {
-            try {
-                List<String> list = objectMapper.readValue(raw, LIST_TYPE);
-                return Map.of("general", list);
-            } catch (Exception ex) {
-                log.warn("Failed to parse tags JSON: {} - {}", raw, ex.getMessage());
-                return null;
-            }
-        }
-    }
-
-    // Parse Images, handling both List and fallback to single String
-    private List<String> parseImages(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            return objectMapper.readValue(raw, LIST_TYPE);
-        } catch (Exception e) {
-            try {
-                // If it fails to parse as a List, check if it's a single string
-                String stripped = raw.replaceAll("^\"|\"$", "");
-                return List.of(stripped);
-            } catch (Exception ex) {
-                log.warn("Failed to parse images JSON: {} - {}", raw, ex.getMessage());
-                return null;
-            }
         }
     }
 
