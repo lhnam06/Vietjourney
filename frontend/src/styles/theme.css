@@ -65,6 +65,24 @@
   --vj-ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --vj-transition-all: all 0.5s var(--vj-ease-out-expo);
   --vj-transition-fast: all 0.2s ease-out;
+
+  /* Layout rhythm (fluid) */
+  --vj-content-max: min(1400px, calc(100vw - 2 * clamp(12px, 3vw, 28px)));
+  --vj-content-wide-max: min(1440px, calc(100vw - 2 * clamp(12px, 3vw, 28px)));
+  --vj-page-pad-x: clamp(12px, 2.8vw, 24px);
+  --vj-page-pad-y: clamp(0.5rem, 1.2vw, 1.5rem);
+  --vj-layout-gap: clamp(0.75rem, 1.5vw, 1.5rem);
+  --vj-stack-gap: clamp(0.75rem, 1.5vw, 1.25rem);
+  --vj-inset: clamp(0.875rem, 1.4vw, 1.5rem);
+  --vj-panel-max: min(32.5rem, calc(100vw - 2 * var(--vj-page-pad-x)));
+  --vj-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --vj-transition-all: none;
+    --vj-transition-fast: none;
+  }
 }
 
 .dark {
@@ -150,6 +168,22 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    font-size: var(--font-size);
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--vj-accent) 75%, white);
+    outline-offset: 2px;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--vj-font);
@@ -169,10 +203,6 @@
   * Default typography styles for HTML elements (h1-h4, p, label, button, input).
   * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
   */
-
-  html {
-    font-size: var(--font-size);
-  }
 
   h1 {
     font-size: clamp(1.375rem, 2vw + 1rem, 1.75rem);

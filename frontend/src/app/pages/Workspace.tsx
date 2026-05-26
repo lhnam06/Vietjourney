@@ -39,7 +39,10 @@ import { mockLocations, mockUsers, TimelineItem, Location, mockTrips } from '../
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
 import { toast } from 'sonner';
+import { fetchRoadRoutePolyline, type LatLngTuple } from '../lib/roadRoute';
 import { setLastTripId } from '../lib/tripStorage';
+import { cacheGet, cacheSet, cacheClear } from '../lib/apiCache';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
 import SearchPlacesDialog from '../components/SearchPlacesDialog';
 import { Input } from '../components/ui/input';
@@ -73,12 +76,18 @@ export default function Workspace() {
   const { user, token, loading: authLoading, isAuthenticated } = useAuth();
   const { lastMessage, sendProposal } = useTimelineSocket(tripId, token ?? "dummy_token");
 
-  const isMockTrip = tripId === 'trip-1'; 
+  const isMockTrip = tripId === 'trip-1';
 
-  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
-  const [tripMetadata, setTripMetadata] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pendingProposals, setPendingProposals] = useState<any[]>([]);
+  const CACHE_KEY = `timeline:${tripId}`;
+
+  const cachedDetail = cacheGet<{ items: TimelineItem[]; tripMeta: any; placesByLocationId: any; proposals: any[] }>(CACHE_KEY);
+
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(cachedDetail?.items ?? []);
+  const [tripMetadata, setTripMetadata] = useState<any>(
+    cachedDetail ? { ...cachedDetail.tripMeta, placesByLocationId: cachedDetail.placesByLocationId } : null
+  );
+  const [isLoading, setIsLoading] = useState(!cachedDetail);
+  const [pendingProposals, setPendingProposals] = useState<any[]>(cachedDetail?.proposals ?? []);
 
   const isOwner = useMemo(() => {
     if (!user || !tripMetadata) return false;
@@ -87,7 +96,7 @@ export default function Workspace() {
 
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useLocalStorageState<string>(`vj:workspace:${tripId}:selected-date`, '');
   const [timeEditorOpen, setTimeEditorOpen] = useState(false);
   const [timeEditorId, setTimeEditorId] = useState<string | null>(null);
   const [timeStart, setTimeStart] = useState('09:00');
@@ -96,7 +105,7 @@ export default function Workspace() {
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [addDetailsDialogOpen, setAddDetailsDialogOpen] = useState(false);
   const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<Location | null>(null);
-  const [proposalSidebarOpen, setProposalSidebarOpen] = useState(false);
+  const [proposalSidebarOpen, setProposalSidebarOpen] = useLocalStorageState<boolean>(`vj:workspace:${tripId}:proposal-sidebar`, false);
 
   const fetchTimeline = useCallback(async (isAutoRefresh = false) => {
     console.log("[Workspace] fetchTimeline called", { tripId, authLoading, hasToken: !!token, isAutoRefresh });
@@ -131,22 +140,24 @@ export default function Workspace() {
         })));
         
         const { items, tripMeta, placesByLocationId } = mapApiTimelineToTimetable(detail);
-        setTimelineItems(items || []);
+        const freshItems = items || [];
+        setTimelineItems(freshItems);
         setTripMetadata({ ...tripMeta, placesByLocationId });
+
+        // Persist into cache (proposals fetched below)
+        let proposals: any[] = [];
+        try {
+          proposals = await getPendingProposals(tripId, token!) ?? [];
+        } catch (e) {
+          console.error("[Workspace] Failed to fetch proposals:", e);
+        }
+        setPendingProposals(proposals);
+        cacheSet(CACHE_KEY, { items: freshItems, tripMeta, placesByLocationId, proposals });
       } else {
-        // Handle empty timeline case without throwing error
         setTimelineItems([]);
       }
-      
-      clearTimeout(timeoutId);
 
-      // Fetch pending proposals for Ghost UI - ALWAYS fetch this even if timeline is empty
-      try {
-        const proposals = await getPendingProposals(tripId, token!);
-        setPendingProposals(proposals || []);
-      } catch (e) {
-        console.error("[Workspace] Failed to fetch proposals:", e);
-      }
+      clearTimeout(timeoutId);
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') return;
@@ -244,6 +255,7 @@ export default function Workspace() {
     } catch (error) {
       console.error('[Workspace] Failed to reorder:', error);
       toast.error('Không thể sắp xếp lại');
+      cacheClear(CACHE_KEY);
       fetchTimeline(); // Rollback
     }
   };
@@ -317,7 +329,6 @@ export default function Workspace() {
       
       if (newEvent) {
         toast.success('Đã thêm hoạt động');
-        // Log the interaction if we have a selected location for context
         if (selectedLocationForAdd) {
           enqueueRecommendationInteraction({
             ...buildInteractionBase(selectedLocationForAdd),
@@ -325,6 +336,7 @@ export default function Workspace() {
           });
           void flushRecommendationInteractionQueue();
         }
+        cacheClear(CACHE_KEY);
         fetchTimeline();
       }
     } catch (error: any) {
@@ -484,6 +496,7 @@ export default function Workspace() {
         endTime: `${dateStr}T${timeEnd}:00`,
       }, token);
       toast.success('Đã cập nhật thời gian');
+      cacheClear(CACHE_KEY);
       fetchTimeline();
     } catch (error) {
       console.error('[Workspace] Failed to update time:', error);
@@ -590,11 +603,44 @@ export default function Workspace() {
     return [10.7769, 106.7009]; // HCMC Center
   }, [timelineLocations]);
 
-  // Get coordinates for the route
-  const routeCoordinates: [number, number][] = useMemo(() => 
-    timelineLocations.map((loc) => [loc.lat, loc.lng]),
-    [timelineLocations]
+  const stopsForRoute = useMemo<LatLngTuple[]>(
+    () =>
+      timelineLocations
+        .map((loc) => [loc.lat, loc.lng] as LatLngTuple)
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng)),
+    [timelineLocations],
   );
+
+  const [routePolyline, setRoutePolyline] = useState<LatLngTuple[]>([]);
+  const [routeResolving, setRouteResolving] = useState(false);
+
+  useEffect(() => {
+    if (stopsForRoute.length < 2) {
+      setRoutePolyline(stopsForRoute);
+      setRouteResolving(false);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    setRoutePolyline(stopsForRoute);
+    setRouteResolving(true);
+
+    fetchRoadRoutePolyline(stopsForRoute, { signal: ctrl.signal })
+      .then((coords) => {
+        if (!ctrl.signal.aborted) setRoutePolyline(coords);
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setRoutePolyline(stopsForRoute);
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setRouteResolving(false);
+      });
+
+    return () => ctrl.abort();
+  }, [stopsForRoute]);
+
+  // Keep straight-line coords for labelled markers fallback if needed elsewhere
+  const routeCoordinates: [number, number][] = stopsForRoute;
 
   const getTransportMethod = (index: number) => {
     // Alternate between motorbike and walking for Vietnam context
@@ -610,12 +656,12 @@ export default function Workspace() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full bg-[var(--vj-bg)]">
-        <div className="h-full max-w-[1440px] mx-auto w-full p-4 lg:p-6 flex flex-col lg:flex-row gap-5 min-h-0">
+        <div className="h-full max-w-[var(--vj-content-wide-max)] mx-auto w-full px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] flex flex-col lg:flex-row gap-[var(--vj-layout-gap)] min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
-          <div className="w-full lg:w-[540px] bg-[var(--vj-primary)]/40 backdrop-blur-3xl border border-[var(--vj-border)] flex flex-col rounded-3xl shadow-[var(--vj-shadow-premium)] min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
+          <div className="w-full lg:w-[min(33.75rem,100%)] lg:max-w-[var(--vj-panel-max)] lg:shrink-0 bg-[var(--vj-primary)]/40 backdrop-blur-3xl border border-[var(--vj-border)] flex flex-col rounded-3xl shadow-[var(--vj-shadow-premium)] min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Sticky header */}
           <div className="sticky top-0 z-20 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/80 via-[var(--vj-primary)]/40 to-transparent backdrop-blur-xl">
-            <div className="p-6">
+            <div className="p-[var(--vj-inset)]">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight drop-shadow-sm">Lịch Trình Chuyến Đi</h2>
@@ -661,7 +707,7 @@ export default function Workspace() {
             </div>
 
             {/* Day switcher + hints */}
-            <div className="px-5 pb-5">
+            <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
               <div className="flex items-center justify-between gap-3">
                 <div className="inline-flex rounded-xl bg-white/10 border border-white/15 p-1 overflow-hidden">
                   {dates.map((d) => {
@@ -765,7 +811,7 @@ export default function Workspace() {
           </div>
 
           {/* Timeline Items */}
-          <ScrollArea className="flex-1 min-h-0 p-5 bg-[var(--vj-primary)] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <ScrollArea className="flex-1 min-h-0 p-[var(--vj-inset)] bg-[var(--vj-primary)] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
             <div className="space-y-4 min-w-max pb-4">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-white/70">
@@ -854,6 +900,7 @@ export default function Workspace() {
                             notes: item.notes
                           }, token);
                           toast.success('Đã nhân bản hoạt động');
+                          cacheClear(CACHE_KEY);
                           fetchTimeline();
                         } catch (error) {
                           toast.error('Nhân bản thất bại');
@@ -870,6 +917,7 @@ export default function Workspace() {
                         try {
                           await deleteTimelineEvent(tripId, item.id, token);
                           toast.success('Đã xoá hoạt động');
+                          cacheClear(CACHE_KEY);
                           fetchTimeline();
                         } catch (error) {
                           toast.error('Xoá thất bại');
@@ -897,7 +945,7 @@ export default function Workspace() {
           </ScrollArea>
 
           {/* Add Activity Button */}
-          <div className="p-5 border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
+          <div className="p-[var(--vj-inset)] border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
             <Button
               className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium rounded-xl h-11"
               onClick={() => setSearchDialogOpen(true)}
@@ -908,29 +956,38 @@ export default function Workspace() {
           </div>
 
           {/* Column 2: Map */}
-          <div className="flex-1 relative rounded-3xl overflow-hidden shadow-[var(--vj-shadow-premium)] border border-white/10 bg-white min-h-[400px] lg:min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
+          <div className="flex-1 relative rounded-3xl overflow-hidden shadow-[var(--vj-shadow-premium)] border border-white/10 bg-white min-h-[min(42vh,22rem)] lg:min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Panel title like reference */}
-          <div className="absolute top-6 left-6 z-[1000] bg-white/70 backdrop-blur-md rounded-2xl px-5 py-2.5 shadow-lg border border-white/30 transition-all duration-300 hover:bg-white/80">
+          <div className="absolute top-[var(--vj-inset)] left-[var(--vj-inset)] z-[1000] bg-white/70 backdrop-blur-md rounded-2xl px-5 py-2.5 shadow-lg border border-white/30 transition-all duration-300 hover:bg-white/80">
             <h2 className="text-sm font-black text-[#0b5d55] tracking-tight">Bản Đồ Lộ Trình</h2>
           </div>
-          <div className="absolute top-20 left-6 z-[1000] bg-white/80 backdrop-blur-xl rounded-2xl p-5 shadow-xl border border-white/40 min-w-[240px] transition-all duration-500 hover:shadow-2xl hover:-translate-y-0.5">
+          <div className="absolute top-[calc(var(--vj-inset)+3.5rem)] left-[var(--vj-inset)] z-[1000] bg-white/80 backdrop-blur-xl rounded-2xl p-[var(--vj-inset)] shadow-xl border border-white/40 min-w-[240px] max-w-[calc(100%-2*var(--vj-inset))] transition-all duration-500 hover:shadow-2xl hover:-translate-y-0.5">
             <h3 className="font-black text-sm text-[#0A4A6E] mb-3 flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Lộ Trình Tự Động
             </h3>
-            <div className="flex items-center gap-4 text-xs text-slate-600 font-bold">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-emerald-600" />
-                <span>7.5 giờ</span>
+            <div className="flex flex-col gap-1 text-xs text-slate-600 font-bold">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-600" />
+                  <span>7.5 giờ</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>Trung Bình</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <span>Trung Bình</span>
-              </div>
+              <p className="text-[10px] font-semibold text-slate-500 normal-case leading-snug">
+                {routeResolving
+                  ? 'Đang vẽ lộ trình theo đường đi…'
+                  : stopsForRoute.length >= 2
+                    ? 'Tuyến nối các điểm theo đường lái xe (OSM/OpenStreetMap).'
+                    : 'Thêm ít nhất hai hoạt động có vị trí để xem lộ trình.'}
+              </p>
             </div>
           </div>
 
-          <div className="absolute bottom-6 left-6 z-[1000] bg-[#0b5d55]/90 backdrop-blur-xl rounded-2xl p-4 shadow-2xl border border-white/20 text-white min-w-[200px]">
+          <div className="absolute bottom-[var(--vj-inset)] left-[var(--vj-inset)] z-[1000] bg-[#0b5d55]/90 backdrop-blur-xl rounded-2xl p-[var(--vj-inset)] shadow-2xl border border-white/20 text-white min-w-[200px] max-w-[calc(100%-2*var(--vj-inset))]">
             <p className="text-sm font-black tracking-tight mb-1 flex items-center gap-2">
               <MapPin className="w-4 h-4 text-emerald-400" />
               {trip.destination}
@@ -942,7 +999,7 @@ export default function Workspace() {
             locations={timelineLocations}
             center={mapCenter}
             showRoute={true}
-            routeCoordinates={routeCoordinates}
+            routeCoordinates={routePolyline.length >= 2 ? routePolyline : routeCoordinates}
           />
         </div>
         </div>
