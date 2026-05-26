@@ -39,9 +39,14 @@ export default function Notifications() {
     }
     try {
       const data = await getNotificationsRequest(token, { size: 50 });
-      setNotifications(data.content);
+      if (data && Array.isArray(data.content)) {
+        setNotifications(data.content);
+      } else {
+        console.warn('[Notifications] Unexpected response format:', data);
+        setNotifications([]);
+      }
       const unread = await getUnreadCountRequest(token);
-      setTotal(unread);
+      setTotal(typeof unread === 'number' ? unread : 0);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
       toast.error('Không thể tải thông báo');
