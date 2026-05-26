@@ -77,13 +77,16 @@ public class SecurityConfig {
                 .build();
     }
 
+    @Value("${cors.allowed_origins:http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000}")
+    private String[] allowedOrigins;
+
     // Allow requests from Frontend
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-        corsConfiguration.addAllowedOrigin("http://localhost:5173");
-        corsConfiguration.addAllowedOrigin("http://127.0.0.1:5173");
-        corsConfiguration.addAllowedOrigin("http://localhost:3000");
+        for (String origin : allowedOrigins) {
+            corsConfiguration.addAllowedOrigin(origin.trim());
+        }
 
         corsConfiguration.addAllowedMethod("*"); // Allow all GET, POST, PUT, DELETE
         corsConfiguration.addAllowedHeader("*"); // Allow all Header
