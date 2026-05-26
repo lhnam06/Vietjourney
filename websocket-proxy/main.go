@@ -16,24 +16,42 @@ import (
 )
 
 var (
-	redisClient *redis.Client
-	jwtSecret   []byte
-	upgrader    = websocket.Upgrader{
+	redisClient    *redis.Client
+	jwtSecret      []byte
+	allowedOrigins []string
+	upgrader       = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for development
+			if len(allowedOrigins) == 0 {
+				return true // Allow all for development
+			}
+			origin := r.Header.Get("Origin")
+			for _, allowed := range allowedOrigins {
+				if allowed == "*" || origin == allowed {
+					return true
+				}
+			}
+			return false
 		},
 	}
 )
 
 func init() {
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
+	redisUrl := os.Getenv("REDIS_URL")
+	if redisUrl != "" {
+		opt, err := redis.ParseURL(redisUrl)
+		if err != nil {
+			log.Fatalf("Invalid REDIS_URL: %v", err)
+		}
+		redisClient = redis.NewClient(opt)
+	} else {
+		redisAddr := os.Getenv("REDIS_ADDR")
+		if redisAddr == "" {
+			redisAddr = "localhost:6379"
+		}
+		redisClient = redis.NewClient(&redis.Options{
+			Addr: redisAddr,
+		})
 	}
-
-	redisClient = redis.NewClient(&redis.Options{
-		Addr: redisAddr,
-	})
 
 	secret := os.Getenv("JWT_SIGNER_KEY")
 	if secret == "" {
@@ -41,6 +59,14 @@ func init() {
 		secret = "REMOVED_JWT_SIGNER_KEY"
 	}
 	jwtSecret = []byte(secret)
+
+	originsStr := os.Getenv("ALLOWED_ORIGINS")
+	if originsStr != "" {
+		allowedOrigins = strings.Split(originsStr, ",")
+		for i := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+		}
+	}
 }
 
 func verifyJWT(tokenString string) (*jwt.Token, error) {
