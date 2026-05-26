@@ -28,7 +28,9 @@ export function useNotificationSocket() {
       return;
     }
 
-    const wsUrl = `ws://localhost:8081/ws/notifications?token=${encodeURIComponent(token)}`;
+    const DEFAULT_WS = 'ws://localhost:8081';
+    const WS_BASE = (import.meta.env.VITE_WS_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_WS;
+    const wsUrl = `${WS_BASE}/ws/notifications?token=${encodeURIComponent(token)}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
