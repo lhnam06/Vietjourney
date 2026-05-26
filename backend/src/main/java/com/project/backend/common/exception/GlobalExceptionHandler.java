@@ -3,6 +3,8 @@ package com.project.backend.common.exception;
 import com.project.backend.common.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -45,13 +47,41 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ErrorCode.INVALID_REQUEST_BODY.getStatusCode()).body(apiResponse);
     }
 
+    @ExceptionHandler(value = DataIntegrityViolationException.class)
+    ResponseEntity<ApiResponse> handlingDataIntegrityViolation(DataIntegrityViolationException exception) {
+        log.error("DataIntegrityViolationException: ", exception);
+        ApiResponse apiResponse = new ApiResponse();
+        // Surface the constraint name if available so the client can diagnose
+        String cause = exception.getMostSpecificCause().getMessage();
+        if (cause != null && cause.contains("unique")) {
+            apiResponse.setCode(1007);
+            apiResponse.setMessage("Dữ liệu bị trùng lặp: " + cause);
+        } else if (cause != null && cause.contains("not-null") || (cause != null && cause.contains("null"))) {
+            apiResponse.setCode(1008);
+            apiResponse.setMessage("Dữ liệu bắt buộc bị thiếu: " + cause);
+        } else {
+            apiResponse.setCode(1009);
+            apiResponse.setMessage("Vi phạm ràng buộc dữ liệu" + (cause != null ? ": " + cause : ""));
+        }
+        return ResponseEntity.badRequest().body(apiResponse);
+    }
+
+    @ExceptionHandler(value = InvalidDataAccessApiUsageException.class)
+    ResponseEntity<ApiResponse> handlingInvalidDataAccess(InvalidDataAccessApiUsageException exception) {
+        log.error("InvalidDataAccessApiUsageException: ", exception);
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setCode(1010);
+        apiResponse.setMessage("Truy vấn dữ liệu không hợp lệ: " + exception.getMostSpecificCause().getMessage());
+        return ResponseEntity.badRequest().body(apiResponse);
+    }
+
     // Exception (Unexpected) Thrown By System
     @ExceptionHandler(value = Exception.class)
     ResponseEntity<ApiResponse> handlingRuntimeException(Exception exception){
         log.error("Exception: ", exception);
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setCode(ErrorCode.UNCATEGORIZED_EXCEPTION.getCode());
-        apiResponse.setMessage(ErrorCode.UNCATEGORIZED_EXCEPTION.getMessage());
+        apiResponse.setMessage(ErrorCode.UNCATEGORIZED_EXCEPTION.getMessage() + " [" + exception.getClass().getSimpleName() + ": " + exception.getMessage() + "]");
 
         return ResponseEntity.badRequest().body(apiResponse);
     }

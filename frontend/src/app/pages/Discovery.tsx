@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { DragEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { AlertCircle, RefreshCw, Search, MapPin, Sparkles, Star, SlidersHorizontal, X } from 'lucide-react';
+import { AlertCircle, CalendarRange, Clock, GripVertical, MapPin, RefreshCw, Search, Sparkles, Star, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, Location, mockTrips, mockUsers, mockTimeline, mockTransactions } from '../data/mockData';
-import SimpleMap from '../components/SimpleMap';
+import { mockLocations, Location, TimelineItem, mockTrips, mockUsers, mockTimeline, mockTransactions } from '../data/mockData';
 import { toast } from 'sonner';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
-import { addTimelineEvent } from '../lib/timelineApi';
-import { appendTransaction, getLastTripId, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
+import { addTimelineEvent, getMyTimelines, getTimelineDetail, mapApiTimelineToTimetable } from '../lib/timelineApi';
+import { appendTransaction, getLastTripId, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
 import { getRecommendedPlaces } from '../lib/recommendationApi';
@@ -23,6 +23,7 @@ import { filterPlaces } from '../lib/placesApi';
 import {
   buildInteractionBase,
   HCMC_CENTER,
+  inferCategoryFromLocation,
   locationSearchText,
   placeApiRowToLocation,
   recommendedPlaceToLocation,
@@ -30,6 +31,16 @@ import {
 import { ApiError } from '../lib/api';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { onLocationImageError } from '../lib/imagePlaceholder';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import {
+  TIMETABLE_DAY_END_HOUR,
+  TIMETABLE_DAY_START_HOUR,
+  PX_PER_HOUR,
+  daySpanMinutes,
+  eachTripDay,
+  layoutsByDate,
+  type TimetableBlock,
+} from '../lib/timetableLayout';
 
 type CategoryFilter = 'all' | 'food' | 'drink' | 'activity';
 type PriceFilter = 'all' | 'free' | 'budget' | 'mid' | 'premium';
@@ -63,6 +74,7 @@ const sortFilterOptions: Array<{ value: SortFilter; label: string }> = [
   { value: 'priceDesc', label: 'Giá cao đến thấp' },
 ];
 const MAX_NEARBY_RECOMMENDATIONS = 20;
+const DISCOVERY_DRAG_TYPE = 'application/vnd.vietjourney.location-id';
 
 // Format VND currency
 const formatVND = (amount: number) => {
@@ -107,20 +119,47 @@ function backendRowKey(row: {
   return `${category}:${name}:${address}:${lat}:${lng}`;
 }
 
+const minutesToHHmm = (minutes: number) => {
+  const hh = Math.floor(minutes / 60);
+  const mm = minutes % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const dayLabel = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString('vi-VN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  });
+
 export default function Discovery() {
   const [userCenter, setUserCenter] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [districtFilter, setDistrictFilter] = useState<string>('all');
-  const [minRatingFilter, setMinRatingFilter] = useState<number>(0);
-  const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
-  const [selectedTagGroup, setSelectedTagGroup] = useState<string>('all');
-  const [selectedTagValues, setSelectedTagValues] = useState<string[]>([]);
-  const [sortFilter, setSortFilter] = useState<SortFilter>('relevance');
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useLocalStorageState('vj:discovery:search-query', '');
+  const [categoryFilter, setCategoryFilter] = useLocalStorageState<CategoryFilter>('vj:discovery:category-filter', 'all');
+  const [districtFilter, setDistrictFilter] = useLocalStorageState<string>('vj:discovery:district-filter', 'all');
+  const [minRatingFilter, setMinRatingFilter] = useLocalStorageState<number>('vj:discovery:min-rating-filter', 0);
+  const [priceFilter, setPriceFilter] = useLocalStorageState<PriceFilter>('vj:discovery:price-filter', 'all');
+  const [selectedTagGroup, setSelectedTagGroup] = useLocalStorageState<string>('vj:discovery:selected-tag-group', 'all');
+  const [selectedTagValues, setSelectedTagValues] = useLocalStorageState<string[]>('vj:discovery:selected-tag-values', []);
+  const [sortFilter, setSortFilter] = useLocalStorageState<SortFilter>('vj:discovery:sort-filter', 'relevance');
+  const [selectedLocationId, setSelectedLocationId] = useLocalStorageState<string | null>('vj:discovery:selected-location-id', null);
   const [addOpen, setAddOpen] = useState(false);
   const [addLocation, setAddLocation] = useState<Location | null>(null);
+  const [addDefaults, setAddDefaults] = useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+  const [draggedLocationId, setDraggedLocationId] = useState<string | null>(null);
+  const [dropPreview, setDropPreview] = useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+    topPct: number;
+  } | null>(null);
   const [recommendedLocations, setRecommendedLocations] = useState<Location[] | null>(null);
   const [recoLoading, setRecoLoading] = useState(false);
   /** When personalized fetch fails or returns no rows, we fall back to mock data. */
@@ -135,11 +174,13 @@ export default function Discovery() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
   const [realTimelines, setRealTimelines] = useState<any[]>([]);
+  const [timetableItems, setTimetableItems] = useState<TimelineItem[]>([]);
+  const [labelByLocationId, setLabelByLocationId] = useState<Record<string, string>>({});
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const listCardsRef = useRef<HTMLDivElement>(null);
   
-  const [currentTripId, setCurrentTripId] = useState(getLastTripId('trip-1'));
+  const [currentTripId, setCurrentTripId] = useLocalStorageState('vj:discovery:current-trip-id', () => getLastTripId('trip-1'));
 
   useEffect(() => {
     const loadTimelines = async () => {
@@ -172,6 +213,33 @@ export default function Discovery() {
   }, [tripId, isMockTrip, realTimelines]);
   const tripUsers = mockUsers.filter((u) => trip.participants.includes(u.id));
   const effectiveCenter: [number, number] = userCenter ?? HCMC_CENTER;
+
+  const tripDates = useMemo(() => {
+    const dates = eachTripDay(trip.startDate, trip.endDate);
+    if (dates.length) return dates;
+    const today = new Date();
+    return [0, 1, 2].map((offset) => {
+      const next = new Date(today);
+      next.setDate(today.getDate() + offset);
+      return next.toISOString().slice(0, 10);
+    });
+  }, [trip.endDate, trip.startDate]);
+
+  const [visibleDates, setVisibleDates] = useLocalStorageState<string[]>('vj:discovery:visible-dates', []);
+
+  useEffect(() => {
+    setVisibleDates((prev) => {
+      const valid = prev.filter((date) => tripDates.includes(date));
+      return valid.length ? valid : tripDates.slice(0, Math.min(3, tripDates.length));
+    });
+  }, [tripDates]);
+
+  const timetableLayouts = useMemo(() => layoutsByDate(timetableItems), [timetableItems]);
+
+  const getTimetableLabel = (block: TimetableBlock) =>
+    labelByLocationId[block.locationId] ||
+    mockLocations.find((location) => location.id === block.locationId)?.name ||
+    'Hoạt động';
 
   const baseLocations = useMemo(() => {
     if (catalogAttempted) return catalogLocations;
@@ -276,6 +344,15 @@ export default function Discovery() {
         .map((loc) => loc.id)
     );
   }, [filteredLocations, effectiveCenter]);
+
+  const draggedLocation = useMemo(() => {
+    if (!draggedLocationId) return null;
+    return (
+      filteredLocations.find((location) => location.id === draggedLocationId) ??
+      baseLocations.find((location) => location.id === draggedLocationId) ??
+      null
+    );
+  }, [baseLocations, draggedLocationId, filteredLocations]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -500,10 +577,6 @@ export default function Discovery() {
       return;
     }
     if (!tagGroupOptions.includes(selectedTagGroup)) {
-      if (!user?.token || !tripId) {
-        setIsLoading(false);
-        return;
-      }
       setSelectedTagGroup('all');
       setSelectedTagValues([]);
       return;
@@ -512,14 +585,100 @@ export default function Discovery() {
     setSelectedTagValues((prev) => prev.filter((x) => allow.has(x.toLowerCase())));
   }, [selectedTagGroup, selectedTagValues.length, availableTagValues, tagGroupOptions]);
 
-  const center: [number, number] = effectiveCenter;
-  const selectedLocation = selectedLocationId
-    ? baseLocations.find((l) => l.id === selectedLocationId) ?? null
-    : null;
+  useEffect(() => {
+    let cancelled = false;
+    const token = getStoredToken();
 
-  const openAdd = (location: Location) => {
+    void (async () => {
+      if (!tripId || tripId === 'undefined') {
+        setTimetableItems([]);
+        setLabelByLocationId({});
+        return;
+      }
+
+      if (!isMockTrip && token) {
+        try {
+          const detail = await getTimelineDetail(tripId, token);
+          if (cancelled) return;
+          const mapped = mapApiTimelineToTimetable(detail);
+          setTimetableItems(mapped.items);
+          setLabelByLocationId(mapped.labelByLocationId);
+          return;
+        } catch (error) {
+          console.error('[Discovery] Failed to load timetable preview:', error);
+        }
+      }
+
+      if (!cancelled) {
+        const stored = loadTripData(tripId);
+        const baseItems = stored?.timeline ?? mockTimeline;
+        setTimetableItems(baseItems);
+        setLabelByLocationId(
+          Object.fromEntries(
+            mockLocations.map((location) => [location.id, location.name])
+          )
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMockTrip, tripId]);
+
+  const openAdd = (
+    location: Location,
+    defaults?: { date: string; startTime: string; endTime: string }
+  ) => {
     setAddLocation(location);
+    setAddDefaults(defaults ?? {
+      date: visibleDates[0] ?? tripDates[0] ?? new Date().toISOString().slice(0, 10),
+      startTime: '09:00',
+      endTime: '10:00',
+    });
     setAddOpen(true);
+  };
+
+  const toggleVisibleDate = (date: string) => {
+    setVisibleDates((prev) => {
+      if (prev.includes(date)) {
+        return prev.length > 1 ? prev.filter((item) => item !== date) : prev;
+      }
+      return [...prev, date].sort();
+    });
+  };
+
+  const getDropDefaults = (date: string, target: HTMLElement, clientY: number) => {
+    const rect = target.getBoundingClientRect();
+    const percent = clamp((clientY - rect.top) / rect.height, 0, 1);
+    const rawMinutes = TIMETABLE_DAY_START_HOUR * 60 + percent * daySpanMinutes();
+    const startMinutes = clamp(
+      Math.round(rawMinutes / 15) * 15,
+      TIMETABLE_DAY_START_HOUR * 60,
+      TIMETABLE_DAY_END_HOUR * 60 - 30
+    );
+    const endMinutes = Math.min(startMinutes + 90, TIMETABLE_DAY_END_HOUR * 60);
+    return {
+      date,
+      startTime: minutesToHHmm(startMinutes),
+      endTime: minutesToHHmm(endMinutes),
+      topPct: ((startMinutes - TIMETABLE_DAY_START_HOUR * 60) / daySpanMinutes()) * 100,
+    };
+  };
+
+  const handleTimetableDrop = (date: string, event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const locationId =
+      event.dataTransfer.getData(DISCOVERY_DRAG_TYPE) ||
+      event.dataTransfer.getData('text/plain');
+    const location = filteredLocations.find((item) => item.id === locationId) ||
+      baseLocations.find((item) => item.id === locationId);
+    if (!location) return;
+
+    const defaults = getDropDefaults(date, event.currentTarget, event.clientY);
+    setDropPreview(null);
+    setDraggedLocationId(null);
+    openAdd(location, defaults);
   };
 
   const clearAllFilters = () => {
@@ -542,11 +701,11 @@ export default function Discovery() {
   };
 
   return (
-    <div className="h-full flex bg-[var(--vj-bg)] p-4 lg:p-6 gap-6">
+    <div className="h-full flex flex-col xl:flex-row bg-[var(--vj-bg)] min-h-0 gap-[var(--vj-layout-gap)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)]">
       {/* Left Panel - Search & Filters & List */}
-      <div className="w-[520px] flex flex-col bg-[var(--vj-surface)]/95 backdrop-blur-3xl border border-[var(--vj-border)] rounded-3xl shadow-[var(--vj-shadow-premium)] relative z-[1050] transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
+      <div className="w-full xl:w-[var(--vj-panel-max)] xl:max-w-[var(--vj-panel-max)] xl:shrink-0 flex flex-col min-h-0 flex-1 xl:flex-none xl:max-h-full bg-[var(--vj-surface)]/95 backdrop-blur-3xl border border-[var(--vj-border)] rounded-3xl shadow-[var(--vj-shadow-premium)] relative z-[1050] transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
         {/* Header */}
-        <div className="p-8 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/90 via-[var(--vj-primary-2)]/80 to-[#0f4b68]/70 backdrop-blur-xl">
+        <div className="p-[var(--vj-inset)] border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/90 via-[var(--vj-primary-2)]/80 to-[#0f4b68]/70 backdrop-blur-xl">
           <div className="flex items-center gap-4 mb-6">
             <span className="text-4xl drop-shadow-md">🇻🇳</span>
             <div>
@@ -613,7 +772,7 @@ export default function Discovery() {
         {/* Scrollable content: Filters + Results + List */}
         <ScrollArea className="flex-1 min-h-0">
           {isAuthenticated && !recoLoading && recoFallback === 'error' && (
-            <div className="p-4 pb-0">
+            <div className="p-[var(--vj-inset)] pb-0">
               <Alert variant="destructive" className="border-red-200 bg-red-50/90 text-red-900 [&>svg]:text-red-600">
                 <AlertCircle />
                 <AlertTitle>Không tải được gợi ý cá nhân</AlertTitle>
@@ -634,7 +793,7 @@ export default function Discovery() {
             </div>
           )}
           {isAuthenticated && !recoLoading && recoFallback === 'empty' && (
-            <div className="p-4 pb-0">
+            <div className="p-[var(--vj-inset)] pb-0">
               <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
                 <AlertCircle className="text-amber-600" />
                 <AlertTitle>Chưa có đủ dữ liệu gợi ý</AlertTitle>
@@ -645,7 +804,7 @@ export default function Discovery() {
             </div>
           )}
           {!catalogLoading && catalogError && (
-            <div className="p-4 pb-0">
+            <div className="p-[var(--vj-inset)] pb-0">
               <Alert className="border-slate-300 bg-slate-50">
                 <AlertCircle className="text-slate-600" />
                 <AlertTitle>Không lấy được danh mục địa điểm từ backend</AlertTitle>
@@ -670,10 +829,10 @@ export default function Discovery() {
             </div>
           )}
           {/* Filters */}
-          <div className="p-6 border-b border-slate-200 space-y-4 bg-white/70">
-            <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                <SlidersHorizontal className="size-3.5" />
+          <div className="border-b border-slate-200 bg-white/80 p-[var(--vj-inset)]">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                <SlidersHorizontal className="size-3.5 shrink-0" />
                 Bộ lọc theo dữ liệu
               </div>
               {activeFilterCount > 0 && (
@@ -681,15 +840,17 @@ export default function Discovery() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 rounded-full px-3 text-xs text-slate-600 hover:text-slate-900"
+                  className="h-8 shrink-0 rounded-full px-3 text-xs text-slate-600 hover:text-slate-900"
                   onClick={clearAllFilters}
                 >
                   Xóa bộ lọc ({activeFilterCount})
                 </Button>
               )}
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Loại địa điểm</p>
+
+            <div className="space-y-5">
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Loại địa điểm</p>
               <div className="flex flex-wrap gap-2">
                 {categoryFilterOptions.map((filter) => (
                   <Button
@@ -709,13 +870,13 @@ export default function Discovery() {
               </div>
             </div>
 
-            <div>
-              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Quận / khu vực</p>
-              <div className="grid grid-cols-1 gap-2">
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Quận / khu vực</p>
+              <div>
                 <select
                   value={districtFilter}
                   onChange={(e) => setDistrictFilter(e.target.value)}
-                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
                 >
                   <option value="all">Tất cả khu vực</option>
                   {districtOptions.map((district) => (
@@ -727,13 +888,13 @@ export default function Discovery() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Đánh giá</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Đánh giá</p>
                 <select
                   value={String(minRatingFilter)}
                   onChange={(e) => setMinRatingFilter(Number(e.target.value))}
-                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
                 >
                   {minRatingOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -742,12 +903,12 @@ export default function Discovery() {
                   ))}
                 </select>
               </div>
-              <div>
-                <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Mức giá</p>
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mức giá</p>
                 <select
                   value={priceFilter}
                   onChange={(e) => setPriceFilter(e.target.value as PriceFilter)}
-                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
                 >
                   {priceFilterOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -758,15 +919,15 @@ export default function Discovery() {
               </div>
             </div>
 
-            <div>
-              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Bộ tag theo nhóm (backend)</p>
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Bộ tag theo nhóm</p>
               <select
                 value={selectedTagGroup}
                 onChange={(e) => {
                   setSelectedTagGroup(e.target.value);
                   setSelectedTagValues([]);
                 }}
-                className="mb-2 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
               >
                 <option value="all">Không lọc theo tag</option>
                 {tagGroupOptions.map((group) => (
@@ -775,9 +936,11 @@ export default function Discovery() {
                   </option>
                 ))}
               </select>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 pt-1">
                 {selectedTagGroup !== 'all' && availableTagValues.length === 0 ? (
-                  <span className="text-xs text-slate-500">Nhóm tag này chưa có dữ liệu khả dụng.</span>
+                  <span className="w-full rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    Nhóm tag này chưa có dữ liệu khả dụng.
+                  </span>
                 ) : null}
                 {availableTagValues.map((item) => (
                   <Button
@@ -785,21 +948,21 @@ export default function Discovery() {
                     variant={selectedTagValues.some((t) => t.toLowerCase() === item.label.toLowerCase()) ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => toggleTag(item.label)}
-                    className={`rounded-full ${
+                    className={`h-8 rounded-full px-3 ${
                       selectedTagValues.some((t) => t.toLowerCase() === item.label.toLowerCase())
                         ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                        : 'border-slate-300'
+                        : 'border-slate-200'
                     }`}
                   >
                     {item.label}
-                    <span className="ml-1 text-[10px] opacity-80">{item.count}</span>
+                    <span className="ml-1.5 text-[10px] opacity-75">{item.count}</span>
                   </Button>
                 ))}
               </div>
             </div>
 
-            <div>
-              <p className="text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Sắp xếp</p>
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Sắp xếp</p>
               <div className="flex flex-wrap gap-2">
                 {sortFilterOptions.map((option) => (
                   <Button
@@ -818,10 +981,11 @@ export default function Discovery() {
                 ))}
               </div>
             </div>
+            </div>
           </div>
 
           {/* Results Count */}
-          <div className="px-6 py-3 bg-slate-100 border-b border-slate-200">
+          <div className="px-[var(--vj-inset)] py-3 bg-slate-100 border-b border-slate-200">
             <p className="text-sm text-slate-600 flex items-center justify-between gap-2">
               <span>
                 <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
@@ -841,7 +1005,7 @@ export default function Discovery() {
           </div>
 
           {/* Location Cards List */}
-          <div ref={listCardsRef} className="p-4 space-y-4">
+          <div ref={listCardsRef} className="p-[var(--vj-inset)] space-y-[var(--vj-stack-gap)]">
             {filteredLocations.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-10 text-center">
                 <p className="text-sm font-semibold text-slate-800">Không có địa điểm khớp bộ lọc</p>
@@ -854,11 +1018,28 @@ export default function Discovery() {
               <Card
                 key={location.id}
                 data-place-id={location.id}
-                className={`p-4 hover:shadow-xl transition-all cursor-pointer border ${
+                draggable
+                className={`group p-4 transition-all cursor-grab active:cursor-grabbing border ${
                   selectedLocationId === location.id
                     ? 'border-[var(--vj-accent)] shadow-lg ring-2 ring-[var(--vj-accent)]/20'
                     : 'border-slate-200 hover:border-[var(--vj-accent)]/50'
+                } ${
+                  draggedLocationId === location.id
+                    ? 'scale-[0.985] border-[var(--vj-accent)] bg-orange-50/70 opacity-75 shadow-2xl ring-2 ring-[var(--vj-accent)]/30'
+                    : 'hover:-translate-y-0.5 hover:shadow-xl'
                 }`}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(DISCOVERY_DRAG_TYPE, location.id);
+                  event.dataTransfer.setData('text/plain', location.id);
+                  event.dataTransfer.effectAllowed = 'copy';
+                  setDraggedLocationId(location.id);
+                  setSelectedLocationId(location.id);
+                  setDropPreview(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedLocationId(null);
+                  setDropPreview(null);
+                }}
                 onClick={() => {
                   setSelectedLocationId(location.id);
                   if (isAuthenticated) {
@@ -869,74 +1050,78 @@ export default function Discovery() {
                   }
                 }}
               >
-                <div className="flex gap-4">
+                <div className="flex gap-3 sm:gap-4">
                   <img
                     src={location.image}
                     alt={location.name}
-                    className="w-28 h-28 rounded-xl object-cover flex-shrink-0 shadow-sm"
+                    className="h-24 w-24 shrink-0 rounded-xl object-cover shadow-sm sm:h-28 sm:w-28"
                     loading="lazy"
                     decoding="async"
                     referrerPolicy="strict-origin-when-cross-origin"
                     onError={onLocationImageError}
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-bold text-[var(--vj-primary)] text-lg leading-tight">
+                  <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-bold leading-snug text-[var(--vj-primary)] sm:text-lg">
                         {location.name}
                       </h3>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                        <span className="text-sm font-semibold text-slate-700">{location.rating}</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500 transition group-hover:bg-orange-100 group-hover:text-[var(--vj-accent)]">
+                          <GripVertical className="h-3 w-3" />
+                          Kéo
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                          <span className="text-sm font-semibold text-slate-700">{location.rating}</span>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 mb-2 line-clamp-2">
+                    <p className="line-clamp-2 text-sm leading-relaxed text-slate-600">
                       {location.description}
                     </p>
-                    <div className="mb-3 flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
                       {nearbyRecommendationIds.has(location.id) && (
-                        <Badge className="text-[11px] bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-200">
+                        <Badge className="border border-amber-200 bg-amber-100 text-[11px] text-amber-800 hover:bg-amber-200">
                           Gợi ý gần bạn
                         </Badge>
                       )}
-                      <Badge variant="outline" className="text-[11px] border-slate-300 text-slate-600">
+                      <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
                         {location.weather === 'indoor' ? 'Trong nhà' : location.weather === 'outdoor' ? 'Ngoài trời' : 'Linh hoạt'}
                       </Badge>
-                      <Badge variant="outline" className="text-[11px] border-slate-300 text-slate-600">
+                      <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
                         {location.vibe === 'quiet' ? 'Yên tĩnh' : location.vibe === 'vibrant' ? 'Sôi động' : 'Cân bằng'}
                       </Badge>
                       {location.recommendation?.district && (
-                        <Badge variant="outline" className="text-[11px] border-slate-300 text-slate-600">
+                        <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
                           {location.recommendation.district}
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center justify-between">
+                    {location.tags.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
-                        {location.tags.slice(0, 3).map((tag) => (
+                        {location.tags.slice(0, 4).map((tag) => (
                           <Badge
                             key={tag}
                             variant="secondary"
-                            className="text-xs bg-[color-mix(in_oklab,var(--vj-primary)_10%,white)] text-[var(--vj-primary)] hover:bg-[color-mix(in_oklab,var(--vj-primary)_16%,white)]"
+                            className="rounded-full border-0 bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
                           >
                             {tag}
                           </Badge>
                         ))}
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="flex items-center gap-1 text-[var(--vj-accent)] font-bold text-sm">
-                          {formatVND(location.price)}
-                        </div>
-                        <Button
-                          size="sm"
-                          className="h-8 rounded-full bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white px-4"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAdd(location);
-                          }}
-                        >
-                          Thêm lịch trình
-                        </Button>
-                      </div>
+                    ) : null}
+                    <div className="mt-0.5 flex flex-col gap-2 border-t border-slate-100 pt-2.5 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm font-bold text-[var(--vj-accent)]">{formatVND(location.price)}</span>
+                      <Button
+                        size="sm"
+                        className="h-9 w-full shrink-0 rounded-full bg-[var(--vj-accent)] px-4 text-white hover:bg-[var(--vj-accent-2)] sm:w-auto"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAdd(location);
+                        }}
+                      >
+                        Thêm lịch trình
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -946,32 +1131,217 @@ export default function Discovery() {
         </ScrollArea>
       </div>
 
-      {/* Right Panel - Map */}
-      <div className="flex-1 relative m-4 rounded-2xl overflow-hidden shadow-2xl border border-[var(--vj-border)] bg-white min-h-0">
-        <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 min-w-64">
-          <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-5 h-5 text-[#FF6B35]" />
-            <h3 className="font-bold text-[var(--vj-primary)]">
-              {gpsStatus === 'granted' ? 'Bản đồ gần bạn' : 'Bản đồ TP. HCM'}
-            </h3>
-          </div>
-          <p className="text-xs text-slate-600">
-            Hiển thị {filteredLocations.length} địa điểm
-          </p>
-          {selectedLocation && (
-            <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <p className="text-xs font-semibold text-slate-900 line-clamp-1">{selectedLocation.name}</p>
-              <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{selectedLocation.description}</p>
+      {/* Right Panel - Timetable Planner */}
+      <div className={`flex min-h-[min(42vh,22rem)] flex-1 flex-col overflow-hidden rounded-[1.75rem] border bg-white shadow-[0_24px_64px_rgba(15,23,42,0.08)] transition-all xl:min-h-0 ${
+        draggedLocation
+          ? 'border-[var(--vj-accent)] ring-4 ring-[var(--vj-accent)]/15'
+          : 'border-slate-200/90'
+      }`}>
+        <div className={`border-b border-slate-200/90 p-[var(--vj-inset)] transition-colors ${
+          draggedLocation ? 'bg-gradient-to-r from-orange-50/90 via-white to-emerald-50/80' : 'bg-gradient-to-br from-white to-slate-50/80'
+        }`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-[var(--vj-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--vj-primary)]">
+                <CalendarRange className="h-3.5 w-3.5" />
+                {draggedLocation ? 'Sẵn sàng thả' : 'Lịch nháp'}
+              </div>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-[var(--vj-primary)]">
+                {draggedLocation ? `Đang kéo: ${draggedLocation.name}` : 'Kéo địa điểm vào thời khoá biểu'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {dropPreview
+                  ? `Thả để lên lịch ${dropPreview.startTime} - ${dropPreview.endTime} ngày ${dropPreview.date}.`
+                  : 'Chọn một hoặc nhiều ngày, kéo thẻ địa điểm từ danh sách bên trái rồi thả vào khung giờ mong muốn.'}
+              </p>
             </div>
-          )}
+            <div className={`rounded-2xl border px-4 py-3 text-xs transition-colors ${
+              draggedLocation
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-orange-200 bg-orange-50 text-orange-900'
+            }`}>
+              <p className="font-bold">{draggedLocation ? 'Thả vào cột ngày' : 'Mẹo nhanh'}</p>
+              <p className="mt-1">
+                {draggedLocation
+                  ? 'Đường màu cam cho biết khung giờ sẽ được điền vào hộp lên lịch.'
+                  : 'Sau khi thả, hộp lên lịch sẽ mở sẵn ngày và giờ để bạn kiểm tra trước khi lưu.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {tripDates.map((date) => {
+              const active = visibleDates.includes(date);
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => toggleVisibleDate(date)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    active
+                      ? 'border-[var(--vj-primary)] bg-[var(--vj-primary)] text-white shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-[var(--vj-primary)]/40'
+                  }`}
+                  aria-pressed={active}
+                >
+                  {dayLabel(date)}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <SimpleMap
-          locations={filteredLocations}
-          center={center}
-          userLocation={userCenter ?? undefined}
-          showRoute={false}
-        />
+        <div className="flex-1 min-h-0 overflow-auto bg-slate-50/30">
+          <div className="flex min-w-fit">
+            <div className="sticky left-0 z-20 w-[3.5rem] shrink-0 border-r border-slate-200/90 bg-gradient-to-b from-slate-50 to-white backdrop-blur-sm">
+              <div className="sticky top-0 z-30 flex h-12 items-end justify-center border-b border-slate-200 bg-slate-100/90 pb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Giờ</span>
+              </div>
+              <div
+                className="relative"
+                style={{ height: (TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR) * PX_PER_HOUR }}
+              >
+                {Array.from(
+                  { length: TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR },
+                  (_, index) => TIMETABLE_DAY_START_HOUR + index
+                ).map((hour) => (
+                  <div
+                    key={hour}
+                    className="absolute left-0 right-0 border-t border-slate-200/90 pr-2 text-right text-xs font-medium tabular-nums text-slate-500"
+                    style={{
+                      top: ((hour - TIMETABLE_DAY_START_HOUR) / (TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR)) * 100 + '%',
+                      height: PX_PER_HOUR,
+                    }}
+                  >
+                    {String(hour).padStart(2, '0')}:00
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {visibleDates.map((date) => {
+              const blocks = timetableLayouts.get(date) ?? [];
+              const isPreviewDate = dropPreview?.date === date;
+              return (
+                <div
+                  key={date}
+                  className={`w-[min(72vw,13.5rem)] shrink-0 border-r transition-colors last:border-r-0 sm:w-48 lg:w-56 ${
+                    isPreviewDate ? 'border-r-orange-200/80 bg-orange-50/40' : 'border-slate-200/80 bg-white'
+                  }`}
+                >
+                  <div className={`sticky top-0 z-10 flex h-12 flex-col justify-center border-b px-3 transition-colors ${
+                    isPreviewDate
+                      ? 'border-orange-200 bg-gradient-to-br from-orange-100 to-orange-50'
+                      : 'border-slate-200 bg-gradient-to-br from-[color-mix(in_oklab,var(--vj-primary)_10%,white)] to-white'
+                  }`}>
+                    <span className="text-xs font-extrabold capitalize leading-tight text-[var(--vj-primary)]">
+                      {dayLabel(date)}
+                    </span>
+                    <span className="text-[10px] tabular-nums text-slate-500">
+                      {isPreviewDate ? `${dropPreview.startTime} - ${dropPreview.endTime}` : date}
+                    </span>
+                  </div>
+                  <div
+                    className={`relative transition-colors ${
+                      draggedLocation
+                        ? isPreviewDate
+                          ? 'bg-orange-50/50'
+                          : 'bg-emerald-50/25 hover:bg-emerald-50/50'
+                        : 'bg-white'
+                    }`}
+                    style={{ height: (TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR) * PX_PER_HOUR }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'copy';
+                      const nextPreview = getDropDefaults(date, event.currentTarget, event.clientY);
+                      setDropPreview((prev) =>
+                        prev &&
+                        prev.date === nextPreview.date &&
+                        prev.startTime === nextPreview.startTime &&
+                        prev.endTime === nextPreview.endTime
+                          ? prev
+                          : nextPreview
+                      );
+                    }}
+                    onDragLeave={(event) => {
+                      const nextTarget = event.relatedTarget as Node | null;
+                      if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+                      setDropPreview((prev) => (prev?.date === date ? null : prev));
+                    }}
+                    onDrop={(event) => handleTimetableDrop(date, event)}
+                  >
+                    {Array.from(
+                      { length: TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR },
+                      (_, index) => TIMETABLE_DAY_START_HOUR + index
+                    ).map((hour) => (
+                      <div
+                        key={hour}
+                        className="absolute left-0 right-0 pointer-events-none border-t border-slate-100"
+                        style={{
+                          top: ((hour - TIMETABLE_DAY_START_HOUR) / (TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR)) * 100 + '%',
+                        }}
+                      />
+                    ))}
+
+                    {blocks.length === 0 ? (
+                      <div className={`absolute inset-x-4 top-8 rounded-2xl border border-dashed p-4 text-center text-xs font-semibold transition-colors ${
+                        draggedLocation
+                          ? 'border-emerald-300 bg-emerald-50/80 text-emerald-800'
+                          : 'border-slate-300 bg-slate-50/80 text-slate-500'
+                      }`}>
+                        {draggedLocation ? 'Thả để tạo hoạt động đầu tiên' : 'Thả địa điểm vào đây'}
+                      </div>
+                    ) : null}
+
+                    {isPreviewDate ? (
+                      <div
+                        className="pointer-events-none absolute left-2 right-2 z-20"
+                        style={{ top: `${dropPreview.topPct}%` }}
+                      >
+                        <div className="flex -translate-y-1/2 items-center gap-2">
+                          <span className="rounded-full bg-[var(--vj-accent)] px-2 py-1 text-[10px] font-black tabular-nums text-white shadow-lg">
+                            {dropPreview.startTime} - {dropPreview.endTime}
+                          </span>
+                          <span className="h-0.5 flex-1 rounded-full bg-[var(--vj-accent)] shadow-[0_0_0_3px_rgba(255,107,53,0.15)]" />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {blocks.map((block) => {
+                      const topPct = ((block.startMin - TIMETABLE_DAY_START_HOUR * 60) / daySpanMinutes()) * 100;
+                      const heightPct = ((block.endMin - block.startMin) / daySpanMinutes()) * 100;
+                      const laneWidth = 100 / block.laneCount;
+                      const leftPct = block.lane * laneWidth;
+                      return (
+                        <button
+                          key={block.id}
+                          type="button"
+                          className="absolute overflow-hidden rounded-xl border border-[var(--vj-accent)]/25 bg-white px-2 py-1.5 text-left shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition hover:-translate-y-px hover:border-[var(--vj-accent)]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vj-accent)]"
+                          style={{
+                            top: `${topPct}%`,
+                            height: `max(${heightPct}%, 36px)`,
+                            left: `calc(${leftPct}% + 4px)`,
+                            width: `calc(${laneWidth}% - 8px)`,
+                          }}
+                          title={`${block.startTime} - ${block.endTime}`}
+                        >
+                          <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-[var(--vj-accent)]" aria-hidden />
+                          <span className="block pl-2 text-[11px] font-extrabold leading-snug text-slate-900 line-clamp-2">
+                            {getTimetableLabel(block)}
+                          </span>
+                          <span className="mt-0.5 inline-flex items-center gap-1 pl-2 text-[10px] font-medium tabular-nums text-slate-600">
+                            <Clock className="h-3 w-3 shrink-0 text-[var(--vj-accent)]" />
+                            {block.startTime} - {block.endTime}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <AddToItineraryDialog
@@ -981,7 +1351,9 @@ export default function Discovery() {
         trip={trip}
         location={addLocation}
         users={tripUsers}
-        defaultDate={trip.startDate || new Date().toISOString().slice(0, 10)}
+        defaultDate={addDefaults?.date || trip.startDate || new Date().toISOString().slice(0, 10)}
+        defaultStartTime={addDefaults?.startTime}
+        defaultEndTime={addDefaults?.endTime}
         onCreate={async (item, tx) => {
           if (isMockTrip && isAuthenticated) {
             toast.error('Bạn đang xem chuyến đi mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật trong trang "Chuyến đi của tôi" để lưu lại.');
@@ -999,32 +1371,61 @@ export default function Discovery() {
           
           setLastTripId(tripId);
           const token = getStoredToken();
+          let savedItem = item;
 
           if (token && !isMockTrip && addLocation) {
             try {
-              console.log(`[Discovery] Persisting to real timeline: ${tripId}`);
               const dateStr = item.date || new Date().toISOString().slice(0, 10);
-              const category = inferCategoryFromLocation(addLocation).toUpperCase();
-              
-              // De-prefix ID to prevent double-prefixing in database
-              const cleanExternalId = item.locationId.includes(':') 
-                ? item.locationId.split(':').pop()! 
-                : item.locationId;
 
-              await addTimelineEvent(tripId, {
+              // Normalise category — backend only accepts FOOD / DRINK / ACTIVITY
+              const rawCategory = inferCategoryFromLocation(addLocation).toUpperCase();
+              const validCategories = ['FOOD', 'DRINK', 'ACTIVITY'];
+              const category = validCategories.includes(rawCategory) ? rawCategory : 'ACTIVITY';
+
+              // Strip any category-prefix from the ID (e.g. "food:123" → "123")
+              // but avoid extracting lat/lng from compound name-based IDs.
+              let cleanExternalId = addLocation.id;
+              if (cleanExternalId.includes(':')) {
+                const parts = cleanExternalId.split(':');
+                const lastPart = parts[parts.length - 1] ?? '';
+                // Only strip prefix when the remainder looks like a database ID (numeric or UUID-ish)
+                if (/^\d+$/.test(lastPart) || /^[0-9a-f-]{8,}$/i.test(lastPart)) {
+                  cleanExternalId = lastPart;
+                } else if (parts.length === 2 && parts[1]) {
+                  // Simple "category:id" format
+                  cleanExternalId = parts[1];
+                }
+                // Otherwise keep the full compound ID as-is
+              }
+
+              if (!cleanExternalId.trim()) {
+                throw new Error('ID địa điểm không hợp lệ');
+              }
+
+              console.log('[Discovery] Adding event', {
+                tripId,
                 externalPlaceId: cleanExternalId,
-                category: category, // Backend expects uppercase enum
+                category,
+                startTime: `${dateStr}T${item.startTime}:00`,
+                endTime: `${dateStr}T${item.endTime}:00`,
+              });
+
+              const created = await addTimelineEvent(tripId, {
+                externalPlaceId: cleanExternalId,
+                category,
                 startTime: `${dateStr}T${item.startTime}:00`,
                 endTime: `${dateStr}T${item.endTime}:00`,
                 notes: item.notes,
                 orderIndex: 0,
-                status: 'PLANNED'
+                status: 'PLANNED',
               }, token);
+              savedItem = { ...item, id: created.id ?? item.id };
               toast.success('Đã lưu vào cơ sở dữ liệu');
             } catch (error: any) {
               console.error('[Discovery] Failed to persist event to backend:', error);
-              toast.error(error.message || 'Lỗi kết nối máy chủ - không thể lưu dữ liệu');
-              return; // Don't proceed if backend save failed
+              const detail = error?.message ?? 'Lỗi kết nối máy chủ';
+              toast.error(`Không thể lưu hoạt động — ${detail}`);
+              return;
             }
           } else if (!isAuthenticated) {
             // Local storage only for guests
@@ -1032,8 +1433,11 @@ export default function Discovery() {
             if (tx) appendTransaction(tripId, trip, tx, mockTimeline, mockTransactions);
           }
 
+          setTimetableItems((prev) => [...prev.filter((entry) => entry.id !== savedItem.id), savedItem]);
+          if (addLocation) {
+            setLabelByLocationId((prev) => ({ ...prev, [savedItem.locationId]: addLocation.name }));
+          }
           toast.success('Đã thêm vào lịch trình', { description: addLocation?.name });
-          navigate(`/workspace/${tripId}`);
         }}
       />
     </div>

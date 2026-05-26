@@ -15,6 +15,8 @@ import { getStoredToken } from '../lib/authApi';
 import { ApiError } from '../lib/api';
 import { getMyRecommendationProfile, type UserRecommendationProfile } from '../lib/recommendationApi';
 import { getMyTimelines, type ApiTimelineDetail } from '../lib/timelineApi';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { cacheGet, cacheSet, cacheIsStale } from '../lib/apiCache';
 
 function sortByScore<T extends { score: number }>(rows: T[]) {
   return [...rows].sort((a, b) => b.score - a.score);
@@ -24,13 +26,15 @@ export default function Profile() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const currentUser = mockUsers[0];
 
-  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>([]);
-  const [timelinesLoading, setTimelinesLoading] = useState(false);
+  const TIMELINES_CACHE = 'profile:my-timelines';
+  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>(() => cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []);
+  const [timelinesLoading, setTimelinesLoading] = useState(() => !cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE)?.length);
   const [timelinesError, setTimelinesError] = useState<string | null>(null);
 
-  const [pace, setPace] = useState(currentUser.preferences.pace);
-  const [budgetLevel, setBudgetLevel] = useState(currentUser.preferences.budgetLevel);
-  const [favoriteCategories, setFavoriteCategories] = useState(
+  const [pace, setPace] = useLocalStorageState<number>('vj:profile:pace', currentUser.preferences.pace);
+  const [budgetLevel, setBudgetLevel] = useLocalStorageState<number>('vj:profile:budget-level', currentUser.preferences.budgetLevel);
+  const [favoriteCategories, setFavoriteCategories] = useLocalStorageState<string[]>(
+    'vj:profile:favorite-categories',
     currentUser.preferences.favoriteCategories
   );
 
@@ -92,16 +96,24 @@ export default function Profile() {
     const token = getStoredToken();
     if (!token) return;
 
+    // Skip fetch if cache is fresh
+    if (!cacheIsStale(TIMELINES_CACHE) && cacheGet(TIMELINES_CACHE)) return;
+
+    const hasCachedData = (cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []).length > 0;
     let cancelled = false;
-    setTimelinesLoading(true);
+    if (!hasCachedData) setTimelinesLoading(true);
     setTimelinesError(null);
 
     void (async () => {
       try {
         const data = await getMyTimelines(token);
-        if (!cancelled) setTimelines(data ?? []);
-      } catch (e) {
         if (!cancelled) {
+          const rows = data ?? [];
+          cacheSet(TIMELINES_CACHE, rows, { persistent: true });
+          setTimelines(rows);
+        }
+      } catch (e) {
+        if (!cancelled && !hasCachedData) {
           setTimelinesError(e instanceof ApiError ? e.message : 'Không tải được danh sách chuyến đi.');
         }
       } finally {
@@ -141,13 +153,13 @@ export default function Profile() {
   const budgetLabels = ['Tiết Kiệm', 'Trung Bình', 'Cao Cấp'];
 
   return (
-    <div className="h-screen bg-slate-50">
+    <div className="h-full bg-slate-50">
       <ScrollArea className="h-full">
-        <div className="max-w-5xl mx-auto p-6 space-y-6">
+        <div className="max-w-[var(--vj-content-max)] mx-auto px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] space-y-[var(--vj-stack-gap)]">
           {/* Profile Header */}
           <Card className="overflow-hidden shadow-lg">
             <div className="h-32 bg-gradient-to-r from-[#0A4A6E] via-[#0d5d8a] to-[#0A4A6E]" />
-            <div className="px-6 pb-6">
+            <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
               <div className="flex items-end justify-between -mt-16 mb-4">
                 <div className="relative">
                   <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-[#FF6B35]/20">
