@@ -13,13 +13,13 @@ export interface NotificationSocketEvent {
 }
 
 export function useNotificationSocket() {
-  const { user, isAuthenticated } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const [lastEvent, setLastEvent] = useState<NotificationSocketEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !user?.token) {
+    if (!isAuthenticated || !token) {
       if (ws.current) {
         ws.current.close();
         ws.current = null;
@@ -28,7 +28,7 @@ export function useNotificationSocket() {
       return;
     }
 
-    const wsUrl = `ws://localhost:8081/ws/notifications?token=${encodeURIComponent(user.token)}`;
+    const wsUrl = `ws://localhost:8081/ws/notifications?token=${encodeURIComponent(token)}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -61,7 +61,7 @@ export function useNotificationSocket() {
         ws.current.close();
       }
     };
-  }, [isAuthenticated, user?.token]);
+  }, [isAuthenticated, token]);
 
   return { lastEvent, isConnected };
 }
