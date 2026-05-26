@@ -1,0 +1,564 @@
+﻿commit 77884acbbeebf47aee537e47ddff0a8f885dc537
+Author: Youmei <trantanphat.stu@gmail.com>
+Date:   Fri May 15 09:11:37 2026 +0700
+
+    Improve UI/UX of version control+refactor codebase
+
+diff --git a/README.md b/README.md
+index 4a47452..1ebb6f4 100644
+--- a/README.md
++++ b/README.md
+@@ -1,99 +1,83 @@
+-# Vietjourney
++# Vietjourney ≡ƒîÅΓ£ê∩╕Å
+ 
+-Vietjourney is a travel planning product focused on Vietnam: discovery, collaborative trip workspaces, and budget tooling. This repository splits a **Vite + React** client from a **Spring Boot** API so features can grow without coupling UI to persistence.
++Vietjourney is a real-time collaborative travel planning platform focused on Vietnam: discovery, collaborative trip workspaces, and budget tooling. This repository splits a **Vite + React** client from a **Spring Boot** API and a **Go** WebSocket proxy for high-performance real-time synchronization.
+ 
+-## Repository layout
++## ≡ƒÅù Repository Layout
+ 
+ | Path | Role |
+ |------|------|
+-| `frontend/` | SPA: discovery, workspace, budget, profile, auth UI (`@vietjourney/frontend`) |
+-| `backend/` | REST API: authentication, users, roles, permissions (Java 17, Spring Boot 3.2) |
++| `frontend/` | SPA: discovery, workspace, budget, profile, auth UI (React + Vite) |
++| `backend/` | REST API: authentication, users, roles, permissions, timeline management (Java 17, Spring Boot 3.2) |
++| `websocket-proxy/` | High-performance Go proxy for real-time timeline synchronization |
++| `tests/unit/` | Consolidated JavaScript unit tests and debug scripts |
+ | `guidelines/` | Design and implementation notes |
+ 
+-The frontend can use **Supabase** for hosted auth/data when configured; client defaults are documented in `frontend/.env.example`. The Java backend uses **PostgreSQL** and issues its own JWTs for protected routes.
++---
+ 
+-## Prerequisites
++## ≡ƒÜÇ Quick Start
+ 
+-- **Node.js** (for the frontend)
+-- **Java 17** and **Maven** (for the backend; wrapper scripts `backend/mvnw` / `backend/mvnw.cmd` are included)
+-- **PostgreSQL** with a database the app can use (see below)
++For detailed instructions, please refer to the [STARTUP_GUIDE.md](./STARTUP_GUIDE.md).
+ 
+-## Backend
+-
+-1. Create a database (default in config is `tourism_db` on `localhost:5432`).
+-2. Set environment variables expected by `backend/src/main/resources/application.yml`:
+-   - `DB_PASSWORD` ΓÇö PostgreSQL password for the configured user (`postgres` in the checked-in defaults)
+-   - `JWT_SIGNER_KEY` ΓÇö secret used to sign access and refresh tokens
+-
+-3. From `backend/`:
++### Prerequisites
++- **Node.js** (v18+)
++- **Java 17** (JDK)
++- **Go** (v1.20+)
++- **Redis** (For real-time sync)
++- **PostgreSQL**
+ 
++### 1. Backend
+ ```bash
++cd backend
+ ./mvnw spring-boot:run
+ ```
++*API serves on `http://localhost:8082`*
+ 
+-The API serves on the default Spring Boot port **8080** unless you override `server.port`. JPA is set to `ddl-auto: update` for development.
+-
+-### REST surface (high level)
+-
+-- `POST /api/v1/auth/login`, refresh, logout, introspect
+-- `api/v1/users` ΓÇö user management
+-- `/api/v1/roles`, `/api/v1/permissions` ΓÇö authorization model
+-
+-Controllers live under `backend/src/main/java/com/project/backend/modules/auth/controller/`.
+-
+-### Places catalog (Discovery)
+-
+-- **`POST /api/v1/places/filter`** ΓÇö public (no JWT). Request body supports optional `category` (`food` \| `drink` \| `activity`), `district`, tags, price and rating bounds, plus `page` / `size`.
+-- The Spring app runs these queries against the **primary datasource** (`spring.datasource`), expecting tables such as **`places_food`**, **`places_drink`**, **`places_activity`** (PostgreSQL-oriented SQL: JSONB + `int4range`). Profile **`dev`** uses in-memory **H2**: if those tables do not exist locally, the Discovery client falls back to HCMC sample data while the API stays up for auth and timelines.
+-
+-## Frontend
+-
+-1. Copy `frontend/.env.example` to `frontend/.env` and set variables as needed (Google Maps, optional Supabase).
+-2. Install and run from `frontend/`:
+-
++### 2. WebSocket Proxy
+ ```bash
+-npm install
+-npm run dev
++cd websocket-proxy
++go run .
+ ```
+ 
+-3. Production build:
+-
++### 3. Frontend
+ ```bash
+-npm run build
++cd frontend
++npm install
++npm run dev
+ ```
++*UI serves on `http://localhost:5173`*
+ 
+-There is no root `package.json`; run npm commands inside `frontend/`.
++---
+ 
+-## Product overview
++## Γ£¿ Key Features
+ 
+-The app targets a full trip lifecycle: find places, plan day-by-day timelines with maps, track spend and splits, and manage profile and sign-in. Much of the UI still relies on **mock data** (sample Vietnamese locations, trips, transactions) while the Spring API fills in real auth and user/role storage.
++- **Discovery** ΓÇö Interactive map + cards with advanced filters (category, tags, rating).
++- **Collaborative Workspace** ΓÇö Real-time timeline synchronization using a proposal-based system.
++- **Ghost UI** ΓÇö Visualize pending changes from collaborators before they are approved.
++- **Conflict Detection** ΓÇö Smart overlap prevention with detailed feedback (e.g., "Conflicts with 'Lunch' at 12:00").
++- **Budget Tooling** ΓÇö Track spend and splits across your travel narrative.
+ 
+-### Feature areas
++## ≡ƒ¢á Tech Stack
+ 
+-- **Discovery** ΓÇö Map + cards, filters (weather, vibe, budget), search.
+-- **Workspace** ΓÇö Drag-and-drop timeline, map, chat-style collaboration affordances, route hints and AI-suggestion placeholders.
+-- **Budget** ΓÇö Budget vs. actual, category breakdown, debt/settlement helpers, transaction history tied to the trip narrative.
+-- **Profile & auth** ΓÇö Account flows in the UI; backend supports credential-based auth and token lifecycle.
++**Frontend:** React 18, TypeScript, Vite, React DnD, React Leaflet / Google Maps, Tailwind CSS v4, Radix UI, Sonner (Toasts).
+ 
+-## Tech stack
++**Backend:** Spring Boot 3.2, Spring Security (JWT), Spring Data JPA, PostgreSQL, Redis (Messaging), WebSocket.
+ 
+-**Frontend:** React 18, TypeScript, Vite, React Router 7, React DnD, React Leaflet / Google Maps, Motion, Tailwind CSS v4, Radix UI, Lucide, Recharts, optional Supabase client.
++**Proxy:** Go (Golang) for decoupled, efficient WebSocket message routing.
+ 
+-**Backend:** Spring Boot (Web, Security, OAuth2 resource server, JPA, WebSocket starter), PostgreSQL, MapStruct, Lombok.
++---
+ 
+-## Routes (SPA)
++## ≡ƒù║ Routes (SPA)
+ 
+ | Path | Purpose |
+ |------|---------|
+-| `/` | Discovery |
+-| `/workspace/:tripId` | Trip workspace |
+-| `/budget/:tripId` | Budget |
+-| `/profile` | Profile |
+-| `/auth` | Login / signup |
+-
+-## What is integrated vs. planned
++| `/` | Discovery & Search |
++| `/workspace/:tripId` | Real-time Trip Workspace |
++| `/timetable/:tripId` | Multi-day schedule view |
++| `/budget/:tripId` | Expense tracking |
++| `/profile` | User management |
++| `/auth` | Secure login / signup |
+ 
+-- **Today:** Rich client experience with mocks; Java API for users, roles, permissions, and JWT auth; PostgreSQL as the API database.
+-- **Next steps:** Point the SPA at the Spring API for login and trip persistence, wire real-time collaboration to WebSocket or a managed service, and align optional Supabase usage with your deployment story (client-only vs. backend sync).
++---
+ 
++## ≡ƒô£ Credits
+ For third-party and asset credits, see `ATTRIBUTIONS.md`.
+diff --git a/STARTUP_GUIDE.md b/STARTUP_GUIDE.md
+new file mode 100644
+index 0000000..8f53934
+--- /dev/null
++++ b/STARTUP_GUIDE.md
+@@ -0,0 +1,76 @@
++# Vietjourney Startup Guide ≡ƒÜÇ
++
++Welcome to **Vietjourney**, a real-time collaborative travel planning platform. This guide will help you get the system up and running on your local machine.
++
++## ≡ƒÅù Project Architecture
++
++The application consists of three main services:
++1.  **Backend**: Spring Boot (Java 17) - REST API and business logic.
++2.  **Frontend**: React (Vite + Tailwind CSS) - User interface.
++3.  **WebSocket Proxy**: Go - Real-time synchronization for collaborative planning.
++
++---
++
++## ≡ƒôï Prerequisites
++
++Before starting, ensure you have the following installed:
++-   **Java 17** (JDK)
++-   **Node.js** (v18 or later) & npm
++-   **Go** (v1.20 or later)
++-   **PostgreSQL** (or a Supabase instance)
++-   **Redis** (Required for WebSocket proxy communication)
++
++---
++
++## ≡ƒÜÇ Getting Started
++
++### 1. Database Setup
++-   Create a PostgreSQL database named `vietjourney`.
++-   Configure the database connection in `backend/src/main/resources/application.yml` (or set environment variables).
++
++### 2. Backend (Spring Boot)
++Open a terminal in the `backend` directory:
++```bash
++cd backend
++./mvnw clean install
++./mvnw spring-boot:run
++```
++*The backend will start on `http://localhost:8082` by default.*
++
++### 3. WebSocket Proxy (Go)
++Open a terminal in the `websocket-proxy` directory. Ensure Redis is running locally.
++```bash
++cd websocket-proxy
++go mod download
++go run .
++```
++*The proxy facilitates real-time updates between the backend and frontend.*
++
++### 4. Frontend (React)
++Open a terminal in the `frontend` directory:
++```bash
++cd frontend
++npm install
++npm run dev
++```
++*The frontend will be available at `http://localhost:5173`.*
++
++---
++
++## ΓÜÖ∩╕Å Configuration
++
++### Environment Variables
++Copy `.env.example` to `.env` in the root directory and fill in your credentials:
++-   `DATABASE_URL`: Your PostgreSQL connection string.
++-   `JWT_SECRET`: Secret key for authentication.
++-   `REDIS_URL`: Connection string for Redis.
++
++---
++
++## ≡ƒ¢á Troubleshooting
++
++-   **Port Conflicts**: Ensure ports `8082`, `5173`, and the proxy port are not in use.
++-   **Real-time sync not working**: Check if Redis is running and the Go proxy is connected.
++-   **Authentication errors**: Verify that the `JWT_SECRET` matches across the backend and proxy settings.
++
++Happy Traveling! ≡ƒîÅΓ£ê∩╕Å
+diff --git a/backend/src/main/java/com/project/backend/common/exception/AppException.java b/backend/src/main/java/com/project/backend/common/exception/AppException.java
+index 8572018..9d37272 100644
+--- a/backend/src/main/java/com/project/backend/common/exception/AppException.java
++++ b/backend/src/main/java/com/project/backend/common/exception/AppException.java
+@@ -1,14 +1,19 @@
+ package com.project.backend.common.exception;
+ 
+-public class AppException  extends RuntimeException {
++public class AppException extends RuntimeException {
+     private ErrorCode errorCode;
+ 
+-    public AppException(ErrorCode errorcode){
+-        super(errorcode.getMessage());
+-        this.errorCode = errorcode;
++    public AppException(ErrorCode errorCode) {
++        super(errorCode.getMessage());
++        this.errorCode = errorCode;
+     }
+ 
+-    public ErrorCode getErrorCode(){
++    public AppException(ErrorCode errorCode, String message) {
++        super(message);
++        this.errorCode = errorCode;
++    }
++
++    public ErrorCode getErrorCode() {
+         return errorCode;
+     }
+ }
+\ No newline at end of file
+diff --git a/backend/src/main/java/com/project/backend/common/exception/ErrorCode.java b/backend/src/main/java/com/project/backend/common/exception/ErrorCode.java
+index cdc8615..20c9986 100644
+--- a/backend/src/main/java/com/project/backend/common/exception/ErrorCode.java
++++ b/backend/src/main/java/com/project/backend/common/exception/ErrorCode.java
+@@ -60,7 +60,8 @@ public enum  ErrorCode {
+     NOTIFICATION_ACCESS_DENIED(6002, "You do not have access to this notification", HttpStatus.FORBIDDEN),
+     
+     PROPOSAL_NOT_FOUND(7001, "Proposal does not exist", HttpStatus.NOT_FOUND),
+-    INVALID_PROPOSAL_DATA(7002, "Invalid proposal data", HttpStatus.BAD_REQUEST);
++    INVALID_PROPOSAL_DATA(7002, "Invalid proposal data", HttpStatus.BAD_REQUEST),
++    PROPOSAL_ALREADY_PROCESSED(7003, "Proposal already processed", HttpStatus.BAD_REQUEST);
+     int code;
+     String message;
+     HttpStatusCode statusCode;
+diff --git a/backend/src/main/java/com/project/backend/modules/timeline/repository/TimelineEventRepository.java b/backend/src/main/java/com/project/backend/modules/timeline/repository/TimelineEventRepository.java
+index cace9ac..c2e674a 100644
+--- a/backend/src/main/java/com/project/backend/modules/timeline/repository/TimelineEventRepository.java
++++ b/backend/src/main/java/com/project/backend/modules/timeline/repository/TimelineEventRepository.java
+@@ -50,6 +50,22 @@ public interface TimelineEventRepository extends JpaRepository<TimelineEvent, St
+             @Param("cancelledStatus") TimelineEventStatus cancelledStatus
+     );
+ 
++    @Query("""
++            select e from TimelineEvent e
++            where e.timeline.id = :timelineId
++              and (:eventId is null or e.id <> :eventId)
++              and e.status <> :cancelledStatus
++              and e.startTime < :endTime
++              and e.endTime > :startTime
++            """)
++    List<TimelineEvent> findOverlappingEvents(
++            @Param("timelineId") String timelineId,
++            @Param("eventId") String eventId,
++            @Param("startTime") LocalDateTime startTime,
++            @Param("endTime") LocalDateTime endTime,
++            @Param("cancelledStatus") TimelineEventStatus cancelledStatus
++    );
++
+     @Query("""
+             select e from TimelineEvent e
+             where e.timeline.id = :timelineId
+diff --git a/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineEventService.java b/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineEventService.java
+index df1b307..e4ddea5 100644
+--- a/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineEventService.java
++++ b/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineEventService.java
+@@ -8,6 +8,7 @@ import com.project.backend.modules.timeline.dto.request.ReorderTimelineEventRequ
+ import com.project.backend.modules.timeline.dto.request.ResizeTimelineEventRequest;
+ import com.project.backend.modules.timeline.dto.response.TimelineEventResponse;
+ import com.project.backend.modules.place.service.PlaceLookupService;
++import com.project.backend.modules.place.dto.PlaceSummary;
+ import com.project.backend.modules.timeline.entity.Timeline;
+ import com.project.backend.modules.timeline.entity.TimelineEvent;
+ import com.project.backend.modules.timeline.event.TimelineChangeType;
+@@ -173,15 +174,24 @@ public class TimelineEventService {
+             throw new AppException(ErrorCode.TIMELINE_EVENT_OUTSIDE_TIMELINE_RANGE);
+         }
+ 
+-        boolean overlapping = timelineEventRepository.existsOverlappingEvent(
++        List<TimelineEvent> overlaps = timelineEventRepository.findOverlappingEvents(
+                 timeline.getId(),
+                 eventId,
+                 startTime,
+                 endTime,
+                 TimelineEventStatus.CANCELLED
+         );
+-        if (overlapping) {
+-            throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP);
++
++        if (!overlaps.isEmpty()) {
++            TimelineEvent conflict = overlaps.get(0);
++            String placeName = placeLookupService.findPlace(conflict.getCategory(), conflict.getExternalPlaceId())
++                    .map(PlaceSummary::getName)
++                    .orElse("─Éß╗ïa ─æiß╗âm hiß╗çn tß║íi");
++            
++            String conflictTime = conflict.getStartTime().toLocalTime().toString().substring(0, 5);
++            String errorMsg = String.format("─Éß╗ü xuß║Ñt bß╗ï xung ─æß╗Öt vß╗¢i hoß║ít ─æß╗Öng '%s' l├║c %s", placeName, conflictTime);
++            
++            throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP, errorMsg);
+         }
+     }
+ 
+diff --git a/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineProposalService.java b/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineProposalService.java
+index 5f9d39a..a1d7084 100644
+--- a/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineProposalService.java
++++ b/backend/src/main/java/com/project/backend/modules/timeline/service/TimelineProposalService.java
+@@ -2,18 +2,19 @@ package com.project.backend.modules.timeline.service;
+ 
+ import com.project.backend.common.exception.AppException;
+ import com.project.backend.common.exception.ErrorCode;
+-import com.project.backend.modules.auth.entity.User;
+ import com.project.backend.modules.auth.repository.UserRepository;
++import com.project.backend.modules.timeline.dto.request.CreateTimelineEventRequest;
++import com.project.backend.modules.timeline.dto.request.MoveTimelineEventRequest;
+ import com.project.backend.modules.timeline.entity.Timeline;
+ import com.project.backend.modules.timeline.entity.TimelineProposal;
+ import com.project.backend.modules.timeline.enums.TimelineProposalStatus;
+ import com.project.backend.modules.timeline.repository.TimelineProposalRepository;
+ import com.project.backend.modules.timeline.repository.TimelineRepository;
++import com.fasterxml.jackson.databind.ObjectMapper;
+ import lombok.AccessLevel;
+ import lombok.RequiredArgsConstructor;
+ import lombok.experimental.FieldDefaults;
+ import org.springframework.security.access.prepost.PreAuthorize;
+-import org.springframework.security.core.context.SecurityContextHolder;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+@@ -29,29 +30,25 @@ public class TimelineProposalService {
+     UserRepository userRepository;
+     TimelineSecurityService timelineSecurityService;
+     TimelineEventService timelineEventService;
++    ObjectMapper objectMapper;
+ 
+     @Transactional
++    @PreAuthorize("@timelineSecurity.canEditTimeline(#timelineId)")
+     public TimelineProposal submitProposal(String timelineId, String changeType, Map<String, Object> payload, Integer baseVersion) {
++        timelineSecurityService.requireEditAccess(timelineId);
+         Timeline timeline = timelineRepository.findById(timelineId)
+                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_NOT_EXIST));
+ 
+-        User author = userRepository.findByUsername(getCurrentUsername())
+-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST));
+-
+         TimelineProposal proposal = TimelineProposal.builder()
+                 .timeline(timeline)
+-                .author(author)
++                .author(userRepository.findByUsername(timelineSecurityService.getCurrentUsername())
++                        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST)))
+                 .baseVersion(baseVersion)
+                 .changeType(changeType)
+                 .payload(payload)
+                 .status(TimelineProposalStatus.PENDING)
+                 .build();
+ 
+-        // Automatic stale check
+-        if (baseVersion < timeline.getVersion()) {
+-            proposal.setStatus(TimelineProposalStatus.OUTDATED);
+-        }
+-
+         return timelineProposalRepository.save(proposal);
+     }
+ 
+@@ -64,67 +61,47 @@ public class TimelineProposalService {
+     @Transactional
+     @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
+     public void decideProposal(String timelineId, String proposalId, TimelineProposalStatus status) {
++        timelineSecurityService.requireOwnerAccess(timelineId);
+         TimelineProposal proposal = timelineProposalRepository.findById(proposalId)
++                .filter(p -> p.getTimeline().getId().equals(timelineId))
+                 .orElseThrow(() -> new AppException(ErrorCode.PROPOSAL_NOT_FOUND));
+ 
+-        if (!proposal.getTimeline().getId().equals(timelineId)) {
+-            throw new AppException(ErrorCode.INVALID_PROPOSAL_DATA);
++        if (proposal.getStatus() != TimelineProposalStatus.PENDING) {
++            throw new AppException(ErrorCode.PROPOSAL_ALREADY_PROCESSED);
+         }
+ 
+         if (status == TimelineProposalStatus.ACCEPTED) {
+             applyProposal(proposal);
+-            // Increment version after successful apply
+-            Timeline timeline = proposal.getTimeline();
+-            timeline.setVersion(timeline.getVersion() + 1);
+-            timelineRepository.save(timeline);
+         }
+-
++        
+         proposal.setStatus(status);
+         timelineProposalRepository.save(proposal);
+     }
+ 
+     private void applyProposal(TimelineProposal proposal) {
+-        String timelineId = proposal.getTimeline().getId();
+-        Map<String, Object> payload = proposal.getPayload();
+-
+         try {
++            Map<String, Object> payload = proposal.getPayload();
++            String timelineId = proposal.getTimeline().getId();
++
+             switch (proposal.getChangeType()) {
+                 case "ADD":
+-                    com.project.backend.modules.timeline.dto.request.CreateTimelineEventRequest addReq = 
+-                        new com.project.backend.modules.timeline.dto.request.CreateTimelineEventRequest();
+-                    addReq.setExternalPlaceId((String) payload.get("externalPlaceId"));
+-                    addReq.setCategory(com.project.backend.modules.timeline.enums.TimelineEventCategory.valueOf((String) payload.get("category")));
+-                    addReq.setStartTime(java.time.LocalDateTime.parse((String) payload.get("startTime")));
+-                    addReq.setEndTime(java.time.LocalDateTime.parse((String) payload.get("endTime")));
+-                    addReq.setNotes((String) payload.get("notes"));
+-                    addReq.setOrderIndex((Integer) payload.get("orderIndex"));
+-                    timelineEventService.addEvent(timelineId, addReq);
++                    CreateTimelineEventRequest createRequest = objectMapper.convertValue(payload, CreateTimelineEventRequest.class);
++                    timelineEventService.addEvent(timelineId, createRequest);
+                     break;
+-
+                 case "MOVE":
+-                    String moveEventId = (String) payload.get("eventId");
+-                    com.project.backend.modules.timeline.dto.request.MoveTimelineEventRequest moveReq = 
+-                        new com.project.backend.modules.timeline.dto.request.MoveTimelineEventRequest();
+-                    moveReq.setStartTime(java.time.LocalDateTime.parse((String) payload.get("startTime")));
+-                    moveReq.setEndTime(java.time.LocalDateTime.parse((String) payload.get("endTime")));
+-                    moveReq.setOrderIndex((Integer) payload.get("orderIndex"));
+-                    timelineEventService.moveEvent(timelineId, moveEventId, moveReq);
++                    String eventId = (String) payload.get("eventId");
++                    MoveTimelineEventRequest moveRequest = objectMapper.convertValue(payload, MoveTimelineEventRequest.class);
++                    timelineEventService.moveEvent(timelineId, eventId, moveRequest);
+                     break;
+-
+                 case "DELETE":
+-                    String deleteEventId = (String) payload.get("eventId");
+-                    timelineEventService.deleteEvent(timelineId, deleteEventId);
++                    String delId = (String) payload.get("eventId");
++                    timelineEventService.deleteEvent(timelineId, delId);
+                     break;
+-
+-                default:
+-                    throw new AppException(ErrorCode.INVALID_PROPOSAL_DATA);
+             }
++        } catch (AppException e) {
++            throw e;
+         } catch (Exception e) {
+-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
++            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION, "Lß╗ùi khi ├íp dß╗Ñng thay ─æß╗òi: " + e.getMessage());
+         }
+     }
+-
+-    private String getCurrentUsername() {
+-        return SecurityContextHolder.getContext().getAuthentication().getName();
+-    }
+ }
+diff --git a/frontend/src/app/components/ProposalSidebar.tsx b/frontend/src/app/components/ProposalSidebar.tsx
+index a8b9fb8..7862472 100644
+--- a/frontend/src/app/components/ProposalSidebar.tsx
++++ b/frontend/src/app/components/ProposalSidebar.tsx
+@@ -52,8 +52,9 @@ export default function ProposalSidebar({
+       if (status === 'ACCEPTED') {
+         onMerged();
+       }
+-    } catch (error) {
+-      toast.error('Lß╗ùi khi thß╗▒c hiß╗çn thao t├íc');
++    } catch (error: any) {
++      const errorMsg = error.response?.data?.message || 'Lß╗ùi khi thß╗▒c hiß╗çn thao t├íc';
++      toast.error(errorMsg);
+     }
+   };
+ 
+diff --git a/frontend/src/app/components/TimelineBlock.tsx b/frontend/src/app/components/TimelineBlock.tsx
+index 2c34a57..87fda3c 100644
+--- a/frontend/src/app/components/TimelineBlock.tsx
++++ b/frontend/src/app/components/TimelineBlock.tsx
+@@ -152,7 +152,7 @@ export default function TimelineBlock({
+             {/* Content */}
+             <div className="flex-1 min-w-0">
+               <div className="flex items-center gap-2 mb-0.5">
+-                <h3 className="font-extrabold text-slate-900 leading-snug truncate">
++                <h3 className="font-extrabold text-slate-900 leading-snug overflow-x-auto whitespace-nowrap scrollbar-hide py-0.5">
+                   {displayName || location?.name || 'Hoß║ít ─æß╗Öng'}
+                 </h3>
+                 {isPending && (
+diff --git a/frontend/src/app/pages/Workspace.tsx b/frontend/src/app/pages/Workspace.tsx
+index 23a4d0f..62134c4 100644
+--- a/frontend/src/app/pages/Workspace.tsx
++++ b/frontend/src/app/pages/Workspace.tsx
+@@ -926,7 +926,7 @@ export default function Workspace() {
+       )}
+       {/* Event Details Dialog */}
+       <Dialog open={!!detailsItemId} onOpenChange={(open) => !open && setDetailsItemId(null)}>
+-        <DialogContent className="sm:max-w-[425px]">
++        <DialogContent className="sm:max-w-[600px]">
+           <DialogHeader>
+             <DialogTitle>Chi tiß║┐t hoß║ít ─æß╗Öng</DialogTitle>
+           </DialogHeader>
+diff --git a/debug_places_drink.js b/tests/unit/debug_places_drink.js
+similarity index 100%
+rename from debug_places_drink.js
+rename to tests/unit/debug_places_drink.js
+diff --git a/test_api.js b/tests/unit/test_api.js
+similarity index 100%
+rename from test_api.js
+rename to tests/unit/test_api.js
+diff --git a/test_coordinates_fetch.js b/tests/unit/test_coordinates_fetch.js
+similarity index 100%
+rename from test_coordinates_fetch.js
+rename to tests/unit/test_coordinates_fetch.js
+diff --git a/test_db.js b/tests/unit/test_db.js
+similarity index 100%
+rename from test_db.js
+rename to tests/unit/test_db.js
+diff --git a/test_fetch.js b/tests/unit/test_fetch.js
+similarity index 100%
+rename from test_fetch.js
+rename to tests/unit/test_fetch.js
+diff --git a/test_insert.js b/tests/unit/test_insert.js
+similarity index 100%
+rename from test_insert.js
+rename to tests/unit/test_insert.js
