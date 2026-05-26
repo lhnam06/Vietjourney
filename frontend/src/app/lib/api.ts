@@ -33,7 +33,7 @@ export async function requestJson<T>(
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers, signal });
+  const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store', ...rest, headers, signal });
   const text = await res.text();
   let data: ApiEnvelope<unknown> | null = null;
   try {

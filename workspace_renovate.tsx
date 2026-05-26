@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+﻿import { useEffect, useMemo, useState, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -28,10 +28,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '../components/ui/popover';
-import {
-  Sheet,
-  SheetContent,
-} from '../components/ui/sheet';
 import { Info } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { Button } from '../components/ui/button';
@@ -237,7 +233,7 @@ export default function Workspace() {
         startTime: dragItem.startTime,
         endTime: dragItem.endTime
       });
-      toast.info("Đã gửi đề xuất thay đổi");
+      toast.info("─É├ú gß╗¡i ─æß╗ü xuß║Ñt thay ─æß╗òi");
       setTimeout(() => fetchTimeline(true), 100);
       return;
     }
@@ -258,7 +254,7 @@ export default function Workspace() {
       await reorderTimelineEvent(tripId, dragItem.id, { orderIndex: hoverIndex }, token);
     } catch (error) {
       console.error('[Workspace] Failed to reorder:', error);
-      toast.error('Không thể sắp xếp lại');
+      toast.error('Kh├┤ng thß╗â sß║»p xß║┐p lß║íi');
       cacheClear(CACHE_KEY);
       fetchTimeline(); // Rollback
     }
@@ -274,11 +270,11 @@ export default function Workspace() {
     if (!token) return;
 
     if (isMockTrip) {
-      toast.error('Bạn đang ở chế độ xem mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật để lưu hoạt động.');
+      toast.error('Bß║ín ─æang ß╗ƒ chß║┐ ─æß╗Ö xem mß║½u. Vui l├▓ng tß║ío hoß║╖c chß╗ìn mß╗Öt chuyß║┐n ─æi thß║¡t ─æß╗â l╞░u hoß║ít ─æß╗Öng.');
       return;
     }
     
-    // Persist the trip ID in localStorage for "Thời khóa biểu" and "Lịch trình của tôi" to find.
+    // Persist the trip ID in localStorage for "Thß╗¥i kh├│a biß╗âu" and "Lß╗ïch tr├¼nh cß╗ºa t├┤i" to find.
     setLastTripId(tripId);
     
     const dateStr = item.date || selectedDate || new Date().toISOString().slice(0, 10);
@@ -314,7 +310,7 @@ export default function Workspace() {
         longitude: selectedLocationForAdd?.lng,
         placeName: selectedLocationForAdd?.name
       });
-      toast.info("Đã gửi đề xuất thêm hoạt động");
+      toast.info("─É├ú gß╗¡i ─æß╗ü xuß║Ñt th├¬m hoß║ít ─æß╗Öng");
       setAddDetailsDialogOpen(false);
       setTimeout(() => fetchTimeline(true), 100);
       return;
@@ -332,7 +328,7 @@ export default function Workspace() {
       }, token);
       
       if (newEvent) {
-        toast.success('Đã thêm hoạt động');
+        toast.success('─É├ú th├¬m hoß║ít ─æß╗Öng');
         if (selectedLocationForAdd) {
           enqueueRecommendationInteraction({
             ...buildInteractionBase(selectedLocationForAdd),
@@ -346,9 +342,9 @@ export default function Workspace() {
     } catch (error: any) {
       console.error('[Workspace] Failed to add activity:', error);
       // Show the actual backend error message if available
-      const errorMsg = error?.message || 'Không thể thêm hoạt động';
+      const errorMsg = error?.message || 'Kh├┤ng thß╗â th├¬m hoß║ít ─æß╗Öng';
       const errorCode = error?.code || 'unknown';
-      toast.error(`${errorMsg} (Mã: ${errorCode})`);
+      toast.error(`${errorMsg} (M├ú: ${errorCode})`);
     }
   };
 
@@ -490,7 +486,7 @@ export default function Workspace() {
           startTime: `${dateStr}T${timeStart}:00`,
           endTime: `${dateStr}T${timeEnd}:00`,
         });
-        toast.info("Đã gửi đề xuất thay đổi thời gian");
+        toast.info("─É├ú gß╗¡i ─æß╗ü xuß║Ñt thay ─æß╗òi thß╗¥i gian");
         setTimeEditorOpen(false);
         return;
       }
@@ -499,17 +495,17 @@ export default function Workspace() {
         startTime: `${dateStr}T${timeStart}:00`,
         endTime: `${dateStr}T${timeEnd}:00`,
       }, token);
-      toast.success('Đã cập nhật thời gian');
+      toast.success('─É├ú cß║¡p nhß║¡t thß╗¥i gian');
       cacheClear(CACHE_KEY);
       fetchTimeline();
     } catch (error) {
       console.error('[Workspace] Failed to update time:', error);
-      toast.error('Cập nhật thất bại');
+      toast.error('Cß║¡p nhß║¡t thß║Ñt bß║íi');
     }
     setTimeEditorOpen(false);
   };
 
-  // Premium UX: keyboard reordering for selected item (⌘/Ctrl + ↑/↓)
+  // Premium UX: keyboard reordering for selected item (Γîÿ/Ctrl + Γåæ/Γåô)
   useEffect(() => {
     if (!editingItem) return;
 
@@ -549,7 +545,7 @@ export default function Workspace() {
         if (isPending && finalLat !== undefined && finalLng !== undefined && Number.isFinite(finalLat) && Number.isFinite(finalLng)) {
           return {
             id: item.id,
-            name: (item as any).placeName || 'Địa điểm đề xuất',
+            name: (item as any).placeName || '─Éß╗ïa ─æiß╗âm ─æß╗ü xuß║Ñt',
             lat: finalLat,
             lng: finalLng,
             image: '',
@@ -569,7 +565,7 @@ export default function Workspace() {
         if (dbPlace && dbPlace.latitude != null && dbPlace.longitude != null) {
           return {
             id: isPending ? item.id : item.locationId,
-            name: dbPlace.name || 'Địa điểm',
+            name: dbPlace.name || '─Éß╗ïa ─æiß╗âm',
             lat: Number(dbPlace.latitude),
             lng: Number(dbPlace.longitude),
             image: dbPlace.imageUrl || '',
@@ -649,8 +645,8 @@ export default function Workspace() {
   const getTransportMethod = (index: number) => {
     // Alternate between motorbike and walking for Vietnam context
     const methods = [
-      { icon: Bike, label: 'Xe Máy', time: '12 phút' },
-      { icon: Navigation, label: 'Đi Bộ', time: '8 phút' },
+      { icon: Bike, label: 'Xe M├íy', time: '12 ph├║t' },
+      { icon: Navigation, label: '─Éi Bß╗Ö', time: '8 ph├║t' },
     ];
     return methods[index % 2];
   };
@@ -661,14 +657,14 @@ export default function Workspace() {
     <DndProvider backend={HTML5Backend}>
       <div className="h-full bg-[var(--vj-bg)]">
         <div className="h-full max-w-[var(--vj-content-wide-max)] mx-auto w-full px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] flex flex-col lg:flex-row gap-[var(--vj-layout-gap)] min-h-0">
-          {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
+          {/* Column 1: Timeline - Lß╗èCH TR├îNH CHUYß║╛N ─ÉI */}
           <div className="w-full lg:w-[min(33.75rem,100%)] lg:max-w-[var(--vj-panel-max)] lg:shrink-0 bg-[var(--vj-primary)]/40 backdrop-blur-3xl border border-[var(--vj-border)] flex flex-col rounded-3xl shadow-[var(--vj-shadow-premium)] min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Sticky header */}
           <div className="sticky top-0 z-20 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/80 via-[var(--vj-primary)]/40 to-transparent backdrop-blur-xl">
             <div className="p-[var(--vj-inset)]">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-white tracking-tight drop-shadow-sm">Lịch Trình Chuyến Đi</h2>
+                  <h2 className="text-2xl font-black text-white tracking-tight drop-shadow-sm">Lß╗ïch Tr├¼nh Chuyß║┐n ─Éi</h2>
                   <p className="mt-1.5 text-xs font-medium text-white/70 uppercase tracking-widest">{trip.name}</p>
                 </div>
                 <div className="flex items-center gap-2.5">
@@ -676,9 +672,9 @@ export default function Workspace() {
                     size="sm"
                     variant="outline"
                     className="h-9 px-4 bg-white/5 border-white/10 text-white hover:bg-white/15 hover:border-white/20 transition-all duration-300 rounded-xl font-bold"
-                    onClick={() => toast('Thêm tiện ích', { description: 'Sắp ra mắt.' })}
+                    onClick={() => toast('Th├¬m tiß╗çn ├¡ch', { description: 'Sß║»p ra mß║»t.' })}
                   >
-                    Tiện ích
+                    Tiß╗çn ├¡ch
                     <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
                   </Button>
                   <Button
@@ -686,7 +682,7 @@ export default function Workspace() {
                     variant="outline"
                     className="h-9 w-9 bg-white/5 border-white/10 text-white hover:bg-white/15 hover:border-white/20 transition-all duration-300 rounded-xl"
                     aria-label="More"
-                    onClick={() => toast('Tuỳ chọn', { description: 'Sắp ra mắt.' })}
+                    onClick={() => toast('Tuß╗│ chß╗ìn', { description: 'Sß║»p ra mß║»t.' })}
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
@@ -703,9 +699,9 @@ export default function Workspace() {
                     </Avatar>
                   ))}
                 </div>
-                <span className="text-sm text-white/90">{onlineUsers.length} đang hoạt động</span>
+                <span className="text-sm text-white/90">{onlineUsers.length} ─æang hoß║ít ─æß╗Öng</span>
                 <span className="text-[11px] rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-white/85">
-                  {visibleTimelineItems.length} hoạt động hôm nay
+                  {visibleTimelineItems.length} hoß║ít ─æß╗Öng h├┤m nay
                 </span>
               </div>
             </div>
@@ -713,7 +709,7 @@ export default function Workspace() {
             {/* Day switcher + hints */}
             <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
               <div className="flex items-center justify-between gap-3">
-                <div className="max-w-[150px] sm:max-w-[250px] md:max-w-[400px] overflow-x-auto rounded-xl bg-white/10 border border-white/15 flex p-1 gap-1 custom-scrollbar-x">
+                <div className="inline-flex rounded-xl bg-white/10 border border-white/15 p-1 overflow-hidden">
                   {dates.map((d) => {
                     const isActive = d === selectedDate;
                     const label = new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
@@ -722,7 +718,7 @@ export default function Workspace() {
                         key={d}
                         type="button"
                         onClick={() => setSelectedDate(d)}
-                        className={`px-3 h-8 rounded-lg text-sm font-semibold transition-colors shrink-0 whitespace-nowrap ${
+                        className={`px-3 h-8 rounded-lg text-sm font-semibold transition-colors ${
                           isActive ? 'bg-white text-slate-900' : 'text-white/85 hover:bg-white/10'
                         }`}
                         aria-pressed={isActive}
@@ -741,12 +737,12 @@ export default function Workspace() {
                     className={`h-8 border-white/25 text-white hover:bg-white/15 ${proposalSidebarOpen ? 'bg-white/20' : 'bg-white/10'}`}
                   >
                     <TrendingUp className="w-4 h-4 mr-2" />
-                    Đề xuất
+                    ─Éß╗ü xuß║Ñt
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 bg-white/10 border-white/25 text-white hover:bg-white/15" asChild>
                     <Link to={`/timetable/${tripId}`}>
                       <CalendarRange className="w-4 h-4 mr-1.5" />
-                      Thời khoá biểu
+                      Thß╗¥i kho├í biß╗âu
                     </Link>
                   </Button>
                   <Button
@@ -755,7 +751,7 @@ export default function Workspace() {
                     onClick={() => setSearchDialogOpen(true)}
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Thêm hoạt động
+                    Th├¬m hoß║ít ─æß╗Öng
                   </Button>
                 </div>
               </div>
@@ -764,14 +760,14 @@ export default function Workspace() {
                 <div className="flex flex-col gap-1">
                   <span className="inline-flex items-center gap-1.5">
                     <GripVertical className="w-3.5 h-3.5" />
-                    Kéo thả để sắp xếp
+                    K├⌐o thß║ú ─æß╗â sß║»p xß║┐p
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" />
                     <Popover>
                       <PopoverTrigger asChild>
                         <button className="underline decoration-dotted underline-offset-2 hover:text-white transition-colors cursor-help">
-                          Hướng dẫn tránh trùng lịch
+                          H╞░ß╗¢ng dß║½n tr├ính tr├╣ng lß╗ïch
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="w-80 p-4 bg-slate-900 border-slate-800 text-white shadow-xl rounded-xl z-[1001]">
@@ -780,23 +776,23 @@ export default function Workspace() {
                             <Info className="w-4 h-4" />
                           </div>
                           <div className="space-y-2">
-                            <h4 className="font-bold text-sm leading-none">Quy tắc thời gian</h4>
+                            <h4 className="font-bold text-sm leading-none">Quy tß║»c thß╗¥i gian</h4>
                             <p className="text-xs text-slate-400 leading-relaxed">
-                              Hệ thống cho phép các hoạt động "chạm" nhau nhưng không được "chồng" lên nhau.
+                              Hß╗ç thß╗æng cho ph├⌐p c├íc hoß║ít ─æß╗Öng "chß║ím" nhau nh╞░ng kh├┤ng ─æ╞░ß╗úc "chß╗ông" l├¬n nhau.
                             </p>
                             <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800">
                               <div>
-                                <div className="text-[10px] uppercase font-bold text-green-500 mb-1">Hợp lệ (✅)</div>
+                                <div className="text-[10px] uppercase font-bold text-green-500 mb-1">Hß╗úp lß╗ç (Γ£à)</div>
                                 <div className="text-[10px] text-slate-500 bg-slate-800/50 p-1.5 rounded">
-                                  Mục A: 08:00 - 09:00<br/>
-                                  Mục B: 09:00 - 10:00
+                                  Mß╗Ñc A: 08:00 - 09:00<br/>
+                                  Mß╗Ñc B: 09:00 - 10:00
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[10px] uppercase font-bold text-rose-500 mb-1">Trùng (❌)</div>
+                                <div className="text-[10px] uppercase font-bold text-rose-500 mb-1">Tr├╣ng (Γ¥î)</div>
                                 <div className="text-[10px] text-slate-500 bg-slate-800/50 p-1.5 rounded">
-                                  Mục A: 08:00 - 09:30<br/>
-                                  Mục B: 09:00 - 10:00
+                                  Mß╗Ñc A: 08:00 - 09:30<br/>
+                                  Mß╗Ñc B: 09:00 - 10:00
                                 </div>
                               </div>
                             </div>
@@ -807,8 +803,8 @@ export default function Workspace() {
                   </span>
                 </div>
                 <span className="inline-flex items-center gap-1.5 self-end">
-                  ⌘/Ctrl + ↑/↓
-                  <span className="text-white/55">để di chuyển mục đã chọn</span>
+                  Γîÿ/Ctrl + Γåæ/Γåô
+                  <span className="text-white/55">─æß╗â di chuyß╗ân mß╗Ñc ─æ├ú chß╗ìn</span>
                 </span>
               </div>
             </div>
@@ -820,12 +816,12 @@ export default function Workspace() {
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-white/70">
                   <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-                  <p className="text-sm font-medium">Đang tải dữ liệu lộ trình...</p>
+                  <p className="text-sm font-medium">─Éang tß║úi dß╗» liß╗çu lß╗Ö tr├¼nh...</p>
                 </div>
               ) : visibleTimelineItems.length === 0 && (
                 <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-white/90">
-                  <div className="font-extrabold">Chưa có hoạt động cho ngày này</div>
-                  <div className="text-sm text-white/70 mt-1">Bấm “Thêm hoạt động” hoặc thêm từ trang Khám Phá.</div>
+                  <div className="font-extrabold">Ch╞░a c├│ hoß║ít ─æß╗Öng cho ng├áy n├áy</div>
+                  <div className="text-sm text-white/70 mt-1">Bß║Ñm ΓÇ£Th├¬m hoß║ít ─æß╗ÖngΓÇ¥ hoß║╖c th├¬m tß╗½ trang Kh├ím Ph├í.</div>
                 </div>
               )}
               {visibleTimelineItems.map((item, index) => {
@@ -837,7 +833,7 @@ export default function Workspace() {
                 if (isPending && (item as any).latitude !== undefined) {
                   location = {
                     id: item.locationId,
-                    name: (item as any).placeName || 'Địa điểm đề xuất',
+                    name: (item as any).placeName || '─Éß╗ïa ─æiß╗âm ─æß╗ü xuß║Ñt',
                     lat: (item as any).latitude,
                     lng: (item as any).longitude,
                     image: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80',
@@ -856,7 +852,7 @@ export default function Workspace() {
                   } : mockLocations.find((loc) => loc.id === item.locationId);
                 }
 
-                const displayName = location?.name || (tripMetadata?.labelByLocationId?.[item.locationId]) || 'Hoạt động';
+                const displayName = location?.name || (tripMetadata?.labelByLocationId?.[item.locationId]) || 'Hoß║ít ─æß╗Öng';
                 const displayImage = location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
                 const isEditing = editingItem === item.id;
                 const transport = getTransportMethod(index);
@@ -892,7 +888,7 @@ export default function Workspace() {
                             endTime: `${dateStr}T${item.endTime}:00`,
                             notes: item.notes
                           });
-                          toast.info("Đã gửi đề xuất nhân bản");
+                          toast.info("─É├ú gß╗¡i ─æß╗ü xuß║Ñt nh├ón bß║ún");
                           return;
                         }
                         try {
@@ -903,28 +899,28 @@ export default function Workspace() {
                             endTime: `${dateStr}T${item.endTime}:00`,
                             notes: item.notes
                           }, token);
-                          toast.success('Đã nhân bản hoạt động');
+                          toast.success('─É├ú nh├ón bß║ún hoß║ít ─æß╗Öng');
                           cacheClear(CACHE_KEY);
                           fetchTimeline();
                         } catch (error) {
-                          toast.error('Nhân bản thất bại');
+                          toast.error('Nh├ón bß║ún thß║Ñt bß║íi');
                         }
                       }}
                       onRemove={async () => {
                         if (!token) return;
                         if (!isOwner) {
                           sendProposal(tripId, tripMetadata?.version || 1, "DELETE", { eventId: item.id });
-                          toast.info("Đã gửi đề xuất xóa");
+                          toast.info("─É├ú gß╗¡i ─æß╗ü xuß║Ñt x├│a");
                           setTimeout(() => fetchTimeline(true), 100);
                           return;
                         }
                         try {
                           await deleteTimelineEvent(tripId, item.id, token);
-                          toast.success('Đã xoá hoạt động');
+                          toast.success('─É├ú xo├í hoß║ít ─æß╗Öng');
                           cacheClear(CACHE_KEY);
                           fetchTimeline();
                         } catch (error) {
-                          toast.error('Xoá thất bại');
+                          toast.error('Xo├í thß║Ñt bß║íi');
                         }
                       }}
                     />
@@ -954,7 +950,7 @@ export default function Workspace() {
               className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium rounded-xl h-11"
               onClick={() => setSearchDialogOpen(true)}
             >
-              + Thêm Hoạt Động Mới
+              + Th├¬m Hoß║ít ─Éß╗Öng Mß╗¢i
             </Button>
           </div>
           </div>
@@ -963,30 +959,30 @@ export default function Workspace() {
           <div className="flex-1 relative rounded-3xl overflow-hidden shadow-[var(--vj-shadow-premium)] border border-white/10 bg-white min-h-[min(42vh,22rem)] lg:min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Panel title like reference */}
           <div className="absolute top-[var(--vj-inset)] left-[var(--vj-inset)] z-[1000] bg-white/70 backdrop-blur-md rounded-2xl px-5 py-2.5 shadow-lg border border-white/30 transition-all duration-300 hover:bg-white/80">
-            <h2 className="text-sm font-black text-[#0b5d55] tracking-tight">Bản Đồ Lộ Trình</h2>
+            <h2 className="text-sm font-black text-[#0b5d55] tracking-tight">Bß║ún ─Éß╗ô Lß╗Ö Tr├¼nh</h2>
           </div>
           <div className="absolute top-[calc(var(--vj-inset)+3.5rem)] left-[var(--vj-inset)] z-[1000] bg-white/80 backdrop-blur-xl rounded-2xl p-[var(--vj-inset)] shadow-xl border border-white/40 min-w-[240px] max-w-[calc(100%-2*var(--vj-inset))] transition-all duration-500 hover:shadow-2xl hover:-translate-y-0.5">
             <h3 className="font-black text-sm text-[#0A4A6E] mb-3 flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Lộ Trình Tự Động
+              Lß╗Ö Tr├¼nh Tß╗▒ ─Éß╗Öng
             </h3>
             <div className="flex flex-col gap-1 text-xs text-slate-600 font-bold">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-emerald-600" />
-                  <span>7.5 giờ</span>
+                  <span>7.5 giß╗¥</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  <span>Trung Bình</span>
+                  <span>Trung B├¼nh</span>
                 </div>
               </div>
               <p className="text-[10px] font-semibold text-slate-500 normal-case leading-snug">
                 {routeResolving
-                  ? 'Đang vẽ lộ trình theo đường đi…'
+                  ? '─Éang vß║╜ lß╗Ö tr├¼nh theo ─æ╞░ß╗¥ng ─æiΓÇª'
                   : stopsForRoute.length >= 2
-                    ? 'Tuyến nối các điểm theo đường lái xe (OSM/OpenStreetMap).'
-                    : 'Thêm ít nhất hai hoạt động có vị trí để xem lộ trình.'}
+                    ? 'Tuyß║┐n nß╗æi c├íc ─æiß╗âm theo ─æ╞░ß╗¥ng l├íi xe (OSM/OpenStreetMap).'
+                    : 'Th├¬m ├¡t nhß║Ñt hai hoß║ít ─æß╗Öng c├│ vß╗ï tr├¡ ─æß╗â xem lß╗Ö tr├¼nh.'}
               </p>
             </div>
           </div>
@@ -996,7 +992,7 @@ export default function Workspace() {
               <MapPin className="w-4 h-4 text-emerald-400" />
               {trip.destination}
             </p>
-            <p className="text-[10px] text-white/70 font-medium leading-relaxed">Tối ưu thứ tự di chuyển theo ngày đang chọn</p>
+            <p className="text-[10px] text-white/70 font-medium leading-relaxed">Tß╗æi ╞░u thß╗⌐ tß╗▒ di chuyß╗ân theo ng├áy ─æang chß╗ìn</p>
           </div>
 
           <SimpleMap
@@ -1012,9 +1008,9 @@ export default function Workspace() {
       <Dialog open={timeEditorOpen} onOpenChange={setTimeEditorOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Chỉnh sửa thời gian</DialogTitle>
+            <DialogTitle>Chß╗ënh sß╗¡a thß╗¥i gian</DialogTitle>
             <DialogDescription>
-              Thay đổi thời gian bắt đầu và kết thúc cho hoạt động này.
+              Thay ─æß╗òi thß╗¥i gian bß║»t ─æß║ºu v├á kß║┐t th├║c cho hoß║ít ─æß╗Öng n├áy.
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2">
@@ -1023,15 +1019,15 @@ export default function Workspace() {
           </div>
           {overlaps.size > 0 && (
             <div className="text-xs text-rose-600 font-semibold mt-2">
-              Có hoạt động bị chồng giờ. Vui lòng điều chỉnh để tránh trùng lịch.
+              C├│ hoß║ít ─æß╗Öng bß╗ï chß╗ông giß╗¥. Vui l├▓ng ─æiß╗üu chß╗ënh ─æß╗â tr├ính tr├╣ng lß╗ïch.
             </div>
           )}
           <DialogFooter>
             <UIButton variant="outline" onClick={() => setTimeEditorOpen(false)}>
-              Huỷ
+              Huß╗╖
             </UIButton>
             <UIButton className="bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white" onClick={saveTimeEditor}>
-              Lưu
+              L╞░u
             </UIButton>
           </DialogFooter>
         </DialogContent>
@@ -1059,7 +1055,7 @@ export default function Workspace() {
       <Dialog open={!!detailsItemId} onOpenChange={(open) => !open && setDetailsItemId(null)}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Chi tiết hoạt động</DialogTitle>
+            <DialogTitle>Chi tiß║┐t hoß║ít ─æß╗Öng</DialogTitle>
           </DialogHeader>
           {(() => {
             const item = timelineItems.find(t => t.id === detailsItemId);
@@ -1076,7 +1072,7 @@ export default function Workspace() {
               rating: dbPlace.rating
             } : mockLocations.find(l => l.id === item.locationId);
             
-            const displayName = dbPlace?.name || location?.name || tripMetadata?.labelByLocationId?.[item.locationId] || 'Hoạt động';
+            const displayName = dbPlace?.name || location?.name || tripMetadata?.labelByLocationId?.[item.locationId] || 'Hoß║ít ─æß╗Öng';
             const displayImage = dbPlace?.imageUrl || location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
             const address = dbPlace?.address || location?.address;
             const rating = dbPlace?.rating || location?.rating;
@@ -1090,7 +1086,7 @@ export default function Workspace() {
                     <span>{item.startTime} - {item.endTime}</span>
                   </div>
                   <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200 uppercase text-[10px]">
-                    {item.category || 'HOẠT ĐỘNG'}
+                    {item.category || 'HOß║áT ─Éß╗ÿNG'}
                   </Badge>
                 </div>
 
@@ -1098,10 +1094,10 @@ export default function Workspace() {
                 <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
                   <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Pencil className="w-3.5 h-3.5" />
-                    Ghi chú của bạn
+                    Ghi ch├║ cß╗ºa bß║ín
                   </h4>
                   <p className="text-sm text-slate-700 leading-relaxed italic">
-                    {item.notes?.trim() ? item.notes : "Không có ghi chú nào cho hoạt động này."}
+                    {item.notes?.trim() ? item.notes : "Kh├┤ng c├│ ghi ch├║ n├áo cho hoß║ít ─æß╗Öng n├áy."}
                   </p>
                 </div>
 
@@ -1138,21 +1134,19 @@ export default function Workspace() {
         </DialogContent>
       </Dialog>
 
-      <Sheet open={proposalSidebarOpen} onOpenChange={setProposalSidebarOpen}>
-        <SheetContent side="right" className="p-0 w-80 sm:w-96 border-l shadow-2xl">
-          <ProposalSidebar 
-            timelineId={tripId} 
-            token={token!} 
-            currentVersion={tripMetadata?.version || 1}
-            onProposalDecided={(id) => {
-              setPendingProposals(prev => prev.filter(p => String(p.id) !== String(id)));
-              fetchTimeline(true);
-            }}
-            isOwner={isOwner}
-            currentUsername={user?.username}
-          />
-        </SheetContent>
-      </Sheet>
+      {proposalSidebarOpen && (
+        <ProposalSidebar 
+          timelineId={tripId} 
+          token={token!} 
+          currentVersion={tripMetadata?.version || 1}
+          onProposalDecided={(id) => {
+            setPendingProposals(prev => prev.filter(p => String(p.id) !== String(id)));
+            fetchTimeline(true);
+          }}
+          isOwner={isOwner}
+          currentUsername={user?.username}
+        />
+      )}
     </DndProvider>
   );
 }
