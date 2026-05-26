@@ -9,9 +9,9 @@ export function useTimelineSocket(tripId: string, token: string | null) {
   useEffect(() => {
     if (!tripId || !token) return;
 
-    // Use dynamic host to support both localhost and local network access via Vite proxy
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/timeline/${tripId}?token=${token}`;
+    const DEFAULT_WS = 'ws://localhost:8081';
+    const WS_BASE = (import.meta.env.VITE_WS_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_WS;
+    const wsUrl = `${WS_BASE}/ws/timeline/${tripId}?token=${token}`;
     
     const socket = new WebSocket(wsUrl);
     
