@@ -1,0 +1,736 @@
+﻿commit 14d28a0ea433132899fe73acf09867cbf2f17977
+Author: Youmei <trantanphat.stu@gmail.com>
+Date:   Tue May 26 00:16:27 2026 +0700
+
+    Revert "Apply stashed changes from main"
+    
+    This reverts commit ffdd44a8e23d5121f093a490efca8533f86e19d5.
+
+diff --git a/all_java_files.txt b/all_java_files.txt
+deleted file mode 100644
+index a8adbf5..0000000
+Binary files a/all_java_files.txt and /dev/null differ
+diff --git a/backend/src/main/java/com/project/backend/modules/place/mapper/PlaceMapper.java b/backend/src/main/java/com/project/backend/modules/place/mapper/PlaceMapper.java
+index b83dcb7..8164d95 100644
+--- a/backend/src/main/java/com/project/backend/modules/place/mapper/PlaceMapper.java
++++ b/backend/src/main/java/com/project/backend/modules/place/mapper/PlaceMapper.java
+@@ -32,8 +32,8 @@ public class PlaceMapper {
+                 .rating(getDouble(tuple, "rating"))
+                 .latitude(getDouble(tuple, "latitude"))
+                 .longitude(getDouble(tuple, "longitude"))
+-                .images(parseImages(get(tuple, "images", String.class)))
+-                .tags(parseTags(get(tuple, "tags", String.class)))
++                .images(parseJson(get(tuple, "images", String.class), LIST_TYPE))
++                .tags(parseJson(get(tuple, "tags", String.class), TAGS_TYPE))
+                 .minPrice(parsePriceRangeLower(get(tuple, "price_range", String.class)))
+                 .maxPrice(parsePriceRangeUpper(get(tuple, "price_range", String.class)))
+                 .build();
+@@ -72,44 +72,11 @@ public class PlaceMapper {
+         try {
+             return objectMapper.readValue(raw, typeRef);
+         } catch (Exception e) {
+-            log.warn("Failed to parse JSON: {} - {}", raw, e.getMessage());
++            log.warn("Failed to parse JSON: {}", raw, e);
+             return null;
+         }
+     }
+ 
+-    // Parse Tags, handling both Map and fallback to List
+-    private Map<String, List<String>> parseTags(String raw) {
+-        if (raw == null || raw.isBlank()) return null;
+-        try {
+-            return objectMapper.readValue(raw, TAGS_TYPE);
+-        } catch (Exception e) {
+-            try {
+-                List<String> list = objectMapper.readValue(raw, LIST_TYPE);
+-                return Map.of("general", list);
+-            } catch (Exception ex) {
+-                log.warn("Failed to parse tags JSON: {} - {}", raw, ex.getMessage());
+-                return null;
+-            }
+-        }
+-    }
+-
+-    // Parse Images, handling both List and fallback to single String
+-    private List<String> parseImages(String raw) {
+-        if (raw == null || raw.isBlank()) return null;
+-        try {
+-            return objectMapper.readValue(raw, LIST_TYPE);
+-        } catch (Exception e) {
+-            try {
+-                // If it fails to parse as a List, check if it's a single string
+-                String stripped = raw.replaceAll("^\"|\"$", "");
+-                return List.of(stripped);
+-            } catch (Exception ex) {
+-                log.warn("Failed to parse images JSON: {} - {}", raw, ex.getMessage());
+-                return null;
+-            }
+-        }
+-    }
+-
+     // Parse Int4range to Int (Lower)
+     private Integer parsePriceRangeLower(String range) {
+         if (range == null) return null;
+diff --git a/backend/src/test/java/com/project/backend/DeploymentHealthTest.java b/backend/src/test/java/com/project/backend/DeploymentHealthTest.java
+deleted file mode 100644
+index c596086..0000000
+--- a/backend/src/test/java/com/project/backend/DeploymentHealthTest.java
++++ /dev/null
+@@ -1,45 +0,0 @@
+-package com.project.backend;
+-
+-import org.junit.jupiter.api.Test;
+-import java.net.URI;
+-import java.net.http.HttpClient;
+-import java.net.http.HttpRequest;
+-import java.net.http.HttpResponse;
+-import java.time.Duration;
+-
+-import static org.junit.jupiter.api.Assertions.assertNotNull;
+-import static org.junit.jupiter.api.Assertions.assertTrue;
+-
+-public class DeploymentHealthTest {
+-
+-    @Test
+-    public void testBackendDeploymentIsReachable() throws Exception {
+-        // The URL of the deployed backend on Render
+-        String backendUrl = "https://vietjourney-backend.onrender.com/";
+-        
+-        HttpClient client = HttpClient.newBuilder()
+-                .connectTimeout(Duration.ofSeconds(10))
+-                .build();
+-                
+-        HttpRequest request = HttpRequest.newBuilder()
+-                .uri(URI.create(backendUrl))
+-                .GET()
+-                .build();
+-                
+-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+-        
+-        // Ensure we got a response back
+-        assertNotNull(response, "The response from the server should not be null");
+-        
+-        // Since the root path "/" does not have a public controller mapping 
+-        // and is protected by Spring Security (anyRequest().authenticated()),
+-        // it is expected to return 401 Unauthorized or 404 Not Found.
+-        // What matters is that we get a valid HTTP status code indicating the server is alive.
+-        int statusCode = response.statusCode();
+-        
+-        assertTrue(statusCode == 401 || statusCode == 404 || statusCode == 200, 
+-            "Expected a valid HTTP status code from the deployed backend (e.g., 401), but got: " + statusCode);
+-            
+-        System.out.println("Backend is reachable! Status code received: " + statusCode);
+-    }
+-}
+diff --git a/bao_cao_bao_mat_du_lieu.md b/bao_cao_bao_mat_du_lieu.md
+deleted file mode 100644
+index f75c7ba..0000000
+--- a/bao_cao_bao_mat_du_lieu.md
++++ /dev/null
+@@ -1,78 +0,0 @@
+-# B├ío c├ío: L╞░u trß╗» v├á Bß║úo mß║¡t Dß╗» liß╗çu Hß╗ç Thß╗æng Vietjourney
+-
+-> [!NOTE]
+-> B├ío c├ío n├áy ─æ╞░ß╗úc tß╗òng hß╗úp dß╗▒a tr├¬n viß╗çc scan to├án bß╗Ö c├íc nh├ính (bao gß╗ôm cß║ú `main` v├á c├íc branch t├¡nh n─âng ─æang ph├ít triß╗ân nh╞░ `backend-feature-auth`, `backend-feature-timeline`, `backend-feature-recommendation-history`, `chat-service`, v.v.), chß╗ë lß╗ìc ra nhß╗»ng dß╗» liß╗çu m├á dß╗▒ ├ín **thß╗▒c sß╗▒ sß╗¡ dß╗Ñng v├á ─æ╞░ß╗úc ─æß╗ïnh ngh─⌐a th├ánh Entity**. Nß╗Öi dung c┼⌐ng ─æ╞░ß╗úc cß║úi tiß║┐n, ─æß╗æi chiß║┐u vß╗¢i c├íc ti├¬u chuß║⌐n thiß║┐t kß║┐ kiß║┐n tr├║c bß║úo mß║¡t cß╗ºa dß╗▒ ├ín.
+-
+-## 1. Danh s├ích Dß╗» liß╗çu cß║ºn L╞░u trß╗» l├óu d├ái (Long-term Storage)
+-
+-C├íc dß╗» liß╗çu sau ─æ╞░ß╗úc l╞░u trß╗» bß╗ün vß╗»ng trong c╞í sß╗ƒ dß╗» liß╗çu (chß╗º yß║┐u l├á PostgreSQL, H2 cho m├┤i tr╞░ß╗¥ng Dev), ├ính xß║í trß╗▒c tiß║┐p tß╗½ c├íc `@Entity`:
+-
+-### A. Quß║ún l├╜ Ng╞░ß╗¥i d├╣ng & Ph├ón quyß╗ün (Auth Module)
+-- **`User`**: Th├┤ng tin ng╞░ß╗¥i d├╣ng (Username, Password, Display Name).
+-- **`Role` & `Permission`**: Cß║Ñu h├¼nh vai tr├▓ v├á quyß╗ün hß║ín (RBAC).
+-- **`InvalidatedToken`**: Danh s├ích c├íc JWT token ─æ├ú bß╗ï thu hß╗ôi/─æ─âng xuß║Ñt (nhß║▒m ng─ân chß║╖n Replay Attack).
+-
+-### B. Lß╗ïch tr├¼nh & Nh├│m du lß╗ïch (Timeline Module)
+-- **`Timeline`**: Th├┤ng tin tß╗òng quan cß╗ºa chuyß║┐n ─æi (Ti├¬u ─æß╗ü, m├┤ tß║ú, ng├áy bß║»t ─æß║ºu/kß║┐t th├║c, trß║íng th├íi hiß╗ân thß╗ï).
+-- **`TimelineEvent`**: Chi tiß║┐t lß╗ïch tr├¼nh tß║íi tß╗½ng thß╗¥i ─æiß╗âm.
+-- **`TimelineMember`**: Th├ánh vi├¬n tham gia nh├│m v├á vai tr├▓ cß╗ºa hß╗ì.
+-- **`TimelineProposal`**: C├íc ─æß╗ü xuß║Ñt ─æß╗ïa ─æiß╗âm tß╗½ th├ánh vi├¬n ─æß╗â biß╗âu quyß║┐t.
+-- **`TimelineInviteCode`**: M├ú mß╗¥i tham gia nh├│m.
+-
+-### C. Dß╗» liß╗çu ─Éß╗ïa ─æiß╗âm - POI (Place Module)
+-- **`PlaceBase`**: Dß╗» liß╗çu c╞í sß╗ƒ trung t├óm cß╗ºa c├íc ─æß╗ïa ─æiß╗âm du lß╗ïch (Master Data).
+-- **`PlaceActivity`, `PlaceFood`, `PlaceDrink`**: Chi tiß║┐t ph├ón loß║íi theo tß╗½ng nh├│m loß║íi h├¼nh ─æß╗ïa ─æiß╗âm phß╗Ñc vß╗Ñ t├¼m kiß║┐m.
+-
+-### D. Giao tiß║┐p & Thß╗¥i gian thß╗▒c (Tß╗½ nh├ính `chat-service`)
+-- **`ChatRoom` / `ChatRoomType`**: Dß╗» liß╗çu ─æß╗ïnh danh c├íc ph├▓ng chat (nh├│m theo Timeline hoß║╖c c├í nh├ón).
+-- **`Message` / `MessageType`**: Nß╗Öi dung tin nhß║»n, thß╗¥i gian gß╗¡i, v├á ng╞░ß╗¥i gß╗¡i.
+-
+-### E. Th├┤ng b├ío (Notification Module)
+-- **`Notification`**: Lß╗ïch sß╗¡ nß╗Öi dung v├á trß║íng th├íi th├┤ng b├ío hß╗ç thß╗æng.
+-- **`NotificationPreference`**: T├╣y chß╗ìn nhß║¡n th├┤ng b├ío cß╗ºa ng╞░ß╗¥i d├╣ng.
+-
+-### F. Gß╗úi ├╜ & Lß╗ïch sß╗¡ ng╞░ß╗¥i d├╣ng (Tß╗½ nh├ính `backend-feature-recommendation-history`)
+-- **`UserPlaceInteraction`**: Lß╗ïch sß╗¡ h├ánh vi v├á t╞░╞íng t├íc cß╗ºa ng╞░ß╗¥i d├╣ng vß╗¢i ─æß╗ïa ─æiß╗âm (View, Like, Vote).
+-- **`UserCategoryPreference`, `UserDistrictPreference`, `UserTagPreference`**: Dß╗» liß╗çu ph├ón t├¡ch sß╗ƒ th├¡ch c├í nh├ón, l├ám input (features) cho thuß║¡t to├ín AI/Machine Learning.
+-
+----
+-
+-## 2. Danh s├ích Dß╗» liß╗çu Cß║ºn Bß║úo mß║¡t (Sensitive/Confidential Data)
+-
+-Trong sß╗æ c├íc dß╗» liß╗çu tr├¬n, nhß╗»ng th├┤ng tin sau ─æ╞░ß╗úc ph├ón loß║íi l├á nhß║íy cß║úm, c├│ rß╗ºi ro nß║┐u bß╗ï lß╗Ö lß╗ìt:
+-
+-### A. Dß╗» liß╗çu ─Éß╗ïnh danh & Quyß╗ün ri├¬ng t╞░ (PII & User Privacy)
+-- **Mß║¡t khß║⌐u (Password)**: Dß╗» liß╗çu cß╗▒c kß╗│ nhß║íy cß║úm trong bß║úng `users`.
+-- **Nß╗Öi dung tin nhß║»n (Chat Messages)**: Th├┤ng tin trao ─æß╗òi nß╗Öi bß╗Ö, vi phß║ím nghi├¬m trß╗ìng quyß╗ün ri├¬ng t╞░ nß║┐u r├▓ rß╗ë.
+-- **Lß╗ïch sß╗¡ di chuyß╗ân / Quyß╗ün ri├¬ng t╞░ Timeline**: C├íc `Timeline` v├á `TimelineEvent` (trß║íng th├íi Private) kh├┤ng ─æ╞░ß╗úc ph├⌐p truy cß║¡p tr├íi ph├⌐p.
+-- **Lß╗ïch sß╗¡ t├¼m kiß║┐m & Sß╗ƒ th├¡ch**: Khß║»c hß╗ìa xu h╞░ß╗¢ng c├í nh├ón, y├¬u cß║ºu phß║úi ─æ╞░ß╗úc ß║⌐n danh h├│a trong qu├í tr├¼nh huß║Ñn luyß╗çn m├┤ h├¼nh (AI Recommendation).
+-
+-### B. Dß╗» liß╗çu Hß║í tß║ºng & Trß║íng th├íi Hß╗ç thß╗æng
+-- **Phi├¬n ─æ─âng nhß║¡p (JWT Token)**: Token cß║Ñp cho ng╞░ß╗¥i d├╣ng sau khi ─æ─âng nhß║¡p.
+-- **M├ú mß╗¥i tham gia nh├│m (`TimelineInviteCode`)**: Cß║ºn bß║úo vß╗ç ─æß╗â tr├ính viß╗çc x├óm nhß║¡p nh├│m tr├íi ph├⌐p.
+-
+-### C. B├¡ mß║¡t Hß╗ç thß╗æng (System Secrets)
+-*(Kh├┤ng nß║▒m trong DB nh╞░ng cß╗▒c kß╗│ nhß║íy cß║úm)*
+-- **`JWT_SIGNER_KEY`**: Kh├│a b├¡ mß║¡t d├╣ng ─æß╗â k├╜ token.
+-- **Database Credentials**: T├ái khoß║ún v├á Mß║¡t khß║⌐u kß║┐t nß╗æi PostgreSQL/Redis.
+-
+----
+-
+-## 3. Ph╞░╞íng thß╗⌐c Bß║úo mß║¡t ─æang ─æ╞░ß╗úc sß╗¡ dß╗Ñng trong codebase
+-
+-Dß╗▒a tr├¬n file `SecurityConfig.java`, cß║Ñu tr├║c cß╗ºa `websocket-proxy`, v├á c├íc module nghiß╗çp vß╗Ñ, dß╗▒ ├ín ─æang ├íp dß╗Ñng c├íc lß╗¢p bß║úo mß║¡t sau:
+-
+-### 3.1. M├ú h├│a Dß╗» liß╗çu (Encryption/Hashing)
+-- **B─âm Mß║¡t khß║⌐u**: Mß║¡t khß║⌐u ng╞░ß╗¥i d├╣ng ─æ╞░ß╗úc b─âm mß╗Öt chiß╗üu tß╗▒ ─æß╗Öng vß╗¢i thuß║¡t to├ín **`BCryptPasswordEncoder`** (─æß╗Ö kh├│/work factor = 10) tr╞░ß╗¢c khi l╞░u, chß╗æng lß║íi c├íc cuß╗Öc tß║Ñn c├┤ng Rainbow Table.
+-
+-### 3.2. X├íc thß╗▒c v├á Cß║Ñp quyß╗ün (Authentication & Authorization)
+-- **Stateless JWT (JSON Web Token)**: Quß║ún l├╜ phi├¬n bß║ún kh├┤ng trß║íng th├íi thay cho Session.
+-- **Chß╗» k├╜ Token An To├án**: Token ─æ╞░ß╗úc k├╜ thuß║¡t to├ín **HMAC SHA-512 (`HS512`)** sß╗¡ dß╗Ñng secret key ─æ╞░ß╗úc truyß╗ün qua Biß║┐n m├┤i tr╞░ß╗¥ng.
+-- **Bß║úo vß╗ç API Mß║╖c ─æß╗ïnh (SecurityFilterChain)**: C├íc API ─æ╞░ß╗úc kh├│a mß║╖c ─æß╗ïnh (`anyRequest().authenticated()`). C├íc API c├┤ng khai (nh╞░ `/api/v1/auth/login`, `/api/v1/users/register`, `/api/v1/places/filter`) ─æ╞░ß╗úc ─æ╞░a v├áo whitelist (`PUBLIC_ENDPOINTS`).
+-- **RBAC (Role-Based Access Control)**: Ph├ón quyß╗ün vai tr├▓ qua `@EnableMethodSecurity` v├á `JwtGrantedAuthoritiesConverter`.
+-- **Thu hß╗ôi Token (Blacklisting)**: Token ─æ─âng xuß║Ñt sß║╜ ─æ╞░ß╗úc l╞░u v├áo `InvalidatedToken` ─æß╗â kh├│a truy cß║¡p ngay lß║¡p tß╗⌐c tr╞░ß╗¢c khi hß║┐t hß║ín.
+-
+-### 3.3. Bß║úo mß║¡t Hß║í tß║ºng & Real-time (Infrastructure Security)
+-- **Bß║úo vß╗ç CORS (Cross-Origin Resource Sharing)**: `CorsFilter` ─æ╞░ß╗úc cß║Ñu h├¼nh khß║»t khe, chß╗ë cho ph├⌐p c├íc y├¬u cß║ºu xuß║Ñt ph├ít tß╗½ c├íc Frontend Domain ─æ╞░ß╗úc chß╗ë ─æß╗ïnh (`http://localhost:5173`, `http://localhost:3000`), gi├║p chß║╖n CSRF.
+-- **X├íc thß╗▒c WebSocket (Go Proxy)**: Dß╗ïch vß╗Ñ `websocket-proxy` tiß║┐p nhß║¡n JWT tß╗½ request, d├╣ng `JWT_SIGNER_KEY` ─æß╗â giß║úi m├ú v├á x├íc thß╗▒c. Chß╗ë khi hß╗úp lß╗ç, user mß╗¢i ─æ╞░ß╗úc ph├⌐p Subscribe v├áo c├íc k├¬nh Redis Pub/Sub cß╗ºa Timeline hoß║╖c Chat Room.
+-- **ß║¿n danh h├│a dß╗» liß╗çu (Anonymization)**: Khuyß║┐n nghß╗ï (hoß║╖c ─æang thß╗▒c hiß╗çn) tß║íi luß╗ông thu thß║¡p Recommendation ─æß╗â bß║úo vß╗ç danh t├¡nh ng╞░ß╗¥i d├╣ng khi ph├ón t├¡ch lß╗ïch sß╗¡ `UserPlaceInteraction`.
+diff --git a/bao_cao_usergroup_usecase.pdf b/bao_cao_usergroup_usecase.pdf
+deleted file mode 100644
+index 295fd59..0000000
+--- a/bao_cao_usergroup_usecase.pdf
++++ /dev/null
+@@ -1,247 +0,0 @@
+-  PHß║ªN 1: PH├éN T├ìCH THEO NH├ôM
+-    NG╞»ß╗£I D├ÖNG
+-
+-Hß╗ç thß╗æng ─æ╞░ß╗úc thiß║┐t kß║┐ ─æß╗â phß╗Ñc vß╗Ñ 4 nh├│m ─æß╗æi t╞░ß╗úng ch├¡nh vß╗¢i ph├ón quyß╗ün v├á mß╗Ñc ─æ├¡ch sß╗¡
+-dß╗Ñng kh├íc nhau:
+-
+-   1. Kh├ích v├úng lai (Guest)
+-
+-    ΓùÅΓÇï Vai tr├▓ (Role): Ng╞░ß╗¥i d├╣ng ch╞░a c├│ t├ái khoß║ún.
+-    ΓùÅΓÇï Quyß╗ün hß║ín (Right) & Phß║ím vi sß╗¡ dß╗Ñng t├¡nh n─âng:
+-
+-              ΓùïΓÇï Chß╗ë xem c├íc lß╗ïch tr├¼nh c├┤ng khai.
+-              ΓùïΓÇï Sß╗¡ dß╗Ñng t├¡nh n─âng T├¼m kiß║┐m & Lß╗ìc (Filter) ─æß╗ïa ─æiß╗âm ß╗ƒ mß╗⌐c ─æß╗Ö c╞í bß║ún.
+-              ΓùïΓÇï Tß║ío "Lß╗ïch tr├¼nh nh├íp" (nh╞░ng kh├┤ng thß╗â l╞░u trß╗» l├óu d├ái tr├¬n server).
+-    ΓùÅΓÇï C├íc r├áng buß╗Öc v├á giß║ú ─æß╗ïnh c├│ thß╗â c├│:
+-              ΓùïΓÇï R├áng buß╗Öc: Lß╗ïch tr├¼nh nh├íp chß╗ë tß╗ôn tß║íi trong phi├¬n l├ám viß╗çc hiß╗çn tß║íi
+-
+-                   (Session/Local Storage) v├á sß║╜ mß║Ñt khi tß║»t tr├¼nh duyß╗çt.
+-              ΓùïΓÇï Giß║ú ─æß╗ïnh: C├│ kß║┐t nß╗æi Internet ß╗òn ─æß╗ïnh ─æß╗â load bß║ún ─æß╗ô v├á dß╗» liß╗çu ─æß╗ïa ─æiß╗âm.
+-    ΓùÅΓÇï C├íc use case c├│ thß╗â c├│: UC01: T├¼m kiß║┐m & Lß╗ìc ─æß╗ïa ─æiß╗âm, UC02: Tß║ío
+-         lß╗ïch tr├¼nh nh├íp, UC03: ─É─âng k├╜/─É─âng nhß║¡p.
+-
+-   2. Th├ánh vi├¬n c├í nh├ón (Registered User)
+-
+-    ΓùÅΓÇï Vai tr├▓ (Role): Ng╞░ß╗¥i d├╣ng ─æ├ú ─æ─âng nhß║¡p.
+-    ΓùÅΓÇï Quyß╗ün hß║ín (Right) & Phß║ím vi sß╗¡ dß╗Ñng t├¡nh n─âng:
+-
+-              ΓùïΓÇï Tß╗▒ tß║ío v├á quß║ún l├╜ nhiß╗üu lß╗ïch tr├¼nh c├í nh├ón.
+-              ΓùïΓÇï L╞░u trß╗» dß╗» liß╗çu v─⌐nh viß╗àn tr├¬n server.
+-              ΓùïΓÇï Sß╗¡ dß╗Ñng bß╗Ö lß╗ìc ─æß╗ïa ─æiß╗âm n├óng cao (v├¡ dß╗Ñ: gß╗úi ├╜ dß╗▒a tr├¬n lß╗ïch sß╗¡).
+-              ΓùïΓÇï C├│ thß╗â mß╗¥i hoß║╖c chß║Ñp nhß║¡n lß╗¥i mß╗¥i tham gia nh├│m du lß╗ïch.
+-    ΓùÅΓÇï C├íc r├áng buß╗Öc v├á giß║ú ─æß╗ïnh c├│ thß╗â c├│:
+-              ΓùïΓÇï R├áng buß╗Öc: Th├┤ng tin c├í nh├ón v├á lß╗ïch tr├¼nh ri├¬ng t╞░ phß║úi ─æ╞░ß╗úc bß║úo mß║¡t.
+-              ΓùïΓÇï Giß║ú ─æß╗ïnh: Sß╗¡ dß╗Ñng c├╣ng mß╗Öt t├ái khoß║ún tr├¬n c├íc thiß║┐t bß╗ï kh├íc nhau sß║╜ ─æß╗ông bß╗Ö
+-
+-                   dß╗» liß╗çu.
+-    ΓùÅΓÇï C├íc use case c├│ thß╗â c├│: UC04: Quß║ún l├╜ Timeline c├í nh├ón, UC05: Tß║ío v├á
+-
+-         Quß║ún l├╜ nh├│m.
+-
+-   3. Nh├│m du lß╗ïch (Travel Group)
+-
+-    ΓùÅΓÇï Vai tr├▓ (Role): Tß║¡p hß╗úp c├íc th├ánh vi├¬n c├í nh├ón c├╣ng tham gia mß╗Öt chuyß║┐n ─æi.
+-    ΓùÅΓÇï Quyß╗ün hß║ín (Right) & Phß║ím vi sß╗¡ dß╗Ñng t├¡nh n─âng:
+-
+-              ΓùïΓÇï Tr╞░ß╗ƒng nh├│m (Host): Mß╗¥i/X├│a th├ánh vi├¬n, chß╗æt lß╗ïch tr├¼nh ch├¡nh.
+-              ΓùïΓÇï Th├ánh vi├¬n nh├│m (Member): ─É├│ng g├│p ├╜ kiß║┐n, ─æß╗ü xuß║Ñt ─æß╗ïa ─æiß╗âm, biß╗âu quyß║┐t
+-
+-                   (vote).
+-ΓùÅΓÇï C├íc r├áng buß╗Öc v├á giß║ú ─æß╗ïnh c├│ thß╗â c├│:
+-         ΓùïΓÇï R├áng buß╗Öc: Mß╗ìi sß╗▒ thay ─æß╗òi tr├¬n timeline nh├│m phß║úi ─æ╞░ß╗úc ─æß╗ông bß╗Ö h├│a thß╗¥i
+-              gian thß╗▒c (Real-time syncing).
+-         ΓùïΓÇï Giß║ú ─æß╗ïnh: C├íc th├ánh vi├¬n trong nh├│m c├│ sß╗▒ ─æß╗ông thuß║¡n c╞í bß║ún vß╗ü viß╗çc sß╗¡
+-              dß╗Ñng chung mß╗Öt nß╗ün tß║úng.
+-
+-ΓùÅΓÇï C├íc use case c├│ thß╗â c├│: UC06: Thß║úo luß║¡n & Chß╗æt lß╗ïch tr├¼nh.
+-
+-4. Quß║ún trß╗ï vi├¬n (System Admin)
+-
+-ΓùÅΓÇï Vai tr├▓ (Role): Ng╞░ß╗¥i vß║¡n h├ánh nß╗ün tß║úng.
+-ΓùÅΓÇï Quyß╗ün hß║ín (Right) & Phß║ím vi sß╗¡ dß╗Ñng t├¡nh n─âng:
+-
+-         ΓùïΓÇï Quß║ún l├╜ c╞í sß╗ƒ dß╗» liß╗çu ─æß╗ïa ─æiß╗âm du lß╗ïch (CRUD - Tß║ío, ─Éß╗ìc, Cß║¡p nhß║¡t, X├│a).
+-         ΓùïΓÇï Quß║ún l├╜ danh mß╗Ñc bß╗Ö lß╗ìc (Tags/Categories).
+-         ΓùïΓÇï Quß║ún l├╜ t├ái khoß║ún ng╞░ß╗¥i d├╣ng (Kh├│a/Mß╗ƒ kh├│a).
+-         ΓùïΓÇï Xem b├ío c├ío thß╗æng k├¬ v├á log hß╗ç thß╗æng.
+-ΓùÅΓÇï C├íc r├áng buß╗Öc v├á giß║ú ─æß╗ïnh c├│ thß╗â c├│:
+-         ΓùïΓÇï R├áng buß╗Öc: Trang quß║ún trß╗ï (Admin Panel) phß║úi ─æ╞░ß╗úc t├ích biß╗çt ho├án to├án, y├¬u
+-
+-              cß║ºu x├íc thß╗▒c 2 lß╗¢p (2FA). Mß╗ìi thay ─æß╗òi dß╗» liß╗çu phß║úi ─æ╞░ß╗úc ghi log.
+-         ΓùïΓÇï Giß║ú ─æß╗ïnh: ─Éß╗Öi ng┼⌐ Admin c├│ kiß║┐n thß╗⌐c c╞í bß║ún vß╗ü vß║¡n h├ánh hß╗ç thß╗æng.
+-ΓùÅΓÇï C├íc use case c├│ thß╗â c├│: UC07: Quß║ún l├╜ T├ái khoß║ún ng╞░ß╗¥i d├╣ng, UC08:
+-    Quß║ún l├╜ Dß╗» liß╗çu ─Éß╗ïa ─æiß╗âm (POI).
+-ΓùÅΓÇï
+-
+-PHß║ªN 2: M├ö Tß║ó CHI TIß║╛T USE CASE
+-TRß╗îNG T├éM
+-
+-D╞░ß╗¢i ─æ├óy l├á m├┤ tß║ú chi tiß║┐t cho 3 use case ─æß║íi diß╗çn cho c├íc nh├│m kh├íc nhau:
+-
+-1. Use Case 1: T├¼m kiß║┐m & Lß╗ìc ─æß╗ïa ─æiß╗âm (UC01)
+-
+-Hß║íng mß╗Ñc          M├┤ tß║ú chi tiß║┐t
+-
+-─Éiß╗üu kiß╗çn xß║úy ra  Ng╞░ß╗¥i d├╣ng (Guest hoß║╖c User) ─æang ß╗ƒ giao diß╗çn "Kh├ím ph├í"
+-                  hoß║╖c giao diß╗çn chß╗ënh sß╗¡a Timeline.
+-
+-Mß╗⌐c ─æß╗Ö quan t├óm cß╗ºa Rß║Ñt cao (l├á t├¡nh n─âng cß╗æt l├╡i).
+-t├íc nh├ón
+-Dß╗» liß╗çu v├áo v├á ra  V├áo: Tß╗½ kh├│a (t├╣y chß╗ìn), vß╗ï tr├¡ (GPS/Tß╗▒ nhß║¡p), c├íc tag bß╗Ö lß╗ìc
+-                   (ng├ón s├ích, loß║íi h├¼nh, giß╗¥ mß╗ƒ cß╗¡a).
+-
+-                                  Ra: Danh s├ích c├íc ─æß╗ïa ─æiß╗âm khß╗¢p ─æiß╗üu kiß╗çn, ghim tr├¬n bß║ún ─æß╗ô.
+-
+-C├íc rß╗ºi ro c├│ thß╗â ph├ít Bi├¬n (edge): Kh├┤ng t├¼m thß║Ñy ─æß╗ïa ─æiß╗âm n├áo khß╗¢p ─æiß╗üu kiß╗çn.
+-sinh
+-
+-                   G├│c (corner): API bß║ún ─æß╗ô bß╗ï lß╗ùi, dß╗» liß╗çu ─æß╗ïa ─æiß╗âm bß╗ï c┼⌐ (giß╗¥ mß╗ƒ
+-                   cß╗¡a sai).
+-
+-C├íc r├áng buß╗Öc ─æß╗æi  Dß╗» liß╗çu ─æß║ºu v├áo: Kh├┤ng nhß║íy cß║úm nh╞░ng c├│ thß╗â bß║»t buß╗Öc (v├¡ dß╗Ñ:
+-vß╗¢i dß╗» liß╗çu        cß║ºn c├│ vß╗ï tr├¡).
+-
+-                   Dß╗» liß╗çu ─æß║ºu ra: C├┤ng khai, c├│ thß╗â thu nhß║¡n tß╗½ API b├¬n thß╗⌐ ba.
+-
+-2. Use Case 2: T╞░╞íng t├íc & Biß╗âu quyß║┐t nh├│m (UC06)
+-
+-Hß║íng mß╗Ñc           M├┤ tß║ú chi tiß║┐t
+-
+-─Éiß╗üu kiß╗çn xß║úy ra   Mß╗Öt nh├│m du lß╗ïch ─æ├ú ─æ╞░ß╗úc tß║ío, ─æ├ú c├│ ─æß╗ü xuß║Ñt ─æß╗ïa ─æiß╗âm tß╗½ th├ánh
+-                   vi├¬n.
+-
+-Mß╗⌐c ─æß╗Ö quan t├óm    Cao (giß║úi quyß║┐t xung ─æß╗Öt ├╜ kiß║┐n).
+-cß╗ºa t├íc nh├ón
+-Dß╗» liß╗çu v├áo v├á ra  V├áo: ID nh├│m, ID ng╞░ß╗¥i d├╣ng, ID ─æß╗ïa ─æiß╗âm ─æß╗ü xuß║Ñt, loß║íi t╞░╞íng t├íc
+-                   (thß║ú like/tim, comment).
+-
+-                   Ra: Cß║¡p nhß║¡t sß╗æ l╞░ß╗úng vote thß╗¥i gian thß╗▒c, timeline ch├¡nh ─æ╞░ß╗úc
+-                   cß║¡p nhß║¡t (nß║┐u chß╗æt).
+-
+-C├íc rß╗ºi ro c├│ thß╗â  Bi├¬n (edge): ─Éß╗ông thß╗¥i nhiß╗üu ng╞░ß╗¥i c├╣ng vote g├óy xung ─æß╗Öt dß╗»
+-ph├ít sinh          liß╗çu.
+-
+-                   G├│c (corner): Spam t╞░╞íng t├íc ß║úo, mß║Ñt kß║┐t nß╗æi internet khi ─æang
+-                   ─æß╗ông bß╗Ö dß╗» liß╗çu.
+-
+-C├íc r├áng buß╗Öc ─æß╗æi Dß╗» liß╗çu vß╗ü vote: L├á bß║»t buß╗Öc ─æß╗â ra quyß║┐t ─æß╗ïnh. ID nh├│m v├á User l├á
+-
+-vß╗¢i dß╗» liß╗çu        nhß║íy cß║úm. Dß╗» liß╗çu c├│ thß╗â ─æ╞░ß╗úc tß║ío ra v├á thay ─æß╗òi.
+-
+-3. Use Case 3: Quß║ún l├╜ Dß╗» liß╗çu ─Éß╗ïa ─æiß╗âm - POI (UC08)
+-
+-Hß║íng mß╗Ñc           M├┤ tß║ú chi tiß║┐t
+-
+-─Éiß╗üu kiß╗çn xß║úy ra   Quß║ún trß╗ï vi├¬n ─æ├ú ─æ─âng nhß║¡p t├ái khoß║ún c├│ thß║⌐m quyß╗ün v├á v├áo trang
+-                   quß║ún trß╗ï POI.
+-
+-Mß╗⌐c ─æß╗Ö quan t├óm    Trung b├¼nh - Cao (duy tr├¼ chß║Ñt l╞░ß╗úng dß╗» liß╗çu).
+-cß╗ºa t├íc nh├ón
+-
+-Dß╗» liß╗çu v├áo v├á ra  V├áo: ID ─æß╗ïa ─æiß╗âm cß║ºn sß╗¡a, th├┤ng tin mß╗¢i (t├¬n, m├┤ tß║ú, giß╗¥ ─æ├│ng
+-                   cß╗¡a, tag mß╗¢i...).
+-                   Ra: Th├┤ng tin ─æß╗ïa ─æiß╗âm ─æ╞░ß╗úc cß║¡p nhß║¡t trong c╞í sß╗ƒ dß╗» liß╗çu.
+-
+-C├íc rß╗ºi ro c├│ thß╗â  Bi├¬n (edge): Nhß║¡p sai th├┤ng tin (v├¡ dß╗Ñ: giß╗¥ ─æ├│ng cß╗¡a l├á 25:00).
+-ph├ít sinh
+-
+-                   G├│c (corner): Database bß╗ï lß╗ùi khi ─æang l╞░u, x├│a nhß║ºm dß╗» liß╗çu ─æß╗ïa
+-                   ─æiß╗âm quan trß╗ìng.
+-
+-C├íc r├áng buß╗Öc ─æß╗æi  Th├┤ng tin cß║¡p nhß║¡t phß║úi ch├¡nh x├íc (bß║»t buß╗Öc). Admin ID l├á nhß║íy
+-vß╗¢i dß╗» liß╗çu        cß║úm. Dß╗» liß╗çu l├á dß╗» liß╗çu gß╗æc cß╗ºa hß╗ç thß╗æng.
+-
+-4. Use Case 4: Quß║ún l├╜ Lß╗Ö tr├¼nh / Timeline chuyß║┐n ─æi (UC04)
+-
+-─É├óy l├á Use Case cß╗æt l├╡i nhß║Ñt cß╗ºa ß╗⌐ng dß╗Ñng (Core feature), n╞íi ng╞░ß╗¥i d├╣ng thß╗▒c sß╗▒ thao t├íc
+-sß║»p xß║┐p chuyß║┐n ─æi.
+-
+-Hß║íng mß╗Ñc           M├┤ tß║ú chi tiß║┐t
+-
+-─Éiß╗üu kiß╗çn xß║úy      Ng╞░ß╗¥i d├╣ng ─æ├ú ─æ─âng nhß║¡p v├á ─æ├ú tß║ío mß╗Öt chuyß║┐n ─æi (c├│ thiß║┐t lß║¡p ng├áy
+-ra                 bß║»t ─æß║ºu/kß║┐t th├║c).
+-
+-Mß╗⌐c ─æß╗Ö quan        Rß║Ñt cao (Tß║ºn suß║Ñt sß╗¡ dß╗Ñng nhiß╗üu nhß║Ñt).
+-t├óm cß╗ºa t├íc
+-nh├ón
+-
+-Dß╗» liß╗çu v├áo v├á V├áo: H├ánh ─æß╗Öng k├⌐o-thß║ú (Drag & Drop) ─æß╗ïa ─æiß╗âm, cß║¡p nhß║¡t giß╗¥ ─æß║┐n/─æi,
+-
+-ra                 ghi ch├║ c├í nh├ón cho ─æß╗ïa ─æiß╗âm ─æ├│.
+-
+-                   Ra: Lß╗ïch tr├¼nh chi tiß║┐t tß╗½ng ng├áy, ─æ╞░ß╗¥ng ─æi tr├¬n bß║ún ─æß╗ô ─æ╞░ß╗úc vß║╜ lß║íi,
+-                   tß╗òng thß╗¥i gian & qu├úng ─æ╞░ß╗¥ng di chuyß╗ân tß╗▒ ─æß╗Öng cß║¡p nhß║¡t.
+-C├íc rß╗ºi ro c├│   Bi├¬n (edge): Ng╞░ß╗¥i d├╣ng ─æß║╖t 2 ─æß╗ïa ─æiß╗âm ß╗ƒ c├ích xa nhau 50km nh╞░ng
+-thß╗â ph├ít sinh   khoß║úng c├ích thß╗¥i gian giß╗»a 2 mß╗æc chß╗ë c├│ 15 ph├║t. Ng╞░ß╗¥i d├╣ng xß║┐p lß╗ïch
+-                tr├¼nh v╞░ß╗út qu├í 24h/ng├áy.
+-
+-                         G├│c (corner): Thao t├íc k├⌐o thß║ú qu├í nhanh v├á li├¬n tß╗Ñc g├óy lß╗ùi kh├┤ng
+-                         l╞░u kß╗ïp xuß╗æng Database (Race condition).
+-
+-C├íc r├áng buß╗Öc Thß╗¥i gian: Giß╗¥ ─æß║┐n phß║úi tr╞░ß╗¢c Giß╗¥ ─æi (Bß║»t buß╗Öc).
+-─æß╗æi vß╗¢i dß╗» liß╗çu
+-
+-                Vß╗ï tr├¡: Cß║ºn c├│ tß╗ìa ─æß╗Ö GPS ─æß╗â t├¡nh to├ín lß╗Ö tr├¼nh. Kh├┤ng chß╗⌐a dß╗» liß╗çu
+-                nhß║íy cß║úm.
+-
+-5. Use Case 5: Tß║ío v├á Quß║ún l├╜ Nh├│m du lß╗ïch (UC05)
+-
+-Use Case n├áy tß║ío ra t├¡nh "Viral" (lan truyß╗ün) cho ß╗⌐ng dß╗Ñng, thu h├║t th├¬m ng╞░ß╗¥i d├╣ng mß╗¢i
+-qua lß╗¥i mß╗¥i.
+-
+-Hß║íng mß╗Ñc        M├┤ tß║ú chi tiß║┐t
+-
+-─Éiß╗üu kiß╗çn xß║úy ra Tr╞░ß╗ƒng nh├│m (ng╞░ß╗¥i tß║ío chuyß║┐n ─æi) v├áo mß╗Ñc "Chia sß║╗/Th├ánh vi├¬n" ─æß╗â
+-                           mß╗¥i bß║ín b├¿.
+-
+-Mß╗⌐c ─æß╗Ö quan     Cao (Tß║ío ra gi├í trß╗ï cß╗æt l├╡i cho viß╗çc ─æi du lß╗ïch tß║¡p thß╗â).
+-t├óm cß╗ºa t├íc
+-nh├ón
+-
+-Dß╗» liß╗çu v├áo v├á  V├áo: Email hoß║╖c T├¬n t├ái khoß║ún ng╞░ß╗¥i ─æ╞░ß╗úc mß╗¥i, Quyß╗ün hß║ín cß║Ñp cho
+-ra              hß╗ì (V├¡ dß╗Ñ: "─É╞░ß╗úc chß╗ënh sß╗¡a" hoß║╖c "Chß╗ë xem").
+-                 Ra: Lß╗¥i mß╗¥i ─æ╞░ß╗úc gß╗¡i ─æi (Notification/Email), danh s├ích th├ánh vi├¬n
+-                 cß║¡p nhß║¡t sau khi hß╗ì bß║Ñm "Chß║Ñp nhß║¡n".
+-
+-C├íc rß╗ºi ro c├│ thß╗â Bi├¬n (edge): Mß╗¥i mß╗Öt email ch╞░a tß╗½ng ─æ─âng k├╜ t├ái khoß║ún (Hß╗ç thß╗æng
+-
+-ph├ít sinh        cß║ºn sinh ra luß╗ông: Mß╗¥i ─æ─âng k├╜ -> ─É─âng k├╜ xong tß╗▒ ─æß╗Öng v├áo nh├│m).
+-
+-                 G├│c (corner): Tr╞░ß╗ƒng nh├│m tß╗▒ tay "Kick" (x├│a) ch├¡nh m├¼nh ra khß╗Åi
+-                 nh├│m, khiß║┐n nh├│m trß╗ƒ th├ánh nh├│m "V├┤ chß╗º" (Orphaned Group).
+-
+-C├íc r├áng buß╗Öc    Email/S─ÉT l├á dß╗» liß╗çu nhß║íy cß║úm, phß║úi bß║úo mß║¡t. Email nhß║¡p v├áo phß║úi
+-─æß╗æi vß╗¢i dß╗» liß╗çu  ─æ├║ng ─æß╗ïnh dß║íng chuß║⌐n (Bß║»t buß╗Öc).
+-
+-6. Use Case 6: Quß║ún l├╜ T├ái khoß║ún Ng╞░ß╗¥i d├╣ng (UC07 - Nh├│m Admin)
+-
+-Use Case phß╗Ñc vß╗Ñ cho viß╗çc vß║¡n h├ánh, giß║úi quyß║┐t khiß║┐u nß║íi v├á bß║úo vß╗ç hß╗ç thß╗æng khß╗Åi ng╞░ß╗¥i
+-d├╣ng xß║Ñu (Spammer).
+-
+-Hß║íng mß╗Ñc         M├┤ tß║ú chi tiß║┐t
+-
+-─Éiß╗üu kiß╗çn xß║úy Admin ─æ─âng nhß║¡p t├ái khoß║ún cß║Ñp quß║ún l├╜, truy cß║¡p tab "Quß║ún l├╜ Ng╞░ß╗¥i
+-
+-ra               d├╣ng".
+-
+-Mß╗⌐c ─æß╗Ö quan Trung b├¼nh (Sß╗¡ dß╗Ñng khi c├│ sß╗▒ cß╗æ hoß║╖c ─æß╗ïnh kß╗│ kiß╗âm tra).
+-t├óm cß╗ºa t├íc
+-nh├ón
+-
+-Dß╗» liß╗çu v├áo      V├áo: ID ng╞░ß╗¥i d├╣ng, H├ánh ─æß╗Öng cß║ºn thß╗▒c thi (Kh├│a/Mß╗ƒ kh├│a/Cß║únh c├ío),
+-v├á ra            L├╜ do xß╗¡ l├╜.
+-
+-                 Ra: Trß║íng th├íi t├ái khoß║ún thay ─æß╗òi (Active -> Banned), session (phi├¬n ─æ─âng
+-                 nhß║¡p) cß╗ºa ng╞░ß╗¥i d├╣ng ─æ├│ bß╗ï ├⌐p ─æ─âng xuß║Ñt.
+-C├íc rß╗ºi ro c├│ Bi├¬n (edge): Kh├│a nhß║ºm t├ái khoß║ún cß╗ºa mß╗Öt Admin kh├íc ─æang hoß║ít ─æß╗Öng.
+-thß╗â ph├ít sinh
+-
+-              G├│c (corner): Khi x├│a mß╗Öt t├ái khoß║ún, c├íc chuyß║┐n ─æi m├á ng╞░ß╗¥i ─æ├│ l├ám
+-              "Tr╞░ß╗ƒng nh├│m" bß╗ï mß║Ñt dß╗» liß╗çu, ß║únh h╞░ß╗ƒng ─æß║┐n c├íc th├ánh vi├¬n kh├íc ─æang
+-              d├╣ng chung. (C├ích xß╗¡ l├╜: Chuyß╗ân quyß╗ün tr╞░ß╗ƒng nh├│m tr╞░ß╗¢c khi x├│a).
+-
+-C├íc r├áng      Dß╗» liß╗çu th├┤ng tin c├í nh├ón cß╗ºa User l├á Cß╗▒c kß╗│ nhß║íy cß║úm. Hß╗ç thß╗æng
+-buß╗Öc ─æß╗æi vß╗¢i  kh├┤ng bao giß╗¥ ─æ╞░ß╗úc ph├⌐p hiß╗ân thß╗ï Password cß╗ºa user cho Admin xem.
+-dß╗» liß╗çu       Phß║úi ghi Log (nhß║¡t k├╜) mß╗ìi thao t├íc cß╗ºa Admin ─æß╗â audit (kiß╗âm to├ín) sau
+-              n├áy.
+-
+diff --git a/data_architecture_security_report.md b/data_architecture_security_report.md
+deleted file mode 100644
+index 6ee4229..0000000
+--- a/data_architecture_security_report.md
++++ /dev/null
+@@ -1,81 +0,0 @@
+-# ─Éß╗ü Xuß║Ñt Kiß║┐n Tr├║c Dß╗» Liß╗çu & Bß║úo Mß║¡t Hß╗ç Thß╗æng Vietjourney
+-
+-> [!NOTE]
+-> T├ái liß╗çu n├áy tr├¼nh b├áy c├íc ─æß╗ü xuß║Ñt thiß║┐t kß║┐ kiß║┐n tr├║c dß╗» liß╗çu v├á bß║úo mß║¡t tß╗òng thß╗â cho hß╗ç thß╗æng Vietjourney, nhß║▒m ─æß╗ïnh h╞░ß╗¢ng ph├ít triß╗ân to├án diß╗çn v├á bß╗ün vß╗»ng cho tß║Ñt cß║ú c├íc ph├ón hß╗ç t├¡nh n─âng cß╗ºa dß╗▒ ├ín.
+-
+-## 1. ─Éß╗ü xuß║Ñt quy hoß║ích dß╗» liß╗çu l╞░u trß╗» l├óu d├ái (Persistent Data)
+-
+-Dß╗» liß╗çu l╞░u trß╗» l├óu d├ái cß╗ºa hß╗ç thß╗æng l├á nhß╗»ng dß╗» liß╗çu cß╗æt l├╡i ─æ├│ng vai tr├▓ duy tr├¼ trß║íng th├íi, nghiß╗çp vß╗Ñ cß╗ºa ß╗⌐ng dß╗Ñng v├á lß╗ïch sß╗¡ hoß║ít ─æß╗Öng cß╗ºa ng╞░ß╗¥i d├╣ng. ─Éß╗â ─æß║úm bß║úo t├¡nh mß╗ƒ rß╗Öng, ch├║ng t├┤i ─æß╗ü xuß║Ñt ph├ón bß╗ò c├íc nh├│m dß╗» liß╗çu n├áy v├áo c├íc domain ch├¡nh sau:
+-
+-### A. Domain Quß║ún L├╜ Ng╞░ß╗¥i D├╣ng & Ph├ón Quyß╗ün (`backend-feature-auth`)
+-- **User Profile:** Th├┤ng tin ─æß╗ïnh danh cß╗ºa ng╞░ß╗¥i d├╣ng (ID, username, displayName). ─Éß╗ü xuß║Ñt quß║ún l├╜ tß║¡p trung qua model `User`.
+-- **Role & Permission:** C├íc vai tr├▓ v├á quyß╗ün hß║ín thao t├íc tr├¬n hß╗ç thß╗æng. Cß║ºn ─æ╞░ß╗úc thiß║┐t kß║┐ qua model `Role` v├á `Permission` ─æß╗â hß╗ù trß╗ú RBAC (Role-Based Access Control).
+-- **Session & Security:** Trß║íng th├íi ─æ─âng nhß║¡p v├á danh s├ích c├íc token ─æ├ú bß╗ï thu hß╗ôi/hß║┐t hß║ín nhß║▒m ng─ân chß║╖n Replay Attack. ─Éß╗ü xuß║Ñt theo d├╡i qua model `InvalidatedToken`.
+-
+-### B. Domain Quß║ún L├╜ H├ánh Tr├¼nh (`backend-feature-timeline`)
+-─É├óy sß║╜ l├á trung t├óm nghiß╗çp vß╗Ñ cß╗ºa hß╗ç thß╗æng, chuy├¬n l╞░u trß╗» dß╗» liß╗çu li├¬n quan ─æß║┐n c├íc chuyß║┐n ─æi.
+-- **Timeline:** Th├┤ng tin tß╗òng quan cß╗ºa mß╗Öt chuyß║┐n ─æi (Ti├¬u ─æß╗ü, m├┤ tß║ú, ng├áy bß║»t ─æß║ºu/kß║┐t th├║c, trß║íng th├íi hiß╗ân thß╗ï). Thiß║┐t kß║┐ cß╗æt l├╡i qua model `Timeline`.
+-- **Timeline Event:** C├íc ─æiß╗âm ─æß║┐n, sß╗▒ kiß╗çn hoß║╖c lß╗ïch tr├¼nh chi tiß║┐t diß╗àn ra trong chuyß║┐n ─æi. Quß║ún l├╜ qua model `TimelineEvent`.
+-- **Timeline Member:** Danh s├ích c├íc th├ánh vi├¬n c├╣ng tham gia hoß║╖c ─æ╞░ß╗úc chia sß║╗ h├ánh tr├¼nh. ─É╞░ß╗úc l╞░u trß╗» th├┤ng qua `TimelineMember`.
+-
+-### C. Domain Giao Tiß║┐p & Thß╗¥i Gian Thß╗▒c (`chat-service` & `timeline-websocket`)
+-- **Chat Room & Member:** Cß║ºn x├óy dß╗▒ng cß║Ñu tr├║c c├íc ph├▓ng chat (nh├│m hoß║╖c c├í nh├ón) li├¬n kß║┐t chß║╖t chß║╜ vß╗¢i c├íc Timeline cß╗Ñ thß╗â.
+-- **Chat Message:** Nß╗Öi dung tin nhß║»n, thß╗¥i gian gß╗¡i, v├á trß║íng th├íi ─æ├ú ─æß╗ìc/ch╞░a ─æß╗ìc cß╗ºa c├íc th├ánh vi├¬n trong h├ánh tr├¼nh.
+-- **Websocket Session:** ─Éß╗ü xuß║Ñt theo d├╡i trß║íng th├íi online/offline cß╗ºa ng╞░ß╗¥i d├╣ng ─æß╗â hß╗ù trß╗ú c├íc phi├¬n l├ám viß╗çc thß╗¥i gian thß╗▒c mß╗Öt c├ích tß╗æi ╞░u.
+-
+-### D. Domain Th├┤ng B├ío Hß╗ç Thß╗æng (`backend-feature-notification`)
+-- **Notification History:** Hß╗ç thß╗æng cß║ºn l╞░u trß╗» lß╗ïch sß╗¡ c├íc th├┤ng b├ío hß╗ç thß╗æng, lß╗¥i mß╗¥i tham gia h├ánh tr├¼nh v├á cß║únh b├ío thay ─æß╗òi lß╗ïch tr├¼nh.
+-- **Device & Push Tokens:** Cß║ºn x├óy dß╗▒ng bß║úng l╞░u trß╗» c├íc m├ú token cß╗ºa thiß║┐t bß╗ï (FCM/APNs) ─æß╗â phß╗Ñc vß╗Ñ viß╗çc ─æß║⌐y th├┤ng b├ío Push Notification tß╗¢i ─æiß╗çn thoß║íi/tr├¼nh duyß╗çt ng╞░ß╗¥i d├╣ng.
+-- **Notification Preferences:** Cß║Ñu h├¼nh t├╣y chß╗ìn nhß║¡n th├┤ng b├ío cß╗ºa tß╗½ng ng╞░ß╗¥i d├╣ng (bß║¡t/tß║»t th├┤ng b├ío qua email, push, in-app).
+-
+-### E. Domain Bß╗Ö Lß╗ìc & Gß╗úi ├¥ C├í Nh├ón H├│a (`backend-feature-filter` & `backend-feature-recommendation-history`)
+-- **Place/Location Directory (Danh mß╗Ñc ─æß╗ïa ─æiß╗âm):** Dß╗» liß╗çu ─æß╗ïnh danh c├íc ─æß╗ïa ─æiß╗âm du lß╗ïch (tß╗ìa ─æß╗Ö GPS, danh mß╗Ñc, ─æ├ính gi├í, metadata). ─Éß╗ü xuß║Ñt x├óy dß╗▒ng nh╞░ mß╗Öt kho dß╗» liß╗çu trung t├óm (Master Data) ─æß╗â c├íc t├¡nh n─âng bß╗Ö lß╗ìc v├á AI so khß╗¢p, t├¼m kiß║┐m, ─æ╞░a ra c├íc gß╗úi ├╜ ph├╣ hß╗úp.
+-- **Search & Filter Criteria:** Cß║ºn ghi nhß║¡n lß╗ïch sß╗¡ c├íc bß╗Ö lß╗ìc ─æß╗ïa ─æiß╗âm, ti├¬u ch├¡ t├¼m kiß║┐m (gi├í cß║ú, loß║íi h├¼nh du lß╗ïch) m├á ng╞░ß╗¥i d├╣ng th╞░ß╗¥ng xuy├¬n sß╗¡ dß╗Ñng.
+-- **Interaction Log:** Ghi ch├⌐p dß╗» liß╗çu h├ánh vi ng╞░ß╗¥i d├╣ng (click, xem chi tiß║┐t ─æß╗ïa ─æiß╗âm, thß╗¥i gian dß╗½ng lß║íi ß╗ƒ mß╗ùi ─æß╗ïa ─æiß╗âm).
+-- **User Preferences (Sß╗ƒ th├¡ch):** X├óy dß╗▒ng hß╗ô s╞í sß╗ƒ th├¡ch du lß╗ïch tß╗½ lß╗ïch sß╗¡ t╞░╞íng t├íc, l├ám dß╗» liß╗çu ─æß║ºu v├áo (Features) cho c├íc thuß║¡t to├ín gß╗úi ├╜ AI/Machine Learning sau n├áy.
+-
+----
+-
+-## 2. ─Éß╗ü xuß║Ñt quy chuß║⌐n bß║úo mß║¡t dß╗» liß╗çu (Sensitive/Confidential Data)
+-
+-Hß╗ç thß╗æng Vietjourney sß║╜ tiß║┐p nhß║¡n v├á xß╗¡ l├╜ rß║Ñt nhiß╗üu th├┤ng tin nhß║íy cß║úm. Viß╗çc r├▓ rß╗ë c├íc th├┤ng tin n├áy c├│ thß╗â dß║½n ─æß║┐n viß╗çc chiß║┐m quyß╗ün ─æiß╗üu khiß╗ân hß╗ç thß╗æng hoß║╖c vi phß║ím quyß╗ün ri├¬ng t╞░ cß╗ºa ng╞░ß╗¥i d├╣ng. Ch├║ng t├┤i ─æß╗ü xuß║Ñt c├íc ti├¬u chuß║⌐n bß║úo mß║¡t sau cho c├íc loß║íi dß╗» liß╗çu nhß║íy cß║úm:
+-
+-### A. Dß╗» liß╗çu ─æß╗ïnh danh v├á quyß╗ün ri├¬ng t╞░ c├í nh├ón (PII & User Privacy)
+-- **Mß║¡t khß║⌐u ng╞░ß╗¥i d├╣ng:** Dß╗» liß╗çu nhß║íy cß║úm nhß║Ñt, sß║╜ ─æ╞░ß╗úc tiß║┐p nhß║¡n qua API ─æ─âng k├╜/─æ─âng nhß║¡p v├á bß║»t buß╗Öc phß║úi ─æ╞░ß╗úc m├ú h├│a tr╞░ß╗¢c khi l╞░u trß╗».
+-- **Nß╗Öi dung tin nhß║»n (Chat Messages):** Dß╗» liß╗çu trao ─æß╗òi c├í nh├ón v├á nß╗Öi bß╗Ö nh├│m. Viß╗çc r├▓ rß╗ë nß╗Öi dung chat vi phß║ím nghi├¬m trß╗ìng quyß╗ün ri├¬ng t╞░ n├¬n cß║ºn c╞í chß║┐ kiß╗âm so├ít truy cß║¡p nghi├¬m ngß║╖t.
+-- **Lß╗ïch sß╗¡ di chuyß╗ân / Quyß╗ün ri├¬ng t╞░ Timeline:** Trß║íng th├íi `Visibility` cß╗ºa Timeline x├íc ─æß╗ïnh chuyß║┐n ─æi l├á c├┤ng khai hay nß╗Öi bß╗Ö. Viß╗çc kiß╗âm tra quyß╗ün truy cß║¡p l├á bß║»t buß╗Öc ─æß╗â tr├ính lß╗Ö lß╗ìt dß╗» liß╗çu c├íc Timeline c├í nh├ón (Private).
+-- **Lß╗ïch sß╗¡ t├¼m kiß║┐m & Sß╗ƒ th├¡ch du lß╗ïch:** Dß╗» liß╗çu n├áy phß╗Ñc vß╗Ñ AI Recommendation nh╞░ng c├│ thß╗â tiß║┐t lß╗Ö t├¼nh trß║íng t├ái ch├¡nh v├á xu h╞░ß╗¢ng c├í nh├ón. Y├¬u cß║ºu phß║úi ─æ╞░ß╗úc ß║⌐n danh h├│a trong qu├í tr├¼nh huß║Ñn luyß╗çn m├┤ h├¼nh.
+-
+-### B. Dß╗» liß╗çu hß║í tß║ºng v├á ─æß╗ïnh danh thiß║┐t bß╗ï
+-- **Device Push Tokens:** C├íc token d├╣ng ─æß╗â gß╗¡i th├┤ng b├ío. Cß║ºn ─æ╞░ß╗úc bß║úo vß╗ç ─æß╗â tr├ính viß╗çc kß║╗ gian lß╗úi dß╗Ñng spam th├┤ng b├ío lß╗½a ─æß║úo (phishing) trß╗▒c tiß║┐p ─æß║┐n thiß║┐t bß╗ï ng╞░ß╗¥i d├╣ng.
+-- **JSON Web Tokens (JWT):** Token d├╣ng ─æß╗â x├íc thß╗▒c c├íc request tß╗½ Client. Chß╗ë ─æ╞░ß╗úc truyß╗ün tß║úi qua c├íc k├¬nh bß║úo mß║¡t (HTTPS/WSS).
+-
+-### C. B├¡ mß║¡t hß╗ç thß╗æng (System Secrets & API Keys)
+-- **JWT Signer Key:** Kh├│a b├¡ mß║¡t d├╣ng ─æß╗â k├╜ v├á x├íc thß╗▒c t├¡nh to├án vß║╣n cß╗ºa Token. Bß║»t buß╗Öc quß║ún l├╜ qua Biß║┐n m├┤i tr╞░ß╗¥ng (Environment Variables) hoß║╖c Secret Vault.
+-- **Database Credentials:** T├¬n ─æ─âng nhß║¡p v├á mß║¡t khß║⌐u kß║┐t nß╗æi c╞í sß╗ƒ dß╗» liß╗çu (PostgreSQL, Redis). Kh├┤ng bao giß╗¥ ─æ╞░ß╗úc hardcode trong m├ú nguß╗ôn.
+-- **Third-party API Keys:** C├íc API key t├¡ch hß╗úp dß╗ïch vß╗Ñ b├¬n thß╗⌐ 3 (Firebase Cloud Messaging, Maps API) phß║úi ─æ╞░ß╗úc l╞░u trß╗» an to├án.
+-
+-### D. Luß╗ông xß╗¡ l├╜ th├┤ng tin nhß║íy cß║úm ─æß╗ü xuß║Ñt
+-- **Luß╗ông Auth (Java Spring Boot):** ─Éß╗ü xuß║Ñt sß╗¡ dß╗Ñng c├íc class thuß╗Öc `SecurityConfig` v├á `AuthService` ─æß╗â chuy├¬n tr├ích tiß║┐p nhß║¡n mß║¡t khß║⌐u ng╞░ß╗¥i d├╣ng tß╗½ frontend, thß╗▒c hiß╗çn b─âm v├á sinh ra JWT.
+-- **Luß╗ông Real-time & WebSocket:** Service proxy (`websocket-proxy`) sß║╜ nhß║¡n JWT tß╗½ Query Parameters hoß║╖c Header, thß╗▒c hiß╗çn giß║úi m├ú bß║▒ng `JWT_SIGNER_KEY` ─æß╗â quyß║┐t ─æß╗ïnh c├│ cho ph├⌐p ng╞░ß╗¥i d├╣ng subcribe v├áo c├íc channel Redis cß╗ºa `Timeline` hoß║╖c `Chat` hay kh├┤ng.
+-- **Luß╗ông Recommendation:** Y├¬u cß║ºu luß╗ông dß╗» liß╗çu t╞░╞íng t├íc ng╞░ß╗¥i d├╣ng phß║úi ─æ╞░ß╗úc ß║⌐n danh h├│a (anonymized) hoß║╖c m├ú h├│a phi ─æß╗ïnh danh tr╞░ß╗¢c khi ─æ╞░a v├áo kho dß╗» liß╗çu ph├ón t├¡ch.
+-
+----
+-
+-## 3. ─Éß╗ü xuß║Ñt kiß║┐n tr├║c l╞░u trß╗» v├á hß║í tß║ºng (Storage Methods)
+-
+-Nhß║▒m tß╗æi ╞░u h├│a hiß╗çu n─âng v├á ─æ├íp ß╗⌐ng ─æa dß║íng loß║íi h├¼nh h├¼nh dß╗» liß╗çu tß╗½ c├íc microservices, ch├║ng t├┤i ─æß╗ü xuß║Ñt ß╗⌐ng dß╗Ñng kiß║┐n tr├║c kß║┐t hß╗úp c├íc kho l╞░u trß╗» (Polyglot Persistence):
+-
+-### A. Cß║Ñu tr├║c Relational Database (PostgreSQL)
+-N├¬n ─æ╞░ß╗úc sß╗¡ dß╗Ñng l├ám "Source of Truth" l╞░u trß╗» to├án bß╗Ö Persistent Data mang t├¡nh cß║Ñu tr├║c v├á quan hß╗ç chß║╖t chß║╜.
+-- ─Éß║úm nhß║¡n quß║ún l├╜ c├íc giao dß╗ïch (Transactions) vß╗¢i t├¡nh to├án vß║╣n dß╗» liß╗çu cao (ACID) cho c├íc nghiß╗çp vß╗Ñ: Ph├ón quyß╗ün (`User`, `Role`), thiß║┐t lß║¡p nh├│m (`TimelineMember`), v├á quß║ún l├╜ th├┤ng b├ío.
+-- **Khuyß║┐n nghß╗ï cho Dev:** ─Éß╗æi vß╗¢i m├┤i tr╞░ß╗¥ng ph├ít triß╗ân (Dev), ─æß╗ü xuß║Ñt tiß║┐p tß╗Ñc sß╗¡ dß╗Ñng cß║Ñu h├¼nh fallback **H2 Database (In-memory)** giß║ú lß║¡p PostgreSQL ─æß╗â tß╗æi ╞░u tß╗æc ─æß╗Ö build v├á test nß╗Öi bß╗Ö.
+-
+-### B. In-memory Cache & Message Broker (Redis)
+-Redis n├¬n ─æ╞░ß╗úc sß╗¡ dß╗Ñng chuy├¬n s├óu l├ám x╞░╞íng sß╗æng cho c├íc kiß║┐n tr├║c ─æ├▓i hß╗Åi tß╗æc ─æß╗Ö si├¬u tß╗æc v├á xß╗¡ l├╜ ph├ón t├ín:
+-- **Pub/Sub cho Real-time:** ─Éß║úm nhß║¡n viß╗çc broadcast c├íc sß╗▒ kiß╗çn thay ─æß╗òi tr├¬n Timeline v├á tin nhß║»n Chat mß╗¢i tß╗½ Java Backend sang Go Proxy, sau ─æ├│ ─æß║⌐y xuß╗æng c├íc Client qua Websocket vß╗¢i ─æß╗Ö trß╗à tß╗æi thiß╗âu.
+-- **Session & Caching (Khuyß║┐n nghß╗ï mß╗ƒ rß╗Öng):** ─Éß╗ü xuß║Ñt ß╗⌐ng dß╗Ñng Redis ─æß╗â cache lß╗ïch sß╗¡ t├¼m kiß║┐m (`backend-feature-filter`) hoß║╖c danh s├ích Recommendation ─æ├ú ─æ╞░ß╗úc t├¡nh to├ín sß║╡n nhß║▒m giß║úm tß║úi cho Database ch├¡nh.
+-
+-### C. NoSQL/Document Storage cho dß╗» liß╗çu phi cß║Ñu tr├║c (Khuyß║┐n nghß╗ï t╞░╞íng lai)
+-─Éß╗â ─æ├íp ß╗⌐ng sß╗▒ mß╗ƒ rß╗Öng cß╗ºa `chat-service` v├á `backend-feature-recommendation-history`, hß╗ç thß╗æng cß║ºn chuß║⌐n bß╗ï cho viß╗çc xß╗¡ l├╜ khß╗æi l╞░ß╗úng lß╗¢n dß╗» liß╗çu phi cß║Ñu tr├║c hoß║╖c chuß╗ùi thß╗¥i gian (time-series).
+-- **L╞░u trß╗» Chat/Log:** C├íc hß╗ç thß╗æng RDBMS nh╞░ PostgreSQL c├│ thß╗â bß╗ï nghß║╜n khi khß╗æi l╞░ß╗úng tin nhß║»n v├á log t╞░╞íng t├íc t─âng ─æß╗Öt biß║┐n. Ch├║ng t├┤i ─æß╗ü xuß║Ñt kiß║┐n tr├║c trong t╞░╞íng lai n├¬n mß╗ƒ rß╗Öng sß╗¡ dß╗Ñng **MongoDB** hoß║╖c **Elasticsearch** ─æß╗â l╞░u trß╗» Chat History v├á User Logs nhß║▒m ─æß║úm bß║úo hiß╗çu n─âng tra cß╗⌐u.
+diff --git a/sequence_diagrams.md b/sequence_diagrams.md
+deleted file mode 100644
+index f54ce54..0000000
+--- a/sequence_diagrams.md
++++ /dev/null
+@@ -1,182 +0,0 @@
+-# L╞░ß╗úc ─æß╗ô tuß║ºn tß╗▒ (Sequence Diagrams) cho c├íc Use Cases
+-
+-Dß╗▒a tr├¬n t├ái liß╗çu `bao_cao_usergroup_usecase.pdf` v├á kiß║┐n tr├║c hiß╗çn tß║íi cß╗ºa dß╗▒ ├ín tr├¬n nh├ính `main`, d╞░ß╗¢i ─æ├óy l├á danh s├ích c├íc l╞░ß╗úc ─æß╗ô tuß║ºn tß╗▒ (Sequence Diagrams) sß╗¡ dß╗Ñng c├║ ph├íp Mermaid ─æß╗â hiß╗çn thß╗▒c h├│a c├íc Use Cases.
+-
+-## C├íc Components & Modules (Dß╗▒a tr├¬n nh├ính `main`):
+-- **Client**: ß╗¿ng dß╗Ñng Frontend (Web/App)
+-- **Spring Boot Backend**: Backend nguy├¬n khß╗æi (Monolith) xß╗¡ l├╜ ch├¡nh, bao gß╗ôm c├íc modules:
+-  - **Auth Module**: X├íc thß╗▒c v├á quß║ún l├╜ ng╞░ß╗¥i d├╣ng
+-  - **Place Module**: Quß║ún l├╜ dß╗» liß╗çu ─æß╗ïa ─æiß╗âm du lß╗ïch (POI)
+-  - **Timeline Module**: Quß║ún l├╜ lß╗ïch tr├¼nh, chuyß║┐n ─æi, v├á nh├│m du lß╗ïch
+-  - **Notification Module**: Xß╗¡ l├╜ gß╗¡i th├┤ng b├ío
+-- **Go WebSocket Proxy**: Tß║ºng proxy xß╗¡ l├╜ kß║┐t nß╗æi WebSocket thß╗¥i gian thß╗▒c (Chat, T╞░╞íng t├íc)
+-- **Database**: Hß╗ç quß║ún trß╗ï c╞í sß╗ƒ dß╗» liß╗çu PostgreSQL
+-- **Redis**: Bß╗Ö nhß╗¢ cache v├á hß╗ù trß╗ú Pub/Sub kß║┐t nß╗æi giß╗»a Go Proxy v├á Spring Boot
+-
+----
+-
+-## 1. UC01: T├¼m kiß║┐m & Lß╗ìc ─æß╗ïa ─æiß╗âm (Kh├ích v├úng lai & Th├ánh vi├¬n)
+-
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Client
+-    participant Place_Module as Spring Boot (Place Module)
+-    participant Redis
+-    participant Database
+-
+-    Client->>Place_Module: Gß╗¡i request t├¼m kiß║┐m (Tß╗½ kh├│a, Vß╗ï tr├¡, Tags)
+-    Place_Module->>Redis: Kiß╗âm tra Cache (nß║┐u c├│)
+-    alt Cache Hit
+-        Redis-->>Place_Module: Trß║ú vß╗ü dß╗» liß╗çu ─æß╗ïa ─æiß╗âm
+-    else Cache Miss
+-        Place_Module->>Database: Query ─æß╗ïa ─æiß╗âm theo ─æiß╗üu kiß╗çn
+-        Database-->>Place_Module: Trß║ú vß╗ü danh s├ích ─æß╗ïa ─æiß╗âm
+-        Place_Module->>Redis: L╞░u dß╗» liß╗çu v├áo Cache
+-    end
+-    Place_Module-->>Client: Trß║ú vß╗ü danh s├ích ─æß╗ïa ─æiß╗âm (JSON) v├á hiß╗ân thß╗ï tr├¬n bß║ún ─æß╗ô
+-```
+-
+----
+-
+-## 2. UC02 & UC03: ─É─âng nhß║¡p/─É─âng k├╜ & Tß║ío lß╗ïch tr├¼nh nh├íp
+-
+-### ─É─âng k├╜ / ─É─âng nhß║¡p
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Client
+-    participant Auth_Module as Spring Boot (Auth Module)
+-    participant Database
+-
+-    Client->>Auth_Module: Gß╗¡i th├┤ng tin ─É─âng nhß║¡p/─É─âng k├╜
+-    Auth_Module->>Database: X├íc thß╗▒c / Tß║ío mß╗¢i user
+-    Database-->>Auth_Module: Kß║┐t quß║ú (User ID, Role)
+-    Auth_Module-->>Client: Trß║ú vß╗ü Access Token (JWT)
+-```
+-
+-### Tß║ío lß╗ïch tr├¼nh nh├íp (Kh├ích v├úng lai)
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Client
+-    participant Local_Storage
+-
+-    Client->>Client: Tß║ío lß╗ïch tr├¼nh mß╗¢i
+-    Client->>Local_Storage: L╞░u lß╗ïch tr├¼nh nh├íp (Session/Local Storage)
+-    Local_Storage-->>Client: Cß║¡p nhß║¡t UI
+-    Note over Client, Local_Storage: Dß╗» liß╗çu sß║╜ mß║Ñt khi ─æ├│ng tr├¼nh duyß╗çt hoß║╖c hß║┐t phi├¬n
+-```
+-
+----
+-
+-## 3. UC04: Quß║ún l├╜ Lß╗Ö tr├¼nh / Timeline chuyß║┐n ─æi (Th├ánh vi├¬n c├í nh├ón)
+-
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Client
+-    participant Auth_Module as Spring Boot (Auth Module)
+-    participant Timeline_Module as Spring Boot (Timeline Module)
+-    participant Database
+-
+-    Client->>Timeline_Module: K├⌐o-thß║ú ─æß╗ïa ─æiß╗âm, cß║¡p nhß║¡t giß╗¥/ghi ch├║ (k├¿m Token)
+-    Timeline_Module->>Auth_Module: Validate Token (Internal Call)
+-    Auth_Module-->>Timeline_Module: Hß╗úp lß╗ç
+-    Timeline_Module->>Timeline_Module: T├¡nh to├ín tß╗òng thß╗¥i gian & qu├úng ─æ╞░ß╗¥ng
+-    Timeline_Module->>Database: L╞░u th├┤ng tin chi tiß║┐t Timeline
+-    Database-->>Timeline_Module: X├íc nhß║¡n l╞░u th├ánh c├┤ng
+-    Timeline_Module-->>Client: Trß║ú vß╗ü dß╗» liß╗çu Timeline mß╗¢i (Cß║¡p nhß║¡t UI)
+-```
+-
+----
+-
+-## 4. UC05: Tß║ío v├á Quß║ún l├╜ Nh├│m du lß╗ïch (Nh├│m du lß╗ïch)
+-
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Host (Tr╞░ß╗ƒng nh├│m)
+-    participant Timeline_Module as Spring Boot (Timeline Module)
+-    participant Notification_Module as Spring Boot (Notification Module)
+-    participant Database
+-
+-    Host->>Timeline_Module: Y├¬u cß║ºu tß║ío nh├│m & Mß╗¥i th├ánh vi├¬n (Email/Username)
+-    Timeline_Module->>Database: L╞░u th├┤ng tin nh├│m & Ph├ón quyß╗ün
+-    Database-->>Timeline_Module: X├íc nhß║¡n
+-    Timeline_Module->>Notification_Module: Y├¬u cß║ºu gß╗¡i lß╗¥i mß╗¥i (Internal Call)
+-    Notification_Module-->>Invitee (Ng╞░ß╗¥i ─æ╞░ß╗úc mß╗¥i): Gß╗¡i Notification / Email
+-    Invitee (Ng╞░ß╗¥i ─æ╞░ß╗úc mß╗¥i)->>Timeline_Module: Bß║Ñm "Chß║Ñp nhß║¡n"
+-    Timeline_Module->>Database: Cß║¡p nhß║¡t trß║íng th├íi th├ánh vi├¬n nh├│m
+-    Database-->>Timeline_Module: Cß║¡p nhß║¡t th├ánh c├┤ng
+-    Timeline_Module-->>Host: Th├┤ng b├ío th├ánh vi├¬n ─æ├ú tham gia
+-```
+-
+----
+-
+-## 5. UC06: T╞░╞íng t├íc & Biß╗âu quyß║┐t nh├│m (Real-time)
+-
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Member
+-    participant Go_Proxy as Go WebSocket Proxy
+-    participant Redis_PubSub as Redis Pub/Sub
+-    participant Timeline_Module as Spring Boot (Timeline Module)
+-    participant Database
+-    actor Other_Members
+-
+-    Member->>Go_Proxy: Gß╗¡i Vote / Comment (Qua WebSocket)
+-    Go_Proxy->>Redis_PubSub: Publish Event (Inbound Channel)
+-    
+-    par Xß╗¡ l├╜ bß║Ñt ─æß╗ông bß╗Ö
+-        Redis_PubSub->>Timeline_Module: Nhß║¡n Event tß╗½ Inbound
+-        Timeline_Module->>Database: L╞░u Vote / Comment v├áo DB
+-        Database-->>Timeline_Module: X├íc nhß║¡n
+-        Timeline_Module->>Redis_PubSub: Publish Event cß║¡p nhß║¡t (Outbound Channel)
+-    and Ph├ít trß╗▒c tiß║┐p (T├╣y cß║Ñu h├¼nh)
+-        Redis_PubSub->>Go_Proxy: Broadcast Event cho c├íc Client kh├íc trong nh├│m
+-    end
+-
+-    Go_Proxy-->>Other_Members: Cß║¡p nhß║¡t UI (Real-time syncing)
+-```
+-
+----
+-
+-## 6. UC07: Quß║ún l├╜ T├ái khoß║ún ng╞░ß╗¥i d├╣ng (System Admin)
+-
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Admin
+-    participant Auth_Module as Spring Boot (Auth Module)
+-    participant Database
+-
+-    Admin->>Auth_Module: Y├¬u cß║ºu Kh├│a/Mß╗ƒ kh├│a/X├│a t├ái khoß║ún (K├¿m l├╜ do)
+-    Auth_Module->>Auth_Module: Kiß╗âm tra quyß╗ün Admin
+-    Auth_Module->>Database: Cß║¡p nhß║¡t trß║íng th├íi User (Active -> Banned)
+-    Auth_Module->>Database: Ghi Log thao t├íc Admin (Audit)
+-    Database-->>Auth_Module: X├íc nhß║¡n
+-    Auth_Module-->>Admin: Hiß╗ân thß╗ï th├┤ng b├ío th├ánh c├┤ng
+-```
+-
+----
+-
+-## 7. UC08: Quß║ún l├╜ Dß╗» liß╗çu ─Éß╗ïa ─æiß╗âm - POI (System Admin)
+-
+-```mermaid
+-sequenceDiagram
+-    autonumber
+-    actor Admin
+-    participant Place_Module as Spring Boot (Place Module)
+-    participant Database
+-    participant Redis
+-
+-    Admin->>Place_Module: Tß║ío/Cß║¡p nhß║¡t/X├│a ─æß╗ïa ─æiß╗âm POI
+-    Place_Module->>Place_Module: Kiß╗âm tra quyß╗ün Admin
+-    Place_Module->>Database: Cß║¡p nhß║¡t dß╗» liß╗çu POI v├áo CSDL
+-    Database-->>Place_Module: Trß║íng th├íi cß║¡p nhß║¡t
+-    Place_Module->>Redis: X├│a / Cß║¡p nhß║¡t Cache li├¬n quan
+-    Place_Module->>Database: Ghi Log thay ─æß╗òi (Audit)
+-    Place_Module-->>Admin: Hiß╗ân thß╗ï cß║¡p nhß║¡t th├ánh c├┤ng tr├¬n Admin Panel
+-```

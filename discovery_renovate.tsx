@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { AlertCircle, CalendarRange, Clock, GripVertical, MapPin, RefreshCw, Search, Sparkles, Star, SlidersHorizontal, X } from 'lucide-react';
@@ -32,7 +32,6 @@ import { ApiError } from '../lib/api';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { onLocationImageError } from '../lib/imagePlaceholder';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
-import { useTimelineSocket } from '../hooks/useTimelineSocket';
 import {
   TIMETABLE_DAY_END_HOUR,
   TIMETABLE_DAY_START_HOUR,
@@ -48,38 +47,38 @@ type PriceFilter = 'all' | 'free' | 'budget' | 'mid' | 'premium';
 type SortFilter = 'relevance' | 'rating' | 'priceAsc' | 'priceDesc';
 
 const categoryFilterOptions: Array<{ value: CategoryFilter; label: string }> = [
-  { value: 'all', label: 'Tất cả loại hình' },
-  { value: 'food', label: 'Ẩm thực' },
-  { value: 'drink', label: 'Đồ uống' },
-  { value: 'activity', label: 'Trải nghiệm' },
+  { value: 'all', label: 'Tß║Ñt cß║ú loß║íi h├¼nh' },
+  { value: 'food', label: 'ß║¿m thß╗▒c' },
+  { value: 'drink', label: '─Éß╗ô uß╗æng' },
+  { value: 'activity', label: 'Trß║úi nghiß╗çm' },
 ];
 
 const minRatingOptions: Array<{ value: number; label: string }> = [
-  { value: 0, label: 'Mọi mức điểm' },
-  { value: 4, label: 'Từ 4.0 trở lên' },
-  { value: 4.5, label: 'Từ 4.5 trở lên' },
+  { value: 0, label: 'Mß╗ìi mß╗⌐c ─æiß╗âm' },
+  { value: 4, label: 'Tß╗½ 4.0 trß╗ƒ l├¬n' },
+  { value: 4.5, label: 'Tß╗½ 4.5 trß╗ƒ l├¬n' },
 ];
 
 const priceFilterOptions: Array<{ value: PriceFilter; label: string }> = [
-  { value: 'all', label: 'Mọi mức giá' },
-  { value: 'free', label: 'Miễn phí' },
-  { value: 'budget', label: 'Dưới 100K' },
+  { value: 'all', label: 'Mß╗ìi mß╗⌐c gi├í' },
+  { value: 'free', label: 'Miß╗àn ph├¡' },
+  { value: 'budget', label: 'D╞░ß╗¢i 100K' },
   { value: 'mid', label: '100K - 300K' },
-  { value: 'premium', label: 'Trên 300K' },
+  { value: 'premium', label: 'Tr├¬n 300K' },
 ];
 
 const sortFilterOptions: Array<{ value: SortFilter; label: string }> = [
-  { value: 'relevance', label: 'Phù hợp nhất' },
-  { value: 'rating', label: 'Đánh giá cao nhất' },
-  { value: 'priceAsc', label: 'Giá thấp đến cao' },
-  { value: 'priceDesc', label: 'Giá cao đến thấp' },
+  { value: 'relevance', label: 'Ph├╣ hß╗úp nhß║Ñt' },
+  { value: 'rating', label: '─É├ính gi├í cao nhß║Ñt' },
+  { value: 'priceAsc', label: 'Gi├í thß║Ñp ─æß║┐n cao' },
+  { value: 'priceDesc', label: 'Gi├í cao ─æß║┐n thß║Ñp' },
 ];
 const MAX_NEARBY_RECOMMENDATIONS = 20;
 const DISCOVERY_DRAG_TYPE = 'application/vnd.vietjourney.location-id';
 
 // Format VND currency
 const formatVND = (amount: number) => {
-  if (amount === 0) return 'Miễn phí';
+  if (amount === 0) return 'Miß╗àn ph├¡';
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND',
@@ -135,119 +134,6 @@ const dayLabel = (date: string) =>
     month: '2-digit',
   });
 
-const DiscoveryLocationCard = memo(({
-  location,
-  isSelected,
-  isDragged,
-  isNearby,
-  onDragStart,
-  onDragEnd,
-  onClick,
-  onOpenAdd,
-}: {
-  location: Location;
-  isSelected: boolean;
-  isDragged: boolean;
-  isNearby: boolean;
-  onDragStart: (location: Location, e: React.DragEvent<HTMLDivElement>) => void;
-  onDragEnd: () => void;
-  onClick: (location: Location) => void;
-  onOpenAdd: (location: Location) => void;
-}) => {
-  return (
-    <Card
-      data-place-id={location.id}
-      draggable
-      className={`group p-4 transition-all cursor-grab active:cursor-grabbing border ${isSelected
-          ? 'border-[var(--vj-accent)] shadow-lg ring-2 ring-[var(--vj-accent)]/20'
-          : 'border-slate-200 hover:border-[var(--vj-accent)]/50'
-        } ${isDragged
-          ? 'scale-[0.985] border-[var(--vj-accent)] bg-orange-50/70 opacity-75 shadow-2xl ring-2 ring-[var(--vj-accent)]/30'
-          : 'hover:-translate-y-0.5 hover:shadow-xl'
-        }`}
-      onDragStart={(e) => onDragStart(location, e)}
-      onDragEnd={onDragEnd}
-      onClick={() => onClick(location)}
-    >
-      <div className="flex gap-3 sm:gap-4">
-        <img
-          src={location.image}
-          alt={location.name}
-          className="h-24 w-24 shrink-0 rounded-xl object-cover shadow-sm sm:h-28 sm:w-28"
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="strict-origin-when-cross-origin"
-          onError={onLocationImageError}
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-base font-bold leading-snug text-[var(--vj-primary)] sm:text-lg">
-              {location.name}
-            </h3>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500 transition group-hover:bg-orange-100 group-hover:text-[var(--vj-accent)]">
-                <GripVertical className="h-3 w-3" />
-                Kéo
-              </span>
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                <span className="text-sm font-semibold text-slate-700">{location.rating}</span>
-              </div>
-            </div>
-          </div>
-          <p className="line-clamp-2 text-sm leading-relaxed text-slate-600">
-            {location.description}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {isNearby && (
-              <Badge className="border border-amber-200 bg-amber-100 text-[11px] text-amber-800 hover:bg-amber-200">
-                Gợi ý gần bạn
-              </Badge>
-            )}
-            <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
-              {location.weather === 'indoor' ? 'Trong nhà' : location.weather === 'outdoor' ? 'Ngoài trời' : 'Linh hoạt'}
-            </Badge>
-            <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
-              {location.vibe === 'quiet' ? 'Yên tĩnh' : location.vibe === 'vibrant' ? 'Sôi động' : 'Cân bằng'}
-            </Badge>
-            {location.recommendation?.district && (
-              <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
-                {location.recommendation.district}
-              </Badge>
-            )}
-          </div>
-          {location.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {location.tags.slice(0, 4).map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="secondary"
-                  className="rounded-full border-0 bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
-                >
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-          <div className="mt-0.5 flex flex-col gap-2 border-t border-slate-100 pt-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-sm font-bold text-[var(--vj-accent)]">{formatVND(location.price)}</span>
-            <Button
-              size="sm"
-              className="h-9 w-full shrink-0 rounded-full bg-[var(--vj-accent)] px-4 text-white hover:bg-[var(--vj-accent-2)] sm:w-auto"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenAdd(location);
-              }}
-            >
-              Thêm lịch trình
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-});
-
 export default function Discovery() {
   const [userCenter, setUserCenter] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle');
@@ -290,11 +176,10 @@ export default function Discovery() {
   const [realTimelines, setRealTimelines] = useState<any[]>([]);
   const [timetableItems, setTimetableItems] = useState<TimelineItem[]>([]);
   const [labelByLocationId, setLabelByLocationId] = useState<Record<string, string>>({});
-  const [tripMetadata, setTripMetadata] = useState<any>(null);
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const listCardsRef = useRef<HTMLDivElement>(null);
-
+  
   const [currentTripId, setCurrentTripId] = useLocalStorageState('vj:discovery:current-trip-id', () => getLastTripId('trip-1'));
 
   useEffect(() => {
@@ -318,20 +203,11 @@ export default function Discovery() {
   }, [isAuthenticated]);
 
   const tripId = currentTripId;
-  const isMockTrip = tripId === 'trip-1';
-
-  const isOwner = useMemo(() => {
-    if (!user || !tripMetadata || !tripMetadata.ownerId) return false;
-    return String(user.id) === String(tripMetadata.ownerId);
-  }, [user, tripMetadata]);
-
-  const token = getStoredToken();
-  const { lastMessage, sendProposal } = useTimelineSocket(tripId, token ?? null);
-  const [wsRefreshKey, setWsRefreshKey] = useState(0);
+  const isMockTrip = tripId === 'trip-1'; 
   const trip = useMemo(() => {
     if (!isMockTrip && realTimelines.length > 0) {
       const found = realTimelines.find(t => t.id === tripId);
-      if (found) return { ...found, destination: found.destination || 'Việt Nam', participants: [] };
+      if (found) return { ...found, destination: found.destination || 'Viß╗çt Nam', participants: [] };
     }
     return mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
   }, [tripId, isMockTrip, realTimelines]);
@@ -363,7 +239,7 @@ export default function Discovery() {
   const getTimetableLabel = (block: TimetableBlock) =>
     labelByLocationId[block.locationId] ||
     mockLocations.find((location) => location.id === block.locationId)?.name ||
-    'Hoạt động';
+    'Hoß║ít ─æß╗Öng';
 
   const baseLocations = useMemo(() => {
     if (catalogAttempted) return catalogLocations;
@@ -478,25 +354,6 @@ export default function Discovery() {
     );
   }, [baseLocations, draggedLocationId, filteredLocations]);
 
-  const [displayLimit, setDisplayLimit] = useState(20);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setDisplayLimit(20);
-  }, [filteredLocations]);
-
-  useEffect(() => {
-    const currentRef = loadMoreRef.current;
-    if (!currentRef) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setDisplayLimit((prev) => Math.min(prev + 20, filteredLocations.length));
-      }
-    }, { rootMargin: '400px' });
-    observer.observe(currentRef);
-    return () => observer.disconnect();
-  }, [filteredLocations.length, displayLimit]);
-
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setGpsStatus('unsupported');
@@ -599,7 +456,7 @@ export default function Discovery() {
         if (!cancelled) {
           setCatalogLocations([]);
           setCatalogError(
-            e instanceof ApiError ? e.message : 'Không tải được danh sách địa điểm từ máy chủ.'
+            e instanceof ApiError ? e.message : 'Kh├┤ng tß║úi ─æ╞░ß╗úc danh s├ích ─æß╗ïa ─æiß╗âm tß╗½ m├íy chß╗º.'
           );
         }
       } finally {
@@ -659,7 +516,7 @@ export default function Discovery() {
           setRecommendedLocations(null);
           setRecoFallback('error');
           setRecoErrorMessage(
-            e instanceof ApiError ? e.message : 'Không kết nối được máy chủ gợi ý.'
+            e instanceof ApiError ? e.message : 'Kh├┤ng kß║┐t nß╗æi ─æ╞░ß╗úc m├íy chß╗º gß╗úi ├╜.'
           );
         }
       } finally {
@@ -728,56 +585,48 @@ export default function Discovery() {
     setSelectedTagValues((prev) => prev.filter((x) => allow.has(x.toLowerCase())));
   }, [selectedTagGroup, selectedTagValues.length, availableTagValues, tagGroupOptions]);
 
-  const fetchTimeline = useCallback(async () => {
-    if (!tripId || tripId === 'undefined') {
-      setTimetableItems([]);
-      setLabelByLocationId({});
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
+    const token = getStoredToken();
 
-    let apiSuccess = false;
-    if (!isMockTrip && token) {
-      try {
-        const detail = await getTimelineDetail(tripId, token);
-        const mapped = mapApiTimelineToTimetable(detail);
-        setTimetableItems(mapped.items);
-        setLabelByLocationId(mapped.labelByLocationId);
-        setTripMetadata(mapped.tripMeta);
-        apiSuccess = true;
-      } catch (error) {
-        console.error('[Discovery] Failed to load timetable preview:', error);
+    void (async () => {
+      if (!tripId || tripId === 'undefined') {
+        setTimetableItems([]);
+        setLabelByLocationId({});
+        return;
       }
-    }
 
-    if (!apiSuccess) {
-      setTripMetadata((prev: any) => prev || {
-        ownerId: (realTimelines.find(t => t.id === tripId) as any)?.ownerId ?? null,
-        version: 1,
-      });
-      const stored = loadTripData(tripId);
-      const baseItems = stored?.timeline ?? mockTimeline;
-      setTimetableItems(baseItems);
-      setLabelByLocationId(
-        Object.fromEntries(
-          mockLocations.map((location) => [location.id, location.name])
-        )
-      );
-    }
-  }, [isMockTrip, tripId, token, realTimelines]);
+      if (!isMockTrip && token) {
+        try {
+          const detail = await getTimelineDetail(tripId, token);
+          if (cancelled) return;
+          const mapped = mapApiTimelineToTimetable(detail);
+          setTimetableItems(mapped.items);
+          setLabelByLocationId(mapped.labelByLocationId);
+          return;
+        } catch (error) {
+          console.error('[Discovery] Failed to load timetable preview:', error);
+        }
+      }
 
-  useEffect(() => {
-    fetchTimeline();
-  }, [fetchTimeline, wsRefreshKey]);
+      if (!cancelled) {
+        const stored = loadTripData(tripId);
+        const baseItems = stored?.timeline ?? mockTimeline;
+        setTimetableItems(baseItems);
+        setLabelByLocationId(
+          Object.fromEntries(
+            mockLocations.map((location) => [location.id, location.name])
+          )
+        );
+      }
+    })();
 
-  // Listen for WebSocket events to keep timetable in sync
-  useEffect(() => {
-    if (lastMessage) {
-      console.log('[Discovery] WS event received, refreshing timetable:', lastMessage.type);
-      setWsRefreshKey((k) => k + 1);
-    }
-  }, [lastMessage]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isMockTrip, tripId]);
 
-  const openAdd = useCallback((
+  const openAdd = (
     location: Location,
     defaults?: { date: string; startTime: string; endTime: string }
   ) => {
@@ -788,41 +637,7 @@ export default function Discovery() {
       endTime: '10:00',
     });
     setAddOpen(true);
-  }, [visibleDates, tripDates]);
-
-  const handleCardDragStart = useCallback((location: Location, event: React.DragEvent<HTMLDivElement>) => {
-    event.dataTransfer.setData(DISCOVERY_DRAG_TYPE, location.id);
-    event.dataTransfer.setData('text/plain', location.id);
-    event.dataTransfer.effectAllowed = 'copy';
-    
-    // Defer state updates to prevent React from synchronously mutating the DOM 
-    // before the browser fully initializes the native drag operation.
-    // This prevents the drag from being instantly aborted and leaving the state stuck.
-    setTimeout(() => {
-      setDraggedLocationId(location.id);
-      setSelectedLocationId(location.id);
-      setDropPreview(null);
-    }, 0);
-  }, [setDraggedLocationId, setSelectedLocationId, setDropPreview]);
-
-  const handleCardDragEnd = useCallback(() => {
-    setDraggedLocationId(null);
-    setDropPreview(null);
-  }, [setDraggedLocationId, setDropPreview]);
-
-  const handleCardClick = useCallback((location: Location) => {
-    setSelectedLocationId(location.id);
-    if (isAuthenticated) {
-      enqueueRecommendationInteraction({
-        ...buildInteractionBase(location),
-        eventType: 'CLICK',
-      });
-    }
-  }, [setSelectedLocationId, isAuthenticated]);
-
-  const handleCardOpenAdd = useCallback((location: Location) => {
-    openAdd(location);
-  }, [openAdd]);
+  };
 
   const toggleVisibleDate = (date: string) => {
     setVisibleDates((prev) => {
@@ -851,7 +666,7 @@ export default function Discovery() {
     };
   };
 
-  const handleTimetableDrop = async (date: string, event: DragEvent<HTMLDivElement>) => {
+  const handleTimetableDrop = (date: string, event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const locationId =
       event.dataTransfer.getData(DISCOVERY_DRAG_TYPE) ||
@@ -863,64 +678,7 @@ export default function Discovery() {
     const defaults = getDropDefaults(date, event.currentTarget, event.clientY);
     setDropPreview(null);
     setDraggedLocationId(null);
-    
-    if (isOwner && isAuthenticated && !isMockTrip && token) {
-      const rawCategory = inferCategoryFromLocation(location).toUpperCase();
-      const validCategories = ['FOOD', 'DRINK', 'ACTIVITY'];
-      const category = validCategories.includes(rawCategory) ? rawCategory : 'ACTIVITY';
-
-      let cleanExternalId = location.id;
-      if (cleanExternalId.includes(':')) {
-        const parts = cleanExternalId.split(':');
-        const lastPart = parts[parts.length - 1] ?? '';
-        if (/^\d+$/.test(lastPart) || /^[0-9a-f-]{8,}$/i.test(lastPart)) {
-          cleanExternalId = lastPart;
-        } else if (parts.length === 2 && parts[1]) {
-          cleanExternalId = parts[1];
-        }
-      }
-
-      if (!cleanExternalId.trim()) {
-        toast.error('ID địa điểm không hợp lệ');
-        return;
-      }
-
-      try {
-        const created = await addTimelineEvent(tripId, {
-          externalPlaceId: cleanExternalId,
-          category,
-          startTime: `${defaults.date}T${defaults.startTime}:00`,
-          endTime: `${defaults.date}T${defaults.endTime}:00`,
-          notes: '',
-          orderIndex: 0,
-          status: 'PLANNED',
-        }, token);
-        
-        setTimetableItems((prev) => [...prev, {
-          id: created.id || crypto.randomUUID(),
-          locationId: cleanExternalId,
-          startTime: defaults.startTime,
-          endTime: defaults.endTime,
-          date: defaults.date,
-          notes: '',
-          category,
-          lane: 0,
-          laneCount: 1
-        }]);
-        setLabelByLocationId((prev) => ({ ...prev, [cleanExternalId]: location.name }));
-        toast.success('Đã lưu trực tiếp vào lịch trình');
-        
-        enqueueRecommendationInteraction({
-          ...buildInteractionBase(location),
-          eventType: 'ADD_TO_TIMELINE',
-        });
-        void flushRecommendationInteractionQueue();
-      } catch (error: any) {
-        toast.error('Lỗi khi thêm hoạt động');
-      }
-    } else {
-      openAdd(location, defaults);
-    }
+    openAdd(location, defaults);
   };
 
   const clearAllFilters = () => {
@@ -949,51 +707,51 @@ export default function Discovery() {
         {/* Header */}
         <div className="p-[var(--vj-inset)] border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/90 via-[var(--vj-primary-2)]/80 to-[#0f4b68]/70 backdrop-blur-xl">
           <div className="flex items-center gap-4 mb-6">
-            <span className="text-4xl drop-shadow-md">🇻🇳</span>
+            <span className="text-4xl drop-shadow-md">≡ƒç╗≡ƒç│</span>
             <div>
-              <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-sm">Khám Phá Việt Nam</h1>
-              <p className="text-white/70 text-sm font-medium mt-1">Tìm kiếm trải nghiệm phù hợp với gu của bạn</p>
+              <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-sm">Kh├ím Ph├í Viß╗çt Nam</h1>
+              <p className="text-white/70 text-sm font-medium mt-1">T├¼m kiß║┐m trß║úi nghiß╗çm ph├╣ hß╗úp vß╗¢i gu cß╗ºa bß║ín</p>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-[11px] font-bold text-white/90 uppercase tracking-wider">
                   {trip.destination}
                 </span>
               </div>
               {catalogLoading && (
-                <p className="mt-2 text-xs font-bold text-white/60 animate-pulse">Đang đồng bộ dữ liệu…</p>
+                <p className="mt-2 text-xs font-bold text-white/60 animate-pulse">─Éang ─æß╗ông bß╗Ö dß╗» liß╗çuΓÇª</p>
               )}
               {!catalogLoading && catalogLocations.length > 0 && !recommendedLocations && (
                 <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold text-white/90 border border-white/10">
                   <MapPin className="size-3.5 text-emerald-400" />
-                  Dữ liệu thực tế từ API
+                  Dß╗» liß╗çu thß╗▒c tß║┐ tß╗½ API
                 </p>
               )}
               {isAuthenticated && !recoLoading && recommendedLocations && (
                 <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400/20 to-orange-400/20 px-4 py-1.5 text-xs font-bold text-white border border-amber-400/20">
                   <Sparkles className="size-3.5 text-amber-400" />
-                  Gợi ý dành riêng cho bạn
+                  Gß╗úi ├╜ d├ánh ri├¬ng cho bß║ín
                 </p>
               )}
               {isAuthenticated && !recoLoading && recoFallback === 'empty' && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-white">
                   <AlertCircle className="size-3.5" />
-                  Chưa có gợi ý — đang xem danh mục máy chủ hoặc mẫu TP.HCM
+                  Ch╞░a c├│ gß╗úi ├╜ ΓÇö ─æang xem danh mß╗Ñc m├íy chß╗º hoß║╖c mß║½u TP.HCM
                 </p>
               )}
               {isAuthenticated && !recoLoading && recoFallback === 'error' && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-red-500/25 px-3 py-1 text-xs font-semibold text-white">
                   <AlertCircle className="size-3.5" />
-                  Lỗi tải gợi ý — đang xem danh mục máy chủ hoặc mẫu
+                  Lß╗ùi tß║úi gß╗úi ├╜ ΓÇö ─æang xem danh mß╗Ñc m├íy chß╗º hoß║╖c mß║½u
                 </p>
               )}
             </div>
           </div>
-
+          
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <Input
               type="text"
-              placeholder="Tìm theo tên, hoạt động, không khí..."
+              placeholder="T├¼m theo t├¬n, hoß║ít ─æß╗Öng, kh├┤ng kh├¡..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-10 rounded-full border-slate-300/80 bg-white shadow-sm"
@@ -1003,7 +761,7 @@ export default function Discovery() {
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                aria-label="Xóa từ khóa tìm kiếm"
+                aria-label="X├│a tß╗½ kh├│a t├¼m kiß║┐m"
               >
                 <X className="size-4" />
               </button>
@@ -1017,9 +775,9 @@ export default function Discovery() {
             <div className="p-[var(--vj-inset)] pb-0">
               <Alert variant="destructive" className="border-red-200 bg-red-50/90 text-red-900 [&>svg]:text-red-600">
                 <AlertCircle />
-                <AlertTitle>Không tải được gợi ý cá nhân</AlertTitle>
+                <AlertTitle>Kh├┤ng tß║úi ─æ╞░ß╗úc gß╗úi ├╜ c├í nh├ón</AlertTitle>
                 <AlertDescription className="text-red-800/90">
-                  <p>{recoErrorMessage ?? 'Vui lòng kiểm tra kết nối hoặc máy chủ backend.'}</p>
+                  <p>{recoErrorMessage ?? 'Vui l├▓ng kiß╗âm tra kß║┐t nß╗æi hoß║╖c m├íy chß╗º backend.'}</p>
                   <Button
                     type="button"
                     variant="outline"
@@ -1028,7 +786,7 @@ export default function Discovery() {
                     onClick={() => setRecoRetryKey((k) => k + 1)}
                   >
                     <RefreshCw className="size-3.5 mr-1.5" />
-                    Thử lại
+                    Thß╗¡ lß║íi
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -1038,9 +796,9 @@ export default function Discovery() {
             <div className="p-[var(--vj-inset)] pb-0">
               <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
                 <AlertCircle className="text-amber-600" />
-                <AlertTitle>Chưa có đủ dữ liệu gợi ý</AlertTitle>
+                <AlertTitle>Ch╞░a c├│ ─æß╗º dß╗» liß╗çu gß╗úi ├╜</AlertTitle>
                 <AlertDescription className="text-amber-900/85">
-                  Hệ thống chưa trả về địa điểm gợi ý. Bạn vẫn có thể xem địa điểm từ máy chủ hoặc bộ dữ liệu mẫu TP.HCM.
+                  Hß╗ç thß╗æng ch╞░a trß║ú vß╗ü ─æß╗ïa ─æiß╗âm gß╗úi ├╜. Bß║ín vß║½n c├│ thß╗â xem ─æß╗ïa ─æiß╗âm tß╗½ m├íy chß╗º hoß║╖c bß╗Ö dß╗» liß╗çu mß║½u TP.HCM.
                 </AlertDescription>
               </Alert>
             </div>
@@ -1049,12 +807,12 @@ export default function Discovery() {
             <div className="p-[var(--vj-inset)] pb-0">
               <Alert className="border-slate-300 bg-slate-50">
                 <AlertCircle className="text-slate-600" />
-                <AlertTitle>Không lấy được danh mục địa điểm từ backend</AlertTitle>
+                <AlertTitle>Kh├┤ng lß║Ñy ─æ╞░ß╗úc danh mß╗Ñc ─æß╗ïa ─æiß╗âm tß╗½ backend</AlertTitle>
                 <AlertDescription className="text-slate-700">
                   <p>{catalogError}</p>
                   <p className="text-xs mt-1.5 text-slate-600">
-                    Đảm bảo backend chạy và CSDL có các bảng phục vụ ô lọc (ví dụ <code className="text-xs">places_food</code>,{' '}
-                    <code className="text-xs">places_drink</code>, <code className="text-xs">places_activity</code>). Hiện tại đang hiển thị địa điểm mẫu TP.HCM.
+                    ─Éß║úm bß║úo backend chß║íy v├á CSDL c├│ c├íc bß║úng phß╗Ñc vß╗Ñ ├┤ lß╗ìc (v├¡ dß╗Ñ <code className="text-xs">places_food</code>,{' '}
+                    <code className="text-xs">places_drink</code>, <code className="text-xs">places_activity</code>). Hiß╗çn tß║íi ─æang hiß╗ân thß╗ï ─æß╗ïa ─æiß╗âm mß║½u TP.HCM.
                   </p>
                   <Button
                     type="button"
@@ -1064,7 +822,7 @@ export default function Discovery() {
                     onClick={() => setCatalogRetryKey((k) => k + 1)}
                   >
                     <RefreshCw className="size-3.5 mr-1.5" />
-                    Tải lại danh mục
+                    Tß║úi lß║íi danh mß╗Ñc
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -1075,7 +833,7 @@ export default function Discovery() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
                 <SlidersHorizontal className="size-3.5 shrink-0" />
-                Bộ lọc theo dữ liệu
+                Bß╗Ö lß╗ìc theo dß╗» liß╗çu
               </div>
               {activeFilterCount > 0 && (
                 <Button
@@ -1085,141 +843,144 @@ export default function Discovery() {
                   className="h-8 shrink-0 rounded-full px-3 text-xs text-slate-600 hover:text-slate-900"
                   onClick={clearAllFilters}
                 >
-                  Xóa bộ lọc ({activeFilterCount})
+                  X├│a bß╗Ö lß╗ìc ({activeFilterCount})
                 </Button>
               )}
             </div>
 
             <div className="space-y-5">
-              <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Loại địa điểm</p>
-                <div className="flex flex-wrap gap-2">
-                  {categoryFilterOptions.map((filter) => (
-                    <Button
-                      key={filter.value}
-                      variant={categoryFilter === filter.value ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setCategoryFilter(filter.value)}
-                      className={`rounded-full ${categoryFilter === filter.value
-                          ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                          : 'border-slate-300'
-                        }`}
-                    >
-                      {filter.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Quận / khu vực</p>
-                <div>
-                  <select
-                    value={districtFilter}
-                    onChange={(e) => setDistrictFilter(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Loß║íi ─æß╗ïa ─æiß╗âm</p>
+              <div className="flex flex-wrap gap-2">
+                {categoryFilterOptions.map((filter) => (
+                  <Button
+                    key={filter.value}
+                    variant={categoryFilter === filter.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setCategoryFilter(filter.value)}
+                    className={`rounded-full ${
+                      categoryFilter === filter.value
+                        ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
+                        : 'border-slate-300'
+                    }`}
                   >
-                    <option value="all">Tất cả khu vực</option>
-                    {districtOptions.map((district) => (
-                      <option key={district} value={district}>
-                        {district}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    {filter.label}
+                  </Button>
+                ))}
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2.5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Đánh giá</p>
-                  <select
-                    value={String(minRatingFilter)}
-                    onChange={(e) => setMinRatingFilter(Number(e.target.value))}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
-                  >
-                    {minRatingOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2.5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mức giá</p>
-                  <select
-                    value={priceFilter}
-                    onChange={(e) => setPriceFilter(e.target.value as PriceFilter)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
-                  >
-                    {priceFilterOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Bộ tag theo nhóm</p>
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Quß║¡n / khu vß╗▒c</p>
+              <div>
                 <select
-                  value={selectedTagGroup}
-                  onChange={(e) => {
-                    setSelectedTagGroup(e.target.value);
-                    setSelectedTagValues([]);
-                  }}
+                  value={districtFilter}
+                  onChange={(e) => setDistrictFilter(e.target.value)}
                   className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
                 >
-                  <option value="all">Không lọc theo tag</option>
-                  {tagGroupOptions.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
+                  <option value="all">Tß║Ñt cß║ú khu vß╗▒c</option>
+                  {districtOptions.map((district) => (
+                    <option key={district} value={district}>
+                      {district}
                     </option>
                   ))}
                 </select>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedTagGroup !== 'all' && availableTagValues.length === 0 ? (
-                    <span className="w-full rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                      Nhóm tag này chưa có dữ liệu khả dụng.
-                    </span>
-                  ) : null}
-                  {availableTagValues.map((item) => (
-                    <Button
-                      key={item.label}
-                      variant={selectedTagValues.some((t) => t.toLowerCase() === item.label.toLowerCase()) ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => toggleTag(item.label)}
-                      className={`h-8 rounded-full px-3 ${selectedTagValues.some((t) => t.toLowerCase() === item.label.toLowerCase())
-                          ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                          : 'border-slate-200'
-                        }`}
-                    >
-                      {item.label}
-                      <span className="ml-1.5 text-[10px] opacity-75">{item.count}</span>
-                    </Button>
-                  ))}
-                </div>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Sắp xếp</p>
-                <div className="flex flex-wrap gap-2">
-                  {sortFilterOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={sortFilter === option.value ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSortFilter(option.value)}
-                      className={`rounded-full ${sortFilter === option.value
-                          ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                          : 'border-slate-300'
-                        }`}
-                    >
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">─É├ính gi├í</p>
+                <select
+                  value={String(minRatingFilter)}
+                  onChange={(e) => setMinRatingFilter(Number(e.target.value))}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
+                >
+                  {minRatingOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
                       {option.label}
-                    </Button>
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mß╗⌐c gi├í</p>
+                <select
+                  value={priceFilter}
+                  onChange={(e) => setPriceFilter(e.target.value as PriceFilter)}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
+                >
+                  {priceFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Bß╗Ö tag theo nh├│m</p>
+              <select
+                value={selectedTagGroup}
+                onChange={(e) => {
+                  setSelectedTagGroup(e.target.value);
+                  setSelectedTagValues([]);
+                }}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
+              >
+                <option value="all">Kh├┤ng lß╗ìc theo tag</option>
+                {tagGroupOptions.map((group) => (
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
+                ))}
+              </select>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {selectedTagGroup !== 'all' && availableTagValues.length === 0 ? (
+                  <span className="w-full rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    Nh├│m tag n├áy ch╞░a c├│ dß╗» liß╗çu khß║ú dß╗Ñng.
+                  </span>
+                ) : null}
+                {availableTagValues.map((item) => (
+                  <Button
+                    key={item.label}
+                    variant={selectedTagValues.some((t) => t.toLowerCase() === item.label.toLowerCase()) ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => toggleTag(item.label)}
+                    className={`h-8 rounded-full px-3 ${
+                      selectedTagValues.some((t) => t.toLowerCase() === item.label.toLowerCase())
+                        ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    {item.label}
+                    <span className="ml-1.5 text-[10px] opacity-75">{item.count}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Sß║»p xß║┐p</p>
+              <div className="flex flex-wrap gap-2">
+                {sortFilterOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={sortFilter === option.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSortFilter(option.value)}
+                    className={`rounded-full ${
+                      sortFilter === option.value
+                        ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
+                        : 'border-slate-300'
+                    }`}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
             </div>
           </div>
 
@@ -1227,19 +988,19 @@ export default function Discovery() {
           <div className="px-[var(--vj-inset)] py-3 bg-slate-100 border-b border-slate-200">
             <p className="text-sm text-slate-600 flex items-center justify-between gap-2">
               <span>
-                <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
+                <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> ─æß╗ïa ─æiß╗âm ─æ╞░ß╗úc t├¼m thß║Ñy
               </span>
               {(recoLoading && isAuthenticated) || catalogLoading ? (
-                <span className="ml-2 text-xs font-medium text-slate-500">Đồng bộ dữ liệu…</span>
+                <span className="ml-2 text-xs font-medium text-slate-500">─Éß╗ông bß╗Ö dß╗» liß╗çuΓÇª</span>
               ) : null}
             </p>
             {!catalogLoading && filteredLocations.length > 0 && (
               <p className="mt-1 text-xs text-slate-500">
-                {gpsStatus === 'granted' ? 'Gợi ý gần bạn' : 'Gợi ý gần trung tâm'}: {Math.min(MAX_NEARBY_RECOMMENDATIONS, filteredLocations.length)} địa điểm
+                {gpsStatus === 'granted' ? 'Gß╗úi ├╜ gß║ºn bß║ín' : 'Gß╗úi ├╜ gß║ºn trung t├óm'}: {Math.min(MAX_NEARBY_RECOMMENDATIONS, filteredLocations.length)} ─æß╗ïa ─æiß╗âm
               </p>
             )}
             {gpsStatus === 'denied' && (
-              <p className="mt-1 text-[11px] text-amber-700">Bạn đã tắt quyền vị trí, hệ thống dùng vị trí mặc định TP.HCM.</p>
+              <p className="mt-1 text-[11px] text-amber-700">Bß║ín ─æ├ú tß║»t quyß╗ün vß╗ï tr├¡, hß╗ç thß╗æng d├╣ng vß╗ï tr├¡ mß║╖c ─æß╗ïnh TP.HCM.</p>
             )}
           </div>
 
@@ -1247,61 +1008,163 @@ export default function Discovery() {
           <div ref={listCardsRef} className="p-[var(--vj-inset)] space-y-[var(--vj-stack-gap)]">
             {filteredLocations.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-10 text-center">
-                <p className="text-sm font-semibold text-slate-800">Không có địa điểm khớp bộ lọc</p>
+                <p className="text-sm font-semibold text-slate-800">Kh├┤ng c├│ ─æß╗ïa ─æiß╗âm khß╗¢p bß╗Ö lß╗ìc</p>
                 <p className="mt-1 text-xs text-slate-600 max-w-sm mx-auto">
-                  Thử nới lỏng tag, mức giá, điểm đánh giá hoặc xóa từ khóa tìm kiếm.
+                  Thß╗¡ nß╗¢i lß╗Ång tag, mß╗⌐c gi├í, ─æiß╗âm ─æ├ính gi├í hoß║╖c x├│a tß╗½ kh├│a t├¼m kiß║┐m.
                 </p>
               </div>
             ) : null}
-            {filteredLocations.slice(0, displayLimit).map((location) => (
-              <DiscoveryLocationCard
+            {filteredLocations.map((location) => (
+              <Card
                 key={location.id}
-                location={location}
-                isSelected={selectedLocationId === location.id}
-                isDragged={draggedLocationId === location.id}
-                isNearby={nearbyRecommendationIds.has(location.id)}
-                onDragStart={handleCardDragStart}
-                onDragEnd={handleCardDragEnd}
-                onClick={handleCardClick}
-                onOpenAdd={handleCardOpenAdd}
-              />
+                data-place-id={location.id}
+                draggable
+                className={`group p-4 transition-all cursor-grab active:cursor-grabbing border ${
+                  selectedLocationId === location.id
+                    ? 'border-[var(--vj-accent)] shadow-lg ring-2 ring-[var(--vj-accent)]/20'
+                    : 'border-slate-200 hover:border-[var(--vj-accent)]/50'
+                } ${
+                  draggedLocationId === location.id
+                    ? 'scale-[0.985] border-[var(--vj-accent)] bg-orange-50/70 opacity-75 shadow-2xl ring-2 ring-[var(--vj-accent)]/30'
+                    : 'hover:-translate-y-0.5 hover:shadow-xl'
+                }`}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(DISCOVERY_DRAG_TYPE, location.id);
+                  event.dataTransfer.setData('text/plain', location.id);
+                  event.dataTransfer.effectAllowed = 'copy';
+                  setDraggedLocationId(location.id);
+                  setSelectedLocationId(location.id);
+                  setDropPreview(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedLocationId(null);
+                  setDropPreview(null);
+                }}
+                onClick={() => {
+                  setSelectedLocationId(location.id);
+                  if (isAuthenticated) {
+                    enqueueRecommendationInteraction({
+                      ...buildInteractionBase(location),
+                      eventType: 'CLICK',
+                    });
+                  }
+                }}
+              >
+                <div className="flex gap-3 sm:gap-4">
+                  <img
+                    src={location.image}
+                    alt={location.name}
+                    className="h-24 w-24 shrink-0 rounded-xl object-cover shadow-sm sm:h-28 sm:w-28"
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    onError={onLocationImageError}
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-bold leading-snug text-[var(--vj-primary)] sm:text-lg">
+                        {location.name}
+                      </h3>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500 transition group-hover:bg-orange-100 group-hover:text-[var(--vj-accent)]">
+                          <GripVertical className="h-3 w-3" />
+                          K├⌐o
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                          <span className="text-sm font-semibold text-slate-700">{location.rating}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="line-clamp-2 text-sm leading-relaxed text-slate-600">
+                      {location.description}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {nearbyRecommendationIds.has(location.id) && (
+                        <Badge className="border border-amber-200 bg-amber-100 text-[11px] text-amber-800 hover:bg-amber-200">
+                          Gß╗úi ├╜ gß║ºn bß║ín
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
+                        {location.weather === 'indoor' ? 'Trong nh├á' : location.weather === 'outdoor' ? 'Ngo├ái trß╗¥i' : 'Linh hoß║ít'}
+                      </Badge>
+                      <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
+                        {location.vibe === 'quiet' ? 'Y├¬n t─⌐nh' : location.vibe === 'vibrant' ? 'S├┤i ─æß╗Öng' : 'C├ón bß║▒ng'}
+                      </Badge>
+                      {location.recommendation?.district && (
+                        <Badge variant="outline" className="border-slate-200 text-[11px] text-slate-600">
+                          {location.recommendation.district}
+                        </Badge>
+                      )}
+                    </div>
+                    {location.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {location.tags.slice(0, 4).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="rounded-full border-0 bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="mt-0.5 flex flex-col gap-2 border-t border-slate-100 pt-2.5 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm font-bold text-[var(--vj-accent)]">{formatVND(location.price)}</span>
+                      <Button
+                        size="sm"
+                        className="h-9 w-full shrink-0 rounded-full bg-[var(--vj-accent)] px-4 text-white hover:bg-[var(--vj-accent-2)] sm:w-auto"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAdd(location);
+                        }}
+                      >
+                        Th├¬m lß╗ïch tr├¼nh
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
             ))}
-            <div ref={loadMoreRef} className="h-10 w-full" aria-hidden="true" />
           </div>
         </ScrollArea>
       </div>
 
       {/* Right Panel - Timetable Planner */}
-      <div className={`flex min-h-[min(42vh,22rem)] flex-1 flex-col overflow-hidden rounded-[1.75rem] border bg-white shadow-[0_24px_64px_rgba(15,23,42,0.08)] transition-all xl:min-h-0 ${draggedLocation
+      <div className={`flex min-h-[min(42vh,22rem)] flex-1 flex-col overflow-hidden rounded-[1.75rem] border bg-white shadow-[0_24px_64px_rgba(15,23,42,0.08)] transition-all xl:min-h-0 ${
+        draggedLocation
           ? 'border-[var(--vj-accent)] ring-4 ring-[var(--vj-accent)]/15'
           : 'border-slate-200/90'
+      }`}>
+        <div className={`border-b border-slate-200/90 p-[var(--vj-inset)] transition-colors ${
+          draggedLocation ? 'bg-gradient-to-r from-orange-50/90 via-white to-emerald-50/80' : 'bg-gradient-to-br from-white to-slate-50/80'
         }`}>
-        <div className={`border-b border-slate-200/90 p-[var(--vj-inset)] transition-colors ${draggedLocation ? 'bg-gradient-to-r from-orange-50/90 via-white to-emerald-50/80' : 'bg-gradient-to-br from-white to-slate-50/80'
-          }`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-[var(--vj-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--vj-primary)]">
                 <CalendarRange className="h-3.5 w-3.5" />
-                {draggedLocation ? 'Sẵn sàng thả' : 'Lịch nháp'}
+                {draggedLocation ? 'Sß║╡n s├áng thß║ú' : 'Lß╗ïch nh├íp'}
               </div>
               <h2 className="mt-2 text-2xl font-black tracking-tight text-[var(--vj-primary)]">
-                {draggedLocation ? `Đang kéo: ${draggedLocation.name}` : 'Kéo địa điểm vào thời khoá biểu'}
+                {draggedLocation ? `─Éang k├⌐o: ${draggedLocation.name}` : 'K├⌐o ─æß╗ïa ─æiß╗âm v├áo thß╗¥i kho├í biß╗âu'}
               </h2>
               <p className="mt-1 text-sm text-slate-600">
                 {dropPreview
-                  ? `Thả để lên lịch ${dropPreview.startTime} - ${dropPreview.endTime} ngày ${dropPreview.date}.`
-                  : 'Chọn một hoặc nhiều ngày, kéo thẻ địa điểm từ danh sách bên trái rồi thả vào khung giờ mong muốn.'}
+                  ? `Thß║ú ─æß╗â l├¬n lß╗ïch ${dropPreview.startTime} - ${dropPreview.endTime} ng├áy ${dropPreview.date}.`
+                  : 'Chß╗ìn mß╗Öt hoß║╖c nhiß╗üu ng├áy, k├⌐o thß║╗ ─æß╗ïa ─æiß╗âm tß╗½ danh s├ích b├¬n tr├íi rß╗ôi thß║ú v├áo khung giß╗¥ mong muß╗æn.'}
               </p>
             </div>
-            <div className={`rounded-2xl border px-4 py-3 text-xs transition-colors ${draggedLocation
+            <div className={`rounded-2xl border px-4 py-3 text-xs transition-colors ${
+              draggedLocation
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
                 : 'border-orange-200 bg-orange-50 text-orange-900'
-              }`}>
-              <p className="font-bold">{draggedLocation ? 'Thả vào cột ngày' : 'Mẹo nhanh'}</p>
+            }`}>
+              <p className="font-bold">{draggedLocation ? 'Thß║ú v├áo cß╗Öt ng├áy' : 'Mß║╣o nhanh'}</p>
               <p className="mt-1">
                 {draggedLocation
-                  ? 'Đường màu cam cho biết khung giờ sẽ được điền vào hộp lên lịch.'
-                  : 'Sau khi thả, hộp lên lịch sẽ mở sẵn ngày và giờ để bạn kiểm tra trước khi lưu.'}
+                  ? '─É╞░ß╗¥ng m├áu cam cho biß║┐t khung giß╗¥ sß║╜ ─æ╞░ß╗úc ─æiß╗ün v├áo hß╗Öp l├¬n lß╗ïch.'
+                  : 'Sau khi thß║ú, hß╗Öp l├¬n lß╗ïch sß║╜ mß╗ƒ sß║╡n ng├áy v├á giß╗¥ ─æß╗â bß║ín kiß╗âm tra tr╞░ß╗¢c khi l╞░u.'}
               </p>
             </div>
           </div>
@@ -1314,10 +1177,11 @@ export default function Discovery() {
                   key={date}
                   type="button"
                   onClick={() => toggleVisibleDate(date)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${active
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    active
                       ? 'border-[var(--vj-primary)] bg-[var(--vj-primary)] text-white shadow-sm'
                       : 'border-slate-200 bg-white text-slate-600 hover:border-[var(--vj-primary)]/40'
-                    }`}
+                  }`}
                   aria-pressed={active}
                 >
                   {dayLabel(date)}
@@ -1331,7 +1195,7 @@ export default function Discovery() {
           <div className="flex min-w-fit">
             <div className="sticky left-0 z-20 w-[3.5rem] shrink-0 border-r border-slate-200/90 bg-gradient-to-b from-slate-50 to-white backdrop-blur-sm">
               <div className="sticky top-0 z-30 flex h-12 items-end justify-center border-b border-slate-200 bg-slate-100/90 pb-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Giờ</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Giß╗¥</span>
               </div>
               <div
                 className="relative"
@@ -1361,13 +1225,15 @@ export default function Discovery() {
               return (
                 <div
                   key={date}
-                  className={`w-[min(72vw,13.5rem)] shrink-0 border-r transition-colors last:border-r-0 sm:w-48 lg:w-56 ${isPreviewDate ? 'border-r-orange-200/80 bg-orange-50/40' : 'border-slate-200/80 bg-white'
-                    }`}
+                  className={`w-[min(72vw,13.5rem)] shrink-0 border-r transition-colors last:border-r-0 sm:w-48 lg:w-56 ${
+                    isPreviewDate ? 'border-r-orange-200/80 bg-orange-50/40' : 'border-slate-200/80 bg-white'
+                  }`}
                 >
-                  <div className={`sticky top-0 z-10 flex h-12 flex-col justify-center border-b px-3 transition-colors ${isPreviewDate
+                  <div className={`sticky top-0 z-10 flex h-12 flex-col justify-center border-b px-3 transition-colors ${
+                    isPreviewDate
                       ? 'border-orange-200 bg-gradient-to-br from-orange-100 to-orange-50'
                       : 'border-slate-200 bg-gradient-to-br from-[color-mix(in_oklab,var(--vj-primary)_10%,white)] to-white'
-                    }`}>
+                  }`}>
                     <span className="text-xs font-extrabold capitalize leading-tight text-[var(--vj-primary)]">
                       {dayLabel(date)}
                     </span>
@@ -1376,25 +1242,23 @@ export default function Discovery() {
                     </span>
                   </div>
                   <div
-                    className={`relative transition-colors ${draggedLocation
+                    className={`relative transition-colors ${
+                      draggedLocation
                         ? isPreviewDate
                           ? 'bg-orange-50/50'
                           : 'bg-emerald-50/25 hover:bg-emerald-50/50'
                         : 'bg-white'
-                      }`}
+                    }`}
                     style={{ height: (TIMETABLE_DAY_END_HOUR - TIMETABLE_DAY_START_HOUR) * PX_PER_HOUR }}
-                    onDragEnter={(event) => {
-                      event.preventDefault();
-                    }}
                     onDragOver={(event) => {
                       event.preventDefault();
                       event.dataTransfer.dropEffect = 'copy';
                       const nextPreview = getDropDefaults(date, event.currentTarget, event.clientY);
                       setDropPreview((prev) =>
                         prev &&
-                          prev.date === nextPreview.date &&
-                          prev.startTime === nextPreview.startTime &&
-                          prev.endTime === nextPreview.endTime
+                        prev.date === nextPreview.date &&
+                        prev.startTime === nextPreview.startTime &&
+                        prev.endTime === nextPreview.endTime
                           ? prev
                           : nextPreview
                       );
@@ -1420,11 +1284,12 @@ export default function Discovery() {
                     ))}
 
                     {blocks.length === 0 ? (
-                      <div className={`absolute inset-x-4 top-8 rounded-2xl border border-dashed p-4 text-center text-xs font-semibold transition-colors ${draggedLocation
+                      <div className={`absolute inset-x-4 top-8 rounded-2xl border border-dashed p-4 text-center text-xs font-semibold transition-colors ${
+                        draggedLocation
                           ? 'border-emerald-300 bg-emerald-50/80 text-emerald-800'
                           : 'border-slate-300 bg-slate-50/80 text-slate-500'
-                        }`}>
-                        {draggedLocation ? 'Thả để tạo hoạt động đầu tiên' : 'Thả địa điểm vào đây'}
+                      }`}>
+                        {draggedLocation ? 'Thß║ú ─æß╗â tß║ío hoß║ít ─æß╗Öng ─æß║ºu ti├¬n' : 'Thß║ú ─æß╗ïa ─æiß╗âm v├áo ─æ├óy'}
                       </div>
                     ) : null}
 
@@ -1491,7 +1356,7 @@ export default function Discovery() {
         defaultEndTime={addDefaults?.endTime}
         onCreate={async (item, tx) => {
           if (isMockTrip && isAuthenticated) {
-            toast.error('Bạn đang xem chuyến đi mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật trong trang "Chuyến đi của tôi" để lưu lại.');
+            toast.error('Bß║ín ─æang xem chuyß║┐n ─æi mß║½u. Vui l├▓ng tß║ío hoß║╖c chß╗ìn mß╗Öt chuyß║┐n ─æi thß║¡t trong trang "Chuyß║┐n ─æi cß╗ºa t├┤i" ─æß╗â l╞░u lß║íi.');
             navigate('/timelines');
             return;
           }
@@ -1503,7 +1368,7 @@ export default function Discovery() {
             });
             void flushRecommendationInteractionQueue();
           }
-
+          
           setLastTripId(tripId);
           const token = getStoredToken();
           let savedItem = item;
@@ -1512,12 +1377,12 @@ export default function Discovery() {
             try {
               const dateStr = item.date || new Date().toISOString().slice(0, 10);
 
-              // Normalise category — backend only accepts FOOD / DRINK / ACTIVITY
+              // Normalise category ΓÇö backend only accepts FOOD / DRINK / ACTIVITY
               const rawCategory = inferCategoryFromLocation(addLocation).toUpperCase();
               const validCategories = ['FOOD', 'DRINK', 'ACTIVITY'];
               const category = validCategories.includes(rawCategory) ? rawCategory : 'ACTIVITY';
 
-              // Strip any category-prefix from the ID (e.g. "food:123" → "123")
+              // Strip any category-prefix from the ID (e.g. "food:123" ΓåÆ "123")
               // but avoid extracting lat/lng from compound name-based IDs.
               let cleanExternalId = addLocation.id;
               if (cleanExternalId.includes(':')) {
@@ -1534,7 +1399,7 @@ export default function Discovery() {
               }
 
               if (!cleanExternalId.trim()) {
-                throw new Error('ID địa điểm không hợp lệ');
+                throw new Error('ID ─æß╗ïa ─æiß╗âm kh├┤ng hß╗úp lß╗ç');
               }
 
               console.log('[Discovery] Adding event', {
@@ -1543,28 +1408,7 @@ export default function Discovery() {
                 category,
                 startTime: `${dateStr}T${item.startTime}:00`,
                 endTime: `${dateStr}T${item.endTime}:00`,
-                isOwner,
               });
-
-              if (!isOwner) {
-                // Contributor: Send proposal instead of direct update
-                sendProposal(tripId, tripMetadata?.version || 1, "ADD", {
-                  externalPlaceId: cleanExternalId,
-                  category,
-                  startTime: `${dateStr}T${item.startTime}:00`,
-                  endTime: `${dateStr}T${item.endTime}:00`,
-                  notes: item.notes,
-                  orderIndex: 0,
-                  status: 'PLANNED',
-                  latitude: addLocation.lat,
-                  longitude: addLocation.lng,
-                  placeName: addLocation.name,
-                });
-                toast.info('Đã gửi đề xuất thêm hoạt động');
-                setTimetableItems((prev) => [...prev, item]);
-                setAddOpen(false);
-                return;
-              }
 
               const created = await addTimelineEvent(tripId, {
                 externalPlaceId: cleanExternalId,
@@ -1576,11 +1420,11 @@ export default function Discovery() {
                 status: 'PLANNED',
               }, token);
               savedItem = { ...item, id: created.id ?? item.id };
-              toast.success('Đã lưu vào cơ sở dữ liệu');
+              toast.success('─É├ú l╞░u v├áo c╞í sß╗ƒ dß╗» liß╗çu');
             } catch (error: any) {
               console.error('[Discovery] Failed to persist event to backend:', error);
-              const detail = error?.message ?? 'Lỗi kết nối máy chủ';
-              toast.error(`Không thể lưu hoạt động — ${detail}`);
+              const detail = error?.message ?? 'Lß╗ùi kß║┐t nß╗æi m├íy chß╗º';
+              toast.error(`Kh├┤ng thß╗â l╞░u hoß║ít ─æß╗Öng ΓÇö ${detail}`);
               return;
             }
           } else if (!isAuthenticated) {
@@ -1593,7 +1437,7 @@ export default function Discovery() {
           if (addLocation) {
             setLabelByLocationId((prev) => ({ ...prev, [savedItem.locationId]: addLocation.name }));
           }
-          toast.success('Đã thêm vào lịch trình', { description: addLocation?.name });
+          toast.success('─É├ú th├¬m v├áo lß╗ïch tr├¼nh', { description: addLocation?.name });
         }}
       />
     </div>

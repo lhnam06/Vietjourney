@@ -9,8 +9,9 @@ export function useTimelineSocket(tripId: string, token: string | null) {
   useEffect(() => {
     if (!tripId || !token) return;
 
-    // Use environment variable or default to 8081 for the Go Proxy
-    const wsUrl = `ws://localhost:8081/ws/timeline/${tripId}?token=${token}`;
+    // Use dynamic host to support both localhost and local network access via Vite proxy
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/timeline/${tripId}?token=${token}`;
     
     const socket = new WebSocket(wsUrl);
     

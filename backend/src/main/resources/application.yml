@@ -2,7 +2,7 @@ spring:
   main:
     lazy-initialization: true
   datasource:
-    url: ${DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:5432/postgres}
+    url: ${DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0}
     username: ${DB_USERNAME:REMOVED_SUPABASE_USERNAME}
     password: ${DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
   flyway:
@@ -18,7 +18,7 @@ server:
 place:
   datasource:
     enabled: ${PLACE_DB_ENABLED:true}
-    url: ${PLACE_DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:5432/postgres}
+    url: ${PLACE_DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0}
     username: ${PLACE_DB_USERNAME:REMOVED_SUPABASE_USERNAME}
     password: ${PLACE_DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
   lookup:

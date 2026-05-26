@@ -280,13 +280,53 @@ export default function Root() {
               </SheetTrigger>
               <SheetContent
                 side="left"
-                className="w-[min(100%,20rem)] border-white/15 bg-gradient-to-b from-[var(--vj-primary)] to-[var(--vj-primary-2)] p-0 text-[var(--vj-text-on-dark)] [&>button]:text-white/80"
+                className="w-[min(100%,20rem)] flex flex-col border-white/15 bg-gradient-to-b from-[var(--vj-primary)] to-[var(--vj-primary-2)] p-0 text-[var(--vj-text-on-dark)] [&>button]:text-white/80"
               >
                 <SheetHeader className="border-b border-white/10 p-4 text-left">
                   <SheetTitle className="text-white text-lg">Điều hướng</SheetTitle>
                   <p className="text-xs font-medium text-white/65">Chọn mục nhanh</p>
                 </SheetHeader>
-                <nav className="flex flex-col gap-2 p-4">{renderMobileNavLinks()}</nav>
+                <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">{renderMobileNavLinks()}</nav>
+                <div className="p-4 mt-auto border-t border-white/10 shrink-0">
+                  {isAuthenticated && user ? (
+                    <div className="flex flex-col gap-3">
+                      <Link to="/profile" className="flex items-center gap-3 rounded-[1.5rem] border border-white/12 bg-white/10 p-3 text-left transition hover:bg-white/14" onClick={() => setMobileNavOpen(false)}>
+                        <Avatar className="h-10 w-10 ring-2 ring-white/15">
+                          <AvatarFallback className="bg-white/20 text-white text-xs font-bold">
+                            {initialsFromDisplay(user.displayName || user.username)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-extrabold text-white">{user.displayName}</span>
+                          <span className="block truncate text-[11px] text-white/55">{user.username}</span>
+                        </span>
+                      </Link>
+                      <Button
+                        variant="destructive"
+                        className="w-full rounded-xl bg-red-500/20 text-red-100 hover:bg-red-500/30"
+                        onClick={async () => {
+                          try {
+                            await signOut();
+                            cacheClearAll();
+                            toast.success('Đã đăng xuất');
+                            navigate('/', { replace: true });
+                            setMobileNavOpen(false);
+                          } catch {
+                            toast.error('Không thể đăng xuất');
+                          }
+                        }}
+                      >
+                        Đăng xuất
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button asChild className="w-full h-12 rounded-[1.5rem] bg-white/14 text-white hover:bg-white/20 border border-white/12">
+                      <Link to={`/auth?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`} onClick={() => setMobileNavOpen(false)}>
+                        Đăng nhập
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </SheetContent>
             </Sheet>
 
@@ -326,7 +366,7 @@ export default function Root() {
         )}
         aria-hidden={!sidebarOpen}
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto hide-scrollbar">
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
