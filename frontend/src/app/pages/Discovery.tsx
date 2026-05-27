@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import type { DragEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { AlertCircle, CalendarRange, Clock, GripVertical, MapPin, RefreshCw, Search, Sparkles, Star, SlidersHorizontal, X } from 'lucide-react';
+import { AlertCircle, CalendarRange, Clock, GripVertical, MapPin, RefreshCw, Search, Sparkles, Star, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -74,8 +74,42 @@ const sortFilterOptions: Array<{ value: SortFilter; label: string }> = [
   { value: 'priceAsc', label: 'Giá thấp đến cao' },
   { value: 'priceDesc', label: 'Giá cao đến thấp' },
 ];
+
+const PREDEFINED_TAGS: Record<CategoryFilter, Record<string, string[]>> = {
+  food: {
+    sub_category: ["healthy", "main_course", "hotpot", "vegetarian", "buffet", "fast_food"],
+    purpose: ["celebration", "dating", "family", "checkin_photography", "group_gathering"],
+    service_style: ["street_food", "takeaway", "casual_dining", "canteen"],
+    amenity: ["restroom", "ac", "wifi", "private_room"]
+  },
+  drink: {
+    sub_category: ["coffee", "tea_milktea", "juice_smoothie", "alcoholic", "dessert"],
+    purpose: ["work_study", "dating", "family", "checkin_photography", "group_gathering"],
+    vibe: ["quiet", "vibrant", "outdoor", "view", "traditional", "luxury"],
+    amenity: ["24/7", "ac", "wifi", "private_room", "pet"]
+  },
+  activity: {
+    sub_category: ["workshop", "sports_fitness", "cultural_space", "outdoor", "cinema_show", "shopping"],
+    purpose: ["dating", "relax", "photography", "group_gathering"],
+    amenity: ["parking", "restroom", "wifi"]
+  },
+  all: {
+    sub_category: ["healthy", "main_course", "hotpot", "vegetarian", "buffet", "fast_food", "coffee", "tea_milktea", "juice_smoothie", "alcoholic", "dessert", "workshop", "sports_fitness", "cultural_space", "outdoor", "cinema_show", "shopping"],
+    purpose: ["celebration", "dating", "family", "checkin_photography", "group_gathering", "work_study", "relax", "photography"],
+    service_style: ["street_food", "takeaway", "casual_dining", "canteen"],
+    vibe: ["quiet", "vibrant", "outdoor", "view", "traditional", "luxury"],
+    amenity: ["restroom", "ac", "wifi", "private_room", "24/7", "pet", "parking"]
+  }
+};
 const MAX_NEARBY_RECOMMENDATIONS = 20;
 const DISCOVERY_DRAG_TYPE = 'application/vnd.vietjourney.location-id';
+
+const globalCache = {
+  catalogUniverse: null as Location[] | null,
+  catalogLocationsMap: new Map<string, { data: Location[]; timestamp: number }>(),
+  recommendedLocations: null as Location[] | null,
+  recommendationsTimestamp: 0,
+};
 
 // Format VND currency
 const formatVND = (amount: number) => {
@@ -349,14 +383,18 @@ export default function Discovery() {
     });
   }, [trip.endDate, trip.startDate]);
 
-  const [visibleDates, setVisibleDates] = useLocalStorageState<string[]>('vj:discovery:visible-dates', []);
+  const [windowStartIndex, setWindowStartIndex] = useLocalStorageState<number>('vj:discovery:window-start', 0);
 
   useEffect(() => {
-    setVisibleDates((prev) => {
-      const valid = prev.filter((date) => tripDates.includes(date));
-      return valid.length ? valid : tripDates.slice(0, Math.min(3, tripDates.length));
+    setWindowStartIndex((prev) => {
+      if (prev >= tripDates.length) return Math.max(0, Math.floor((tripDates.length - 1) / 3) * 3);
+      return prev;
     });
-  }, [tripDates]);
+  }, [tripDates, setWindowStartIndex]);
+
+  const visibleDates = useMemo(() => {
+    return tripDates.slice(windowStartIndex, windowStartIndex + 3);
+  }, [tripDates, windowStartIndex]);
 
   const timetableLayouts = useMemo(() => layoutsByDate(timetableItems), [timetableItems]);
 
@@ -375,43 +413,57 @@ export default function Discovery() {
   const districtOptions = useMemo(() => {
     const unique = new Set<string>();
     for (const location of optionSourceLocations) {
+      if (categoryFilter !== 'all') {
+        const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
+        if (locCat !== categoryFilter) continue;
+      }
       const district = location.recommendation?.district?.trim();
       if (district) unique.add(district);
     }
     return Array.from(unique).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [optionSourceLocations]);
+  }, [optionSourceLocations, categoryFilter]);
 
   const tagGroupOptions = useMemo(() => {
-    const groups = new Set<string>();
-    for (const location of optionSourceLocations) {
-      for (const group of Object.keys(location.recommendation?.tags ?? {})) {
-        if (group.trim()) groups.add(group.trim());
-      }
-    }
-    return Array.from(groups).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [optionSourceLocations]);
+    return Object.keys(PREDEFINED_TAGS[categoryFilter] || PREDEFINED_TAGS.all);
+  }, [categoryFilter]);
 
   const availableTagValues = useMemo(() => {
     if (selectedTagGroup === 'all') return [];
-    const counter = new Map<string, { label: string; count: number }>();
+    
+    const predefinedList = (PREDEFINED_TAGS[categoryFilter] || PREDEFINED_TAGS.all)[selectedTagGroup] || [];
+    
+    const counter = new Map<string, number>();
     for (const location of optionSourceLocations) {
+      if (categoryFilter !== 'all') {
+        const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
+        if (locCat !== categoryFilter) continue;
+      }
+      if (districtFilter !== 'all') {
+        const locDist = location.recommendation?.district?.trim() || '';
+        if (locDist !== districtFilter) continue;
+      }
+      if (minRatingFilter > 0) {
+        if ((location.rating || 0) < minRatingFilter) continue;
+      }
+      if (priceFilter !== 'all') {
+        const p = location.price || 0;
+        if (priceFilter === 'budget' && (p < 1 || p > 100000)) continue;
+        if (priceFilter === 'free' && p !== 0) continue;
+        if (priceFilter === 'mid' && (p < 100000 || p > 300000)) continue;
+        if (priceFilter === 'premium' && p < 300000) continue;
+      }
       const values = location.recommendation?.tags?.[selectedTagGroup] ?? [];
       for (const raw of values) {
-        const value = raw.trim();
-        if (!value) continue;
-        const key = value.toLowerCase();
-        const current = counter.get(key);
-        if (current) {
-          current.count += 1;
-        } else {
-          counter.set(key, { label: value, count: 1 });
-        }
+        const value = raw.trim().toLowerCase();
+        counter.set(value, (counter.get(value) || 0) + 1);
       }
     }
-    return Array.from(counter.values())
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'vi'))
-      .slice(0, 18);
-  }, [optionSourceLocations, selectedTagGroup]);
+    
+    return predefinedList.map(label => ({
+      label,
+      count: counter.get(label.toLowerCase()) || 0
+    }));
+  }, [optionSourceLocations, selectedTagGroup, categoryFilter, districtFilter, minRatingFilter, priceFilter]);
 
   const activeFilterCount =
     Number(categoryFilter !== 'all') +
@@ -516,6 +568,12 @@ export default function Discovery() {
 
   useEffect(() => {
     let cancelled = false;
+    
+    if (globalCache.catalogUniverse && catalogRetryKey === 0) {
+      setCatalogUniverse(globalCache.catalogUniverse);
+      return;
+    }
+
     void (async () => {
       try {
         const size = 100;
@@ -532,7 +590,9 @@ export default function Discovery() {
           new Map(rows.map((row) => [backendRowKey(row), row])).values()
         );
         if (!cancelled) {
-          setCatalogUniverse(uniqueRows.map(placeApiRowToLocation));
+          const mapped = uniqueRows.map(placeApiRowToLocation);
+          setCatalogUniverse(mapped);
+          globalCache.catalogUniverse = mapped;
         }
       } catch {
         // Keep existing option source if universe fetch fails.
@@ -545,6 +605,17 @@ export default function Discovery() {
 
   useEffect(() => {
     let cancelled = false;
+    const cacheKey = JSON.stringify({ categoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues });
+    const cached = globalCache.catalogLocationsMap.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000 && catalogRetryKey === 0) {
+      setCatalogLocations(cached.data);
+      setCatalogAttempted(true);
+      setCatalogLoading(false);
+      setCatalogError(null);
+      return;
+    }
+
     setCatalogLoading(true);
     setCatalogError(null);
     void (async () => {
@@ -591,10 +662,12 @@ export default function Discovery() {
         );
         if (!uniqueRows.length) {
           setCatalogLocations([]);
+          globalCache.catalogLocationsMap.set(cacheKey, { data: [], timestamp: Date.now() });
           return;
         }
         const mapped = uniqueRows.map(placeApiRowToLocation);
         setCatalogLocations(mapped);
+        globalCache.catalogLocationsMap.set(cacheKey, { data: mapped, timestamp: Date.now() });
       } catch (e) {
         if (!cancelled) {
           setCatalogLocations([]);
@@ -639,6 +712,19 @@ export default function Discovery() {
       return;
     }
 
+    if (globalCache.recommendedLocations && Date.now() - globalCache.recommendationsTimestamp < 5 * 60 * 1000 && recoRetryKey === 0) {
+      if (globalCache.recommendedLocations.length === 0) {
+        setRecommendedLocations(null);
+        setRecoFallback('empty');
+      } else {
+        setRecommendedLocations(globalCache.recommendedLocations);
+        setRecoFallback('none');
+      }
+      setRecoLoading(false);
+      setRecoErrorMessage(null);
+      return;
+    }
+
     let cancelled = false;
     setRecoFallback('none');
     setRecoErrorMessage(null);
@@ -651,9 +737,14 @@ export default function Discovery() {
         if (!rows?.length) {
           setRecommendedLocations(null);
           setRecoFallback('empty');
+          globalCache.recommendedLocations = [];
+          globalCache.recommendationsTimestamp = Date.now();
           return;
         }
-        setRecommendedLocations(rows.map(recommendedPlaceToLocation));
+        const mapped = rows.map(recommendedPlaceToLocation);
+        setRecommendedLocations(mapped);
+        globalCache.recommendedLocations = mapped;
+        globalCache.recommendationsTimestamp = Date.now();
       } catch (e) {
         if (!cancelled) {
           setRecommendedLocations(null);
@@ -823,15 +914,6 @@ export default function Discovery() {
   const handleCardOpenAdd = useCallback((location: Location) => {
     openAdd(location);
   }, [openAdd]);
-
-  const toggleVisibleDate = (date: string) => {
-    setVisibleDates((prev) => {
-      if (prev.includes(date)) {
-        return prev.length > 1 ? prev.filter((item) => item !== date) : prev;
-      }
-      return [...prev, date].sort();
-    });
-  };
 
   const getDropDefaults = (date: string, target: HTMLElement, clientY: number) => {
     const rect = target.getBoundingClientRect();
@@ -1306,24 +1388,52 @@ export default function Discovery() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {tripDates.map((date) => {
-              const active = visibleDates.includes(date);
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() => toggleVisibleDate(date)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${active
-                      ? 'border-[var(--vj-primary)] bg-[var(--vj-primary)] text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-[var(--vj-primary)]/40'
-                    }`}
-                  aria-pressed={active}
+          <div className="mt-4">
+            {tripDates.length > 3 ? (
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={windowStartIndex === 0}
+                  onClick={() => setWindowStartIndex(Math.max(0, windowStartIndex - 3))}
+                  className="h-8 rounded-xl px-2 text-slate-600 hover:bg-slate-200/50"
                 >
-                  {dayLabel(date)}
-                </button>
-              );
-            })}
+                  <ChevronLeft className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">Trước</span>
+                </Button>
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {visibleDates.map((date) => (
+                    <div
+                      key={date}
+                      className="rounded-xl border border-[var(--vj-primary)]/20 bg-[var(--vj-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm"
+                    >
+                      {dayLabel(date)}
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={windowStartIndex + 3 >= tripDates.length}
+                  onClick={() => setWindowStartIndex(windowStartIndex + 3)}
+                  className="h-8 rounded-xl px-2 text-slate-600 hover:bg-slate-200/50"
+                >
+                  <span className="hidden sm:inline">Tiếp</span>
+                  <ChevronRight className="h-4 w-4 sm:ml-1" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {visibleDates.map((date) => (
+                  <div
+                    key={date}
+                    className="rounded-full border border-[var(--vj-primary)]/20 bg-[var(--vj-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm"
+                  >
+                    {dayLabel(date)}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
