@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 type SocketCallback = (message: any) => void;
 export function useTimelineSocket(tripId: string, token: string | null) {
