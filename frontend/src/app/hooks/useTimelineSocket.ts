@@ -12,9 +12,9 @@ export function useTimelineSocket(tripId: string, token: string | null) {
     const DEFAULT_WS = 'ws://localhost:8081';
     const WS_BASE = (import.meta.env.VITE_WS_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_WS;
     const wsUrl = `${WS_BASE}/ws/timeline/${tripId}?token=${token}`;
-    
+
     const socket = new WebSocket(wsUrl);
-    
+
     socket.onopen = () => {
       console.log('Connected to timeline workspace');
       setIsConnected(true);
