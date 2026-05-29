@@ -10,18 +10,23 @@ import lombok.experimental.FieldDefaults;
 import java.util.Set;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "roles")
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@ToString
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Role {
     @Id
+    @EqualsAndHashCode.Include
     String name;
     String description;
 
     @ManyToMany
+    @ToString.Exclude
     Set<Permission> permissions;
 }
 

@@ -1,103 +1,83 @@
-# Vietjourney
+# Vietjourney 🌏✈️
 
-Travel planning for Vietnam: discovery, itinerary workspace, and budget — split into **frontend** and **backend** packages for the next implementation phase.
+Vietjourney is a real-time collaborative travel planning platform focused on Vietnam: discovery, collaborative trip workspaces, and budget tooling. This repository splits a **Vite + React** client from a **Spring Boot** API and a **Go** WebSocket proxy for high-performance real-time synchronization.
 
-## Repository layout
+## 🏗 Repository Layout
 
-| Path | Description |
-|------|-------------|
-| `frontend/` | Vite + React app (`@vietjourney/frontend`) |
-| `backend/` | Node API scaffold (`@vietjourney/backend`) — health check, ready for routes / DB |
-| `supabase/` | Supabase Edge Functions and related server code (existing) |
-
-### Commands (from repo root)
-
-```bash
-npm install
-npm run dev              # Vite dev server (frontend)
-npm run dev:backend      # Express API (default http://localhost:3001)
-npm run build            # Production build of the frontend
-npm run build:all        # Frontend + backend TypeScript build
-```
-
-Copy env files: `frontend/.env.example` → `frontend/.env`, `backend/.env.example` → `backend/.env` as needed.
+| Path | Role |
+|------|------|
+| `frontend/` | SPA: discovery, workspace, budget, profile, auth UI (React + Vite) |
+| `backend/` | REST API: authentication, users, roles, permissions, timeline management (Java 17, Spring Boot 3.2) |
+| `websocket-proxy/` | High-performance Go proxy for real-time timeline synchronization |
+| `tests/unit/` | Consolidated JavaScript unit tests and debug scripts |
+| `guidelines/` | Design and implementation notes |
 
 ---
 
-## Product overview
+## 🚀 Quick Start
 
-A comprehensive, interactive travel planning application with smart discovery, real-time collaboration workspace, budget management, and user profiles.
+For detailed instructions, please refer to the [STARTUP_GUIDE.md](./STARTUP_GUIDE.md).
 
-## Features
+### Prerequisites
+- **Node.js** (v18+)
+- **Java 17** (JDK)
+- **Go** (v1.20+)
+- **Redis** (For real-time sync)
+- **PostgreSQL**
 
-### 🗺️ Smart Discovery
-- Split-screen interface with interactive map and location cards
-- Advanced filtering system (Weather, Vibe, Budget)
-- Real-time search across locations
-- Beautiful location cards with images, ratings, and tags
-- Deep ocean blue (#0A4A6E) and vibrant orange (#FF6B35) color scheme
+### 1. Backend
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+*API serves on `http://localhost:8082`*
 
-### 📅 Real-time Workspace
-- Drag-and-drop timeline for daily itinerary planning
-- Three-column layout: Timeline + Interactive Map + Live Chat
-- Visual route planning with connected points on map
-- Transportation time indicators between locations
-- AI suggestion buttons for time gaps
-- Real-time collaboration indicators (editing states, online users)
-- Activity feed showing team member actions
+### 2. WebSocket Proxy
+```bash
+cd websocket-proxy
+go run .
+```
 
-### 💰 Budget Management
-- Fintech-style dashboard design
-- Budget vs. Actual spending with circular progress
-- Debt settlement calculator showing who owes whom
-- Transaction history linked to timeline activities
-- Category breakdown with visualizations
-- Split bill functionality
-- Color-coded balance indicators (green/red)
+### 3. Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*UI serves on `http://localhost:5173`*
 
-### 👤 User Profile & Authentication
-- Social login options (Google, Apple)
-- Email/password authentication
-- Travel preferences (pace, budget level, favorite categories)
-- Past trips gallery with cover photos
-- Customizable travel settings with sliders
+---
 
-## Tech Stack
+## ✨ Key Features
 
-- **React 18** with TypeScript
-- **React Router 7** for navigation
-- **React DnD** for drag-and-drop functionality
-- **React Leaflet** for interactive maps
-- **Motion** for smooth animations
-- **Tailwind CSS v4** for styling
-- **Radix UI** components for accessible UI elements
-- **Lucide React** for icons
+- **Discovery** — Interactive map + cards with advanced filters (category, tags, rating).
+- **Collaborative Workspace** — Real-time timeline synchronization using a proposal-based system.
+- **Ghost UI** — Visualize pending changes from collaborators before they are approved.
+- **Conflict Detection** — Smart overlap prevention with detailed feedback (e.g., "Conflicts with 'Lunch' at 12:00").
+- **Budget Tooling** — Track spend and splits across your travel narrative.
 
-## Pages
+## 🛠 Tech Stack
 
-- `/` - Discovery page with search, filters, and map
-- `/workspace/:tripId` - Trip planning workspace
-- `/budget/:tripId` - Budget management dashboard
-- `/profile` - User profile and preferences
-- `/auth` - Login and signup
+**Frontend:** React 18, TypeScript, Vite, React DnD, React Leaflet / Google Maps, Tailwind CSS v4, Radix UI, Sonner (Toasts).
 
-## Mock Data
+**Backend:** Spring Boot 3.2, Spring Security (JWT), Spring Data JPA, PostgreSQL, Redis (Messaging), WebSocket.
 
-The app uses mock data including sample locations in Vietnam (e.g. Hà Nội), trips, users, transactions, and timeline items.
+**Proxy:** Go (Golang) for decoupled, efficient WebSocket message routing.
 
-## Future Enhancements
+---
 
-This app would greatly benefit from backend integration for:
-- Real-time collaboration features
-- Persistent trip storage
-- User authentication and authorization
-- Transaction history across devices
-- Shared trip planning with team members
-- Cloud-based photo storage for trips
+## 🗺 Routes (SPA)
 
-Consider integrating with Supabase for:
-- User authentication (social + email)
-- Real-time database for collaborative editing
-- File storage for trip photos
-- Row-level security for private trips
-- Real-time subscriptions for live updates
+| Path | Purpose |
+|------|---------|
+| `/` | Discovery & Search |
+| `/workspace/:tripId` | Real-time Trip Workspace |
+| `/timetable/:tripId` | Multi-day schedule view |
+| `/budget/:tripId` | Expense tracking |
+| `/profile` | User management |
+| `/auth` | Secure login / signup |
+
+---
+
+## 📜 Credits
+For third-party and asset credits, see `ATTRIBUTIONS.md`.

@@ -33,10 +33,12 @@ public class SecurityConfig {
             "/api/v1/users/register",
             "/api/v1/auth/introspect",
             "/api/v1/auth/logout",
-            "/api/v1/auth/refresh"
+            "/api/v1/auth/refresh",
+            "/api/v1/places/filter"
     };
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.cors(org.springframework.security.config.Customizer.withDefaults());
         http.csrf(AbstractHttpConfigurer::disable);
         http.authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
@@ -80,6 +82,7 @@ public class SecurityConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
         corsConfiguration.addAllowedOrigin("http://localhost:5173");
+        corsConfiguration.addAllowedOrigin("http://127.0.0.1:5173");
         corsConfiguration.addAllowedOrigin("http://localhost:3000");
 
         corsConfiguration.addAllowedMethod("*"); // Allow all GET, POST, PUT, DELETE

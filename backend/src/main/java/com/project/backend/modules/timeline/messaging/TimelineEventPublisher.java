@@ -20,16 +20,19 @@ public class TimelineEventPublisher {
     public void publishEvent(String timelineId, String type, Object data) {
         String channel = "timeline:" + timelineId;
         Map<String, Object> message = Map.of(
-            "type", type,
-            "data", data,
-            "timestamp", System.currentTimeMillis()
+                "type", type,
+                "data", data,
+                "timestamp", System.currentTimeMillis()
         );
-        
+
         log.info("Publishing event to {}: {}", channel, type);
         try {
             redisTemplate.convertAndSend(channel, message);
         } catch (RedisConnectionFailureException exception) {
             log.warn("Redis is unavailable, skipped timeline event publish for channel {}", channel);
+        } catch (Exception e) {
+            log.error("Failed to publish event to Redis: {}", e.getMessage());
+            // Don't rethrow - Redis failures shouldn't break the main flow
         }
     }
 }
