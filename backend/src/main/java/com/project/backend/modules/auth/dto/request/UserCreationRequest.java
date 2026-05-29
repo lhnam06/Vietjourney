@@ -26,13 +26,11 @@ public class UserCreationRequest {
     @Size(min = 8, message = "PASSWORD_SHORT")
     @Pattern(regexp = ValidationRegex.ONLY_KEYBOARD_CHARS, message = "INVALID_CHARS_PASSWORD")
     @Pattern(regexp = ValidationRegex.NO_SPACE, message = "PASSWORD_HAS_SPACE")
-    @Pattern(regexp = ValidationRegex.HAS_LOWERCASE, message = "PASSWORD_MISS_LOWERCASE")
-    @Pattern(regexp = ValidationRegex.HAS_UPPERCASE, message = "PASSWORD_MISS_UPPERCASE")
+    @Pattern(regexp = ValidationRegex.HAS_LETTER, message = "PASSWORD_MISS_LETTER")
     @Pattern(regexp = ValidationRegex.HAS_DIGIT, message = "PASSWORD_MISS_DIGIT")
-    @Pattern(regexp = ValidationRegex.HAS_SYMBOL, message = "PASSWORD_MISS_SYMBOL")
     String password;
 
-    @NotBlank
+    @NotBlank(message = "DISPLAY_NAME_REQUIRED")
     @Size(max = 50, message = "DISPLAY_NAME_LONG")
     String displayName;
 }
