@@ -9,7 +9,7 @@ import { getStoredToken } from '../lib/authApi';
 import { createTimeline, getMyTimelines, type ApiTimelineDetail } from '../lib/timelineApi';
 import { getLastTripId, setLastTripId } from '../lib/tripStorage';
 import { cacheGet, cacheSet, cacheIsStale, cacheClear } from '../lib/apiCache';
-import { readTimelineCache } from '../lib/timelineCache';
+import { readTimelineCache, resolveTimelineLabels } from '../lib/timelineCache';
 import { toast } from 'sonner';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -63,6 +63,7 @@ function TripScheduleSummary({
   onOpenDiscovery: () => void;
 }) {
   const cached = readTimelineCache(timeline.id);
+  const labels = useMemo(() => resolveTimelineLabels(cached), [cached]);
   const previewRows = useMemo(() => {
     if (cached?.items.length) {
       return [...cached.items]
@@ -70,7 +71,7 @@ function TripScheduleSummary({
         .slice(0, 4)
         .map((item) => ({
           key: item.id,
-          label: cached.labelByLocationId[item.locationId] ?? 'Hoạt động',
+          label: labels[item.locationId] ?? 'Hoạt động',
           when: `${item.date} · ${item.startTime}${item.endTime ? `–${item.endTime}` : ''}`,
         }));
     }
@@ -83,12 +84,12 @@ function TripScheduleSummary({
         label: event.place?.name?.trim() || 'Hoạt động',
         when: `${event.startTime.slice(0, 10)} · ${event.startTime.slice(11, 16)}`,
       }));
-  }, [cached, timeline.events, timeline.id]);
+  }, [cached, labels, timeline.events, timeline.id]);
 
   const activityCount = cached?.items.length ?? timeline.events?.length ?? 0;
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+    <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
           <CalendarRange className="h-3.5 w-3.5" />
@@ -130,7 +131,7 @@ function TripRouteNav({
   onNavigate: (id: string, target: TripRouteTarget) => void;
 }) {
   return (
-    <div className="mt-4 rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3">
+    <div className="mt-3 rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3.5">
       <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Lộ trình chuyến đi</p>
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch">
         {tripRouteSteps.map((step, index) => {
@@ -283,7 +284,7 @@ export default function MyTrip() {
   return (
     <div className="h-full overflow-auto bg-slate-50">
       <div className="mx-auto max-w-[var(--vj-content-max)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)]">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="inline-flex items-center gap-2 rounded-full bg-[var(--vj-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--vj-primary)]">
               <Route className="h-3.5 w-3.5" />
@@ -299,8 +300,8 @@ export default function MyTrip() {
           ) : null}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-          <Card className="p-5 shadow-lg">
+        <div className="grid gap-5 lg:grid-cols-[1fr_22rem] lg:items-start">
+          <Card className="p-5 shadow-lg sm:p-6">
             <h2 className="text-lg font-bold text-slate-900">Timeline hiện có</h2>
             {loadingTimelines ? (
               <div className="mt-6 flex items-center gap-2 text-sm text-slate-600">
@@ -312,13 +313,13 @@ export default function MyTrip() {
                 Bạn chưa có timeline nào. Tạo chuyến đi mới để bắt đầu kéo địa điểm vào lịch.
               </div>
             ) : (
-              <div className="mt-4 grid gap-4">
+              <div className="mt-5 grid gap-4">
                 {timelines.map((timeline) => {
                   const isRecent = timeline.id === lastTripId;
                   return (
                     <div
                       key={timeline.id}
-                      className={`rounded-2xl border bg-white p-4 shadow-sm transition ${
+                      className={`rounded-2xl border bg-white p-4 shadow-sm transition sm:p-5 ${
                         isRecent ? 'border-[var(--vj-accent)]/40 ring-1 ring-[var(--vj-accent)]/15' : 'border-slate-200'
                       }`}
                     >
@@ -357,7 +358,7 @@ export default function MyTrip() {
             )}
           </Card>
 
-          <Card className="p-5 shadow-lg">
+          <Card className="p-5 shadow-lg sm:p-6">
             <h2 className="text-lg font-bold text-slate-900">Tạo nhanh timeline</h2>
             <p className="mt-1 text-sm text-slate-600">Sau khi tạo, bạn sẽ được đưa tới Khám Phá để thêm hoạt động.</p>
             <div className="mt-4 space-y-3">
