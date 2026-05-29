@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import type { DragEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { AlertCircle, CalendarRange, Clock, GripVertical, MapPin, RefreshCw, Search, Sparkles, Star, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertCircle, CalendarRange, Clock, GripVertical, MapPin, Move, Plus, RefreshCw, Search, Sparkles, Star, SlidersHorizontal, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -10,7 +10,8 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { mockLocations, Location, TimelineItem, mockTrips, mockUsers, mockTimeline, mockTransactions } from '../data/mockData';
 import { toast } from 'sonner';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
-import { addTimelineEvent, getMyTimelines, getTimelineDetail, mapApiTimelineToTimetable } from '../lib/timelineApi';
+import { addTimelineEvent, deleteTimelineEvent, getMyTimelines, getTimelineDetail, mapApiTimelineToTimetable, moveTimelineEvent } from '../lib/timelineApi';
+import { mergeTimelineCacheItems, readTimelineCache } from '../lib/timelineCache';
 import { appendTransaction, getLastTripId, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
@@ -39,7 +40,9 @@ import {
   PX_PER_HOUR,
   daySpanMinutes,
   eachTripDay,
+  chunkTripDatesByCalendarWeek,
   layoutsByDate,
+  timeToMinutes,
   type TimetableBlock,
 } from '../lib/timetableLayout';
 
@@ -103,6 +106,13 @@ const PREDEFINED_TAGS: Record<CategoryFilter, Record<string, string[]>> = {
 };
 const MAX_NEARBY_RECOMMENDATIONS = 20;
 const DISCOVERY_DRAG_TYPE = 'application/vnd.vietjourney.location-id';
+const DISCOVERY_EVENT_DRAG_TYPE = 'application/vnd.vietjourney.event-id';
+/** Pixels from timetable grid edge that trigger week change while dragging. */
+const TIMETABLE_EDGE_ZONE_PX = 50;
+/** Width reserved for the left edge pill gutter (keeps time labels clear). */
+const TIMETABLE_LEFT_PILL_GUTTER_PX = 32;
+/** Hold duration at timetable edge before auto-advancing to prev/next week page. */
+const EDGE_HOLD_MS = 500;
 
 const globalCache = {
   catalogUniverse: null as Location[] | null,
@@ -160,6 +170,13 @@ const minutesToHHmm = (minutes: number) => {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 };
 
+/** Turn a snake_case / variable-style tag into readable words (e.g. "cinema_show" → "Cinema show"). */
+const humanizeTag = (raw: string): string => {
+  if (!raw) return '';
+  const cleaned = raw.replace(/[_-]+/g, ' ').trim().replace(/\s+/g, ' ');
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+};
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const dayLabel = (date: string) =>
@@ -168,6 +185,58 @@ const dayLabel = (date: string) =>
     day: '2-digit',
     month: '2-digit',
   });
+
+const weekChunkLabel = (chunk: string[]) => {
+  if (!chunk.length) return '';
+  if (chunk.length === 1) return dayLabel(chunk[0]!);
+  return `${dayLabel(chunk[0]!)} – ${dayLabel(chunk[chunk.length - 1]!)}`;
+};
+
+function WeekEdgePill({
+  side,
+  visible,
+  holding,
+  holdKey,
+  holdMs,
+}: {
+  side: 'left' | 'right';
+  visible: boolean;
+  holding: boolean;
+  holdMs: number;
+  holdKey: number;
+}) {
+  const isLeft = side === 'left';
+  const Icon = isLeft ? ChevronLeft : ChevronRight;
+
+  return (
+    <div
+      className={`vj-week-pill pointer-events-none absolute top-1/2 z-40 ${isLeft ? 'left-0.5' : 'right-0.5'} ${visible ? 'vj-week-pill-visible' : ''}`}
+      aria-hidden={!visible}
+      aria-label={isLeft ? 'Previous week' : 'Next week'}
+    >
+      <div
+        className={`relative flex min-h-[8.5rem] w-7 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-full py-4 shadow-[0_4px_14px_rgba(15,23,42,0.18)] ${isLeft ? 'bg-[var(--vj-primary)] text-white' : 'bg-[var(--vj-accent)] text-white'
+          } ${holding ? 'ring-2 ring-white/50 shadow-[0_6px_20px_rgba(15,23,42,0.22)]' : ''}`}
+      >
+        {holding ? (
+          <div
+            key={holdKey}
+            className="vj-week-pill-fill absolute inset-x-0 bottom-0 bg-white/25"
+            style={{ animationDuration: `${holdMs}ms` }}
+          />
+        ) : null}
+        <Icon
+          className={`relative z-10 h-3.5 w-3.5 shrink-0 ${holding ? (isLeft ? 'vj-edge-chevron-left' : 'vj-edge-chevron-right') : ''}`}
+          strokeWidth={2.5}
+        />
+        <div className="relative z-10 flex flex-col items-center gap-px text-[7px] font-bold uppercase leading-none tracking-[0.14em]">
+          <span>{isLeft ? 'PREV' : 'NEXT'}</span>
+          <span>WEEK</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const DiscoveryLocationCard = memo(({
   location,
@@ -192,7 +261,7 @@ const DiscoveryLocationCard = memo(({
     <Card
       data-place-id={location.id}
       draggable
-      className={`group p-4 transition-all cursor-grab active:cursor-grabbing border ${isSelected
+      className={`group vj-interactive-lift p-4 transition-all cursor-grab active:cursor-grabbing border ${isSelected
           ? 'border-[var(--vj-accent)] shadow-lg ring-2 ring-[var(--vj-accent)]/20'
           : 'border-slate-200 hover:border-[var(--vj-accent)]/50'
         } ${isDragged
@@ -258,7 +327,7 @@ const DiscoveryLocationCard = memo(({
                   variant="secondary"
                   className="rounded-full border-0 bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
                 >
-                  {tag}
+                  {humanizeTag(tag)}
                 </Badge>
               ))}
             </div>
@@ -302,6 +371,15 @@ export default function Discovery() {
     endTime: string;
   } | null>(null);
   const [draggedLocationId, setDraggedLocationId] = useState<string | null>(null);
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [deleteZoneActive, setDeleteZoneActive] = useState(false);
+  const [edgeNavHint, setEdgeNavHint] = useState<'prev' | 'next' | null>(null);
+  const [edgeHoldKey, setEdgeHoldKey] = useState(0);
+  const timetablePanelRef = useRef<HTMLDivElement>(null);
+  const timetableScrollRef = useRef<HTMLDivElement>(null);
+  const edgeNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const edgeNavDirectionRef = useRef<'prev' | 'next' | null>(null);
+  const [weekSlideDirection, setWeekSlideDirection] = useState<'left' | 'right'>('right');
   const [dropPreview, setDropPreview] = useState<{
     date: string;
     startTime: string;
@@ -383,18 +461,30 @@ export default function Discovery() {
     });
   }, [trip.endDate, trip.startDate]);
 
-  const [windowStartIndex, setWindowStartIndex] = useLocalStorageState<number>('vj:discovery:window-start', 0);
+  const tripWeekChunks = useMemo(() => chunkTripDatesByCalendarWeek(tripDates), [tripDates]);
+
+  const [weekPageIndex, setWeekPageIndex] = useLocalStorageState<number>('vj:discovery:week-page', 0);
 
   useEffect(() => {
-    setWindowStartIndex((prev) => {
-      if (prev >= tripDates.length) return Math.max(0, Math.floor((tripDates.length - 1) / 3) * 3);
-      return prev;
+    setWeekPageIndex((prev) => {
+      const maxPage = Math.max(0, tripWeekChunks.length - 1);
+      return prev > maxPage ? maxPage : prev;
     });
-  }, [tripDates, setWindowStartIndex]);
+  }, [tripWeekChunks, setWeekPageIndex]);
+
+  const maxWeekPage = Math.max(0, tripWeekChunks.length - 1);
 
   const visibleDates = useMemo(() => {
-    return tripDates.slice(windowStartIndex, windowStartIndex + 3);
-  }, [tripDates, windowStartIndex]);
+    return tripWeekChunks[weekPageIndex] ?? tripWeekChunks[0] ?? [];
+  }, [tripWeekChunks, weekPageIndex]);
+
+  const currentWeekLabel = useMemo(
+    () => weekChunkLabel(tripWeekChunks[weekPageIndex] ?? []),
+    [tripWeekChunks, weekPageIndex]
+  );
+
+  const weekNumber = weekPageIndex + 1;
+  const totalWeeks = Math.max(1, tripWeekChunks.length);
 
   const timetableLayouts = useMemo(() => layoutsByDate(timetableItems), [timetableItems]);
 
@@ -529,6 +619,82 @@ export default function Discovery() {
       null
     );
   }, [baseLocations, draggedLocationId, filteredLocations]);
+
+  const isDraggingToTimetable = Boolean(draggedLocation) || Boolean(draggedEventId);
+
+  const clearEdgeNavTimer = useCallback(() => {
+    if (edgeNavTimerRef.current) {
+      clearTimeout(edgeNavTimerRef.current);
+      edgeNavTimerRef.current = null;
+    }
+    edgeNavDirectionRef.current = null;
+    setEdgeNavHint(null);
+  }, []);
+
+  useEffect(() => () => clearEdgeNavTimer(), [clearEdgeNavTimer]);
+
+  /** Hold at timetable left/right edge for 500ms → swipe to prev/next week page. */
+  const scheduleEdgeWeekNav = useCallback(
+    (clientX: number, container: HTMLElement) => {
+      if (!isDraggingToTimetable) return;
+
+      const rect = container.getBoundingClientRect();
+      let direction: 'prev' | 'next' | null = null;
+
+      if (clientX >= rect.right - TIMETABLE_EDGE_ZONE_PX && weekPageIndex < maxWeekPage) {
+        direction = 'next';
+      } else if (clientX <= rect.left + TIMETABLE_EDGE_ZONE_PX && weekPageIndex > 0) {
+        direction = 'prev';
+      }
+
+      if (!direction) {
+        clearEdgeNavTimer();
+        return;
+      }
+
+      setEdgeNavHint(direction);
+
+      if (edgeNavTimerRef.current && edgeNavDirectionRef.current === direction) return;
+
+      if (edgeNavTimerRef.current) {
+        clearTimeout(edgeNavTimerRef.current);
+        edgeNavTimerRef.current = null;
+      }
+
+      edgeNavDirectionRef.current = direction;
+      setEdgeHoldKey((key) => key + 1);
+      edgeNavTimerRef.current = setTimeout(() => {
+        setWeekSlideDirection(direction === 'next' ? 'right' : 'left');
+        setWeekPageIndex((prev) => (direction === 'next' ? prev + 1 : prev - 1));
+        edgeNavTimerRef.current = null;
+        edgeNavDirectionRef.current = null;
+        setEdgeNavHint(null);
+      }, EDGE_HOLD_MS);
+    },
+    [isDraggingToTimetable, weekPageIndex, maxWeekPage, setWeekPageIndex, clearEdgeNavTimer]
+  );
+
+  const handleTimetableScrollDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = draggedEventId ? 'move' : 'copy';
+      if (timetableScrollRef.current) {
+        scheduleEdgeWeekNav(event.clientX, timetableScrollRef.current);
+      }
+    },
+    [draggedEventId, scheduleEdgeWeekNav]
+  );
+
+  const goToWeekPage = useCallback(
+    (target: number) => {
+      setWeekPageIndex((prev) => {
+        if (target > prev) setWeekSlideDirection('right');
+        else if (target < prev) setWeekSlideDirection('left');
+        return target;
+      });
+    },
+    [setWeekPageIndex]
+  );
 
   const [displayLimit, setDisplayLimit] = useState(20);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -826,6 +992,13 @@ export default function Discovery() {
       return;
     }
 
+    const cached = !isMockTrip ? readTimelineCache(tripId) : undefined;
+    if (cached) {
+      setTimetableItems(cached.items);
+      setLabelByLocationId(cached.labelByLocationId);
+      if (cached.tripMeta) setTripMetadata(cached.tripMeta);
+    }
+
     let apiSuccess = false;
     if (!isMockTrip && token) {
       try {
@@ -834,6 +1007,11 @@ export default function Discovery() {
         setTimetableItems(mapped.items);
         setLabelByLocationId(mapped.labelByLocationId);
         setTripMetadata(mapped.tripMeta);
+        mergeTimelineCacheItems(tripId, mapped.items, {
+          tripMeta: mapped.tripMeta,
+          labelByLocationId: mapped.labelByLocationId,
+          placesByLocationId: mapped.placesByLocationId,
+        });
         apiSuccess = true;
       } catch (error) {
         console.error('[Discovery] Failed to load timetable preview:', error);
@@ -855,6 +1033,14 @@ export default function Discovery() {
       );
     }
   }, [isMockTrip, tripId, token, realTimelines]);
+
+  useEffect(() => {
+    if (!tripId || isMockTrip || timetableItems.length === 0) return;
+    mergeTimelineCacheItems(tripId, timetableItems, {
+      labelByLocationId,
+      tripMeta: tripMetadata ?? undefined,
+    });
+  }, [tripId, isMockTrip, timetableItems, labelByLocationId, tripMetadata]);
 
   useEffect(() => {
     fetchTimeline();
@@ -899,7 +1085,8 @@ export default function Discovery() {
   const handleCardDragEnd = useCallback(() => {
     setDraggedLocationId(null);
     setDropPreview(null);
-  }, [setDraggedLocationId, setDropPreview]);
+    clearEdgeNavTimer();
+  }, [clearEdgeNavTimer]);
 
   const handleCardClick = useCallback((location: Location) => {
     setSelectedLocationId(location.id);
@@ -935,6 +1122,17 @@ export default function Discovery() {
 
   const handleTimetableDrop = async (date: string, event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    clearEdgeNavTimer();
+
+    // Moving an existing event across days/times takes priority over adding a new one.
+    const movingEventId = event.dataTransfer.getData(DISCOVERY_EVENT_DRAG_TYPE);
+    if (movingEventId) {
+      setDropPreview(null);
+      setDraggedEventId(null);
+      await handleEventMove(date, movingEventId, event.currentTarget, event.clientY);
+      return;
+    }
+
     const locationId =
       event.dataTransfer.getData(DISCOVERY_DRAG_TYPE) ||
       event.dataTransfer.getData('text/plain');
@@ -1005,6 +1203,107 @@ export default function Discovery() {
     }
   };
 
+  const handleEventDragStart = (block: TimetableBlock, event: DragEvent<HTMLButtonElement>) => {
+    event.dataTransfer.setData(DISCOVERY_EVENT_DRAG_TYPE, block.id);
+    event.dataTransfer.setData('text/plain', block.id);
+    event.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => {
+      setDraggedEventId(block.id);
+      setDropPreview(null);
+    }, 0);
+  };
+
+  const handleEventDragEnd = () => {
+    setDraggedEventId(null);
+    setDropPreview(null);
+    setDeleteZoneActive(false);
+    clearEdgeNavTimer();
+  };
+
+  const handleEventDelete = async (eventId: string) => {
+    const existing = timetableItems.find((item) => item.id === eventId);
+    if (!existing) return;
+
+    setTimetableItems((prev) => prev.filter((item) => item.id !== eventId));
+
+    if (isOwner && isAuthenticated && !isMockTrip && token) {
+      try {
+        await deleteTimelineEvent(tripId, eventId, token);
+        toast.success('Đã xóa hoạt động khỏi lịch');
+      } catch {
+        toast.error('Không thể xóa hoạt động');
+        setTimetableItems((prev) => [...prev, existing]);
+      }
+    } else if (!isMockTrip && !isAuthenticated) {
+      toast.success('Đã xóa khỏi lịch nháp');
+    }
+  };
+
+  const handleDeleteZoneDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const eventId = event.dataTransfer.getData(DISCOVERY_EVENT_DRAG_TYPE);
+    if (!eventId) return;
+    setDraggedEventId(null);
+    setDeleteZoneActive(false);
+    setDropPreview(null);
+    clearEdgeNavTimer();
+    void handleEventDelete(eventId);
+  };
+
+  /** Move an existing timetable event to a new day/time (cross-day & cross-week). */
+  const handleEventMove = async (date: string, eventId: string, target: HTMLElement, clientY: number) => {
+    const existing = timetableItems.find((item) => item.id === eventId);
+    if (!existing) return;
+
+    const durationMin = Math.max(
+      15,
+      timeToMinutes(existing.endTime) - timeToMinutes(existing.startTime)
+    );
+    const rect = target.getBoundingClientRect();
+    const percent = clamp((clientY - rect.top) / rect.height, 0, 1);
+    const rawMinutes = TIMETABLE_DAY_START_HOUR * 60 + percent * daySpanMinutes();
+    const startMinutes = clamp(
+      Math.round(rawMinutes / 15) * 15,
+      TIMETABLE_DAY_START_HOUR * 60,
+      TIMETABLE_DAY_END_HOUR * 60 - durationMin
+    );
+    const endMinutes = Math.min(startMinutes + durationMin, TIMETABLE_DAY_END_HOUR * 60);
+    const startTime = minutesToHHmm(startMinutes);
+    const endTime = minutesToHHmm(endMinutes);
+
+    if (date === existing.date && startTime === existing.startTime && endTime === existing.endTime) {
+      return;
+    }
+
+    setTimetableItems((prev) =>
+      prev.map((item) =>
+        item.id === eventId ? { ...item, date, startTime, endTime } : item
+      )
+    );
+
+    if (isOwner && isAuthenticated && !isMockTrip && token) {
+      try {
+        await moveTimelineEvent(
+          tripId,
+          eventId,
+          { startTime: `${date}T${startTime}:00`, endTime: `${date}T${endTime}:00` },
+          token
+        );
+        toast.success('Đã chuyển hoạt động', { description: `${dayLabel(date)} · ${startTime}` });
+      } catch {
+        toast.error('Không thể chuyển hoạt động, đang khôi phục');
+        setTimetableItems((prev) =>
+          prev.map((item) =>
+            item.id === eventId
+              ? { ...item, date: existing.date, startTime: existing.startTime, endTime: existing.endTime }
+              : item
+          )
+        );
+      }
+    }
+  };
+
   const clearAllFilters = () => {
     setCategoryFilter('all');
     setDistrictFilter('all');
@@ -1025,11 +1324,11 @@ export default function Discovery() {
   };
 
   return (
-    <div className="h-full flex flex-col xl:flex-row bg-[var(--vj-bg)] min-h-0 gap-[var(--vj-layout-gap)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)]">
+    <div className="flex h-full min-h-0 flex-col gap-[var(--vj-layout-gap)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] xl:flex-row">
       {/* Left Panel - Search & Filters & List */}
-      <div className="w-full xl:w-[var(--vj-panel-max)] xl:max-w-[var(--vj-panel-max)] xl:shrink-0 flex flex-col min-h-0 flex-1 xl:flex-none xl:max-h-full bg-[var(--vj-surface)]/95 backdrop-blur-3xl border border-[var(--vj-border)] rounded-3xl shadow-[var(--vj-shadow-premium)] relative z-[1050] transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
+      <div className="relative z-[1050] flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-3xl border border-[var(--vj-border-light)] bg-[var(--vj-surface)] shadow-[var(--vj-shadow-premium)] backdrop-blur-3xl transition-all duration-700 ease-[var(--vj-ease-out-expo)] xl:w-[var(--vj-panel-max)] xl:max-h-full xl:max-w-[var(--vj-panel-max)] xl:flex-none xl:shrink-0 vj-animate-in">
         {/* Header */}
-        <div className="p-[var(--vj-inset)] border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/90 via-[var(--vj-primary-2)]/80 to-[#0f4b68]/70 backdrop-blur-xl">
+        <div className="shrink-0 border-b border-white/10 bg-gradient-to-br from-[var(--vj-primary)] via-[var(--vj-primary-2)] to-[#063a35] p-[var(--vj-inset)] backdrop-blur-xl">
           <div className="flex items-center gap-4 mb-6">
             <span className="text-4xl drop-shadow-md">🇻🇳</span>
             <div>
@@ -1094,7 +1393,7 @@ export default function Discovery() {
         </div>
 
         {/* Scrollable content: Filters + Results + List */}
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="vj-scroll-inset min-h-0 flex-1" type="hover">
           {isAuthenticated && !recoLoading && recoFallback === 'error' && (
             <div className="p-[var(--vj-inset)] pb-0">
               <Alert variant="destructive" className="border-red-200 bg-red-50/90 text-red-900 [&>svg]:text-red-600">
@@ -1153,7 +1452,7 @@ export default function Discovery() {
             </div>
           )}
           {/* Filters */}
-          <div className="border-b border-slate-200 bg-white/80 p-[var(--vj-inset)]">
+          <div className="vj-slide-up border-b border-slate-200/60 bg-gradient-to-b from-slate-50/90 to-white p-[var(--vj-inset)]">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
                 <SlidersHorizontal className="size-3.5 shrink-0" />
@@ -1182,9 +1481,9 @@ export default function Discovery() {
                       variant={categoryFilter === filter.value ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setCategoryFilter(filter.value)}
-                      className={`rounded-full ${categoryFilter === filter.value
-                          ? 'bg-[var(--vj-primary)] hover:bg-[var(--vj-primary-2)]'
-                          : 'border-slate-300'
+                      className={`rounded-full transition-transform active:scale-95 ${categoryFilter === filter.value
+                          ? 'scale-[1.02] bg-[var(--vj-primary)] shadow-md shadow-[var(--vj-primary)]/25 hover:bg-[var(--vj-primary-2)]'
+                          : 'border-slate-200 hover:border-[var(--vj-primary)]/30'
                         }`}
                     >
                       {filter.label}
@@ -1335,9 +1634,13 @@ export default function Discovery() {
                 </p>
               </div>
             ) : null}
-            {filteredLocations.slice(0, displayLimit).map((location) => (
-              <DiscoveryLocationCard
+            {filteredLocations.slice(0, displayLimit).map((location, index) => (
+              <div
                 key={location.id}
+                className="vj-animate-in"
+                style={{ animationDelay: `${Math.min(index, 14) * 40}ms` }}
+              >
+              <DiscoveryLocationCard
                 location={location}
                 isSelected={selectedLocationId === location.id}
                 isDragged={draggedLocationId === location.id}
@@ -1347,6 +1650,7 @@ export default function Discovery() {
                 onClick={handleCardClick}
                 onOpenAdd={handleCardOpenAdd}
               />
+              </div>
             ))}
             <div ref={loadMoreRef} className="h-10 w-full" aria-hidden="true" />
           </div>
@@ -1354,25 +1658,32 @@ export default function Discovery() {
       </div>
 
       {/* Right Panel - Timetable Planner */}
-      <div className={`flex min-h-[min(42vh,22rem)] flex-1 flex-col overflow-hidden rounded-[1.75rem] border bg-white shadow-[0_24px_64px_rgba(15,23,42,0.08)] transition-all xl:min-h-0 ${draggedLocation
-          ? 'border-[var(--vj-accent)] ring-4 ring-[var(--vj-accent)]/15'
-          : 'border-slate-200/90'
-        }`}>
-        <div className={`border-b border-slate-200/90 p-[var(--vj-inset)] transition-colors ${draggedLocation ? 'bg-gradient-to-r from-orange-50/90 via-white to-emerald-50/80' : 'bg-gradient-to-br from-white to-slate-50/80'
+      <div
+        ref={timetablePanelRef}
+        className={`vj-animate-in relative flex min-h-[min(42vh,22rem)] flex-1 flex-col overflow-hidden rounded-[1.75rem] border bg-white shadow-[var(--vj-shadow-premium)] transition-all duration-500 xl:min-h-0 ${isDraggingToTimetable
+          ? 'border-[var(--vj-accent)] ring-4 ring-[var(--vj-accent)]/20'
+          : 'border-[var(--vj-border-light)]'
+        }`}
+      >
+        <div className={`border-b border-slate-200/90 p-[var(--vj-inset)] transition-colors ${isDraggingToTimetable ? 'bg-gradient-to-r from-orange-50/90 via-white to-emerald-50/80' : 'bg-gradient-to-br from-white to-slate-50/80'
           }`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-[var(--vj-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--vj-primary)]">
                 <CalendarRange className="h-3.5 w-3.5" />
-                {draggedLocation ? 'Sẵn sàng thả' : 'Lịch nháp'}
+                {draggedEventId ? 'Đang di chuyển' : draggedLocation ? 'Sẵn sàng thả' : 'Lịch nháp'}
               </div>
               <h2 className="mt-2 text-2xl font-black tracking-tight text-[var(--vj-primary)]">
-                {draggedLocation ? `Đang kéo: ${draggedLocation.name}` : 'Kéo địa điểm vào thời khoá biểu'}
+                {draggedEventId
+                  ? 'Đang đổi ngày / giờ hoạt động'
+                  : draggedLocation
+                    ? `Đang kéo: ${draggedLocation.name}`
+                    : 'Kéo địa điểm vào thời khoá biểu'}
               </h2>
               <p className="mt-1 text-sm text-slate-600">
                 {dropPreview
                   ? `Thả để lên lịch ${dropPreview.startTime} - ${dropPreview.endTime} ngày ${dropPreview.date}.`
-                  : 'Chọn một hoặc nhiều ngày, kéo thẻ địa điểm từ danh sách bên trái rồi thả vào khung giờ mong muốn.'}
+                  : 'Kéo địa điểm từ danh sách bên trái vào khung giờ. Kéo thẻ đã có trong lịch để đổi sang ngày hoặc giờ khác.'}
               </p>
             </div>
             <div className={`rounded-2xl border px-4 py-3 text-xs transition-colors ${draggedLocation
@@ -1388,46 +1699,62 @@ export default function Discovery() {
             </div>
           </div>
 
-          <div className="mt-4">
-            {tripDates.length > 3 ? (
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={windowStartIndex === 0}
-                  onClick={() => setWindowStartIndex(Math.max(0, windowStartIndex - 3))}
-                  className="h-8 rounded-xl px-2 text-slate-600 hover:bg-slate-200/50"
-                >
-                  <ChevronLeft className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Trước</span>
-                </Button>
-                <div className="flex flex-wrap justify-center gap-1.5">
-                  {visibleDates.map((date) => (
-                    <div
-                      key={date}
-                      className="rounded-xl border border-[var(--vj-primary)]/20 bg-[var(--vj-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm"
-                    >
-                      {dayLabel(date)}
-                    </div>
-                  ))}
+          <div className="mt-4 space-y-2">
+            {tripWeekChunks.length > 1 ? (
+              <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Tuần {weekNumber}/{totalWeeks}
+                  </span>
+                  <span className="text-xs font-semibold text-[var(--vj-primary)]">{currentWeekLabel}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={windowStartIndex + 3 >= tripDates.length}
-                  onClick={() => setWindowStartIndex(windowStartIndex + 3)}
-                  className="h-8 rounded-xl px-2 text-slate-600 hover:bg-slate-200/50"
-                >
-                  <span className="hidden sm:inline">Tiếp</span>
-                  <ChevronRight className="h-4 w-4 sm:ml-1" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={weekPageIndex === 0}
+                    onClick={() => goToWeekPage(Math.max(0, weekPageIndex - 1))}
+                    className="h-9 shrink-0 rounded-xl px-2 text-slate-600 hover:bg-[var(--vj-primary)]/10 hover:text-[var(--vj-primary)]"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Tuần trước</span>
+                  </Button>
+                  <div className="flex flex-1 gap-1 overflow-x-auto no-scrollbar py-0.5">
+                    {visibleDates.map((date) => (
+                      <div
+                        key={date}
+                        className="shrink-0 rounded-xl border border-[var(--vj-primary)]/15 bg-gradient-to-br from-[var(--vj-primary)] to-[var(--vj-primary-2)] px-2.5 py-1.5 text-center shadow-sm"
+                      >
+                        <span className="block text-[10px] font-semibold uppercase text-white/70">
+                          {new Date(`${date}T12:00:00Z`).toLocaleDateString('vi-VN', { weekday: 'short' })}
+                        </span>
+                        <span className="block text-xs font-bold tabular-nums text-white">{dayLabel(date)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={weekPageIndex >= maxWeekPage}
+                    onClick={() => goToWeekPage(Math.min(maxWeekPage, weekPageIndex + 1))}
+                    className="h-9 shrink-0 rounded-xl px-2 text-slate-600 hover:bg-[var(--vj-primary)]/10 hover:text-[var(--vj-primary)]"
+                  >
+                    <span className="hidden sm:inline">Tuần sau</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                {isDraggingToTimetable && tripWeekChunks.length > 1 ? (
+                  <p className="vj-animate-in mt-2 text-center text-[10px] font-medium text-emerald-700">
+                    Kéo sát mép trái/phải lưới (~50px), giữ 0.5s để chuyển tuần
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {visibleDates.map((date) => (
                   <div
                     key={date}
-                    className="rounded-full border border-[var(--vj-primary)]/20 bg-[var(--vj-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm"
+                    className="rounded-full border border-[var(--vj-primary)]/20 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)] px-3 py-1.5 text-xs font-bold text-white shadow-sm"
                   >
                     {dayLabel(date)}
                   </div>
@@ -1437,8 +1764,47 @@ export default function Discovery() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto bg-slate-50/30">
-          <div className="flex min-w-fit">
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="relative min-h-0 flex-1">
+            {isDraggingToTimetable && tripWeekChunks.length > 1 && weekPageIndex > 0 ? (
+              <WeekEdgePill
+                side="left"
+                visible={edgeNavHint === 'prev'}
+                holding={edgeNavHint === 'prev'}
+                holdKey={edgeHoldKey}
+                holdMs={EDGE_HOLD_MS}
+              />
+            ) : null}
+            {isDraggingToTimetable && tripWeekChunks.length > 1 && weekPageIndex < maxWeekPage ? (
+              <WeekEdgePill
+                side="right"
+                visible={edgeNavHint === 'next'}
+                holding={edgeNavHint === 'next'}
+                holdKey={edgeHoldKey}
+                holdMs={EDGE_HOLD_MS}
+              />
+            ) : null}
+
+            <div
+              ref={timetableScrollRef}
+              className="h-full overflow-auto bg-slate-50/30 transition-[padding] duration-300 ease-out"
+              style={{
+                paddingLeft:
+                  isDraggingToTimetable && tripWeekChunks.length > 1 && weekPageIndex > 0
+                    ? TIMETABLE_LEFT_PILL_GUTTER_PX
+                    : undefined,
+              }}
+              onDragOver={handleTimetableScrollDragOver}
+              onDragLeave={(event) => {
+                const next = event.relatedTarget as Node | null;
+                if (next && timetableScrollRef.current?.contains(next)) return;
+                clearEdgeNavTimer();
+              }}
+            >
+              <div
+                key={weekPageIndex}
+                className={`flex min-w-fit ${weekSlideDirection === 'right' ? 'vj-week-enter-right' : 'vj-week-enter-left'}`}
+              >
             <div className="sticky left-0 z-20 w-[3.5rem] shrink-0 border-r border-slate-200/90 bg-gradient-to-b from-slate-50 to-white backdrop-blur-sm">
               <div className="sticky top-0 z-30 flex h-12 items-end justify-center border-b border-slate-200 bg-slate-100/90 pb-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Giờ</span>
@@ -1465,14 +1831,15 @@ export default function Discovery() {
               </div>
             </div>
 
-            {visibleDates.map((date) => {
+            {visibleDates.map((date, columnIndex) => {
               const blocks = timetableLayouts.get(date) ?? [];
               const isPreviewDate = dropPreview?.date === date;
               return (
                 <div
                   key={date}
-                  className={`w-[min(72vw,13.5rem)] shrink-0 border-r transition-colors last:border-r-0 sm:w-48 lg:w-56 ${isPreviewDate ? 'border-r-orange-200/80 bg-orange-50/40' : 'border-slate-200/80 bg-white'
+                  className={`vj-column-enter w-[min(16vw,7rem)] shrink-0 border-r transition-colors last:border-r-0 sm:w-32 lg:w-36 ${isPreviewDate ? 'border-r-orange-200/80 bg-orange-50/40' : 'border-slate-200/80 bg-white'
                     }`}
+                  style={{ animationDelay: `${columnIndex * 60}ms` }}
                 >
                   <div className={`sticky top-0 z-10 flex h-12 flex-col justify-center border-b px-3 transition-colors ${isPreviewDate
                       ? 'border-orange-200 bg-gradient-to-br from-orange-100 to-orange-50'
@@ -1486,7 +1853,7 @@ export default function Discovery() {
                     </span>
                   </div>
                   <div
-                    className={`relative transition-colors ${draggedLocation
+                    className={`relative transition-colors ${isDraggingToTimetable
                         ? isPreviewDate
                           ? 'bg-orange-50/50'
                           : 'bg-emerald-50/25 hover:bg-emerald-50/50'
@@ -1498,7 +1865,7 @@ export default function Discovery() {
                     }}
                     onDragOver={(event) => {
                       event.preventDefault();
-                      event.dataTransfer.dropEffect = 'copy';
+                      event.dataTransfer.dropEffect = draggedEventId ? 'move' : 'copy';
                       const nextPreview = getDropDefaults(date, event.currentTarget, event.clientY);
                       setDropPreview((prev) =>
                         prev &&
@@ -1530,17 +1897,26 @@ export default function Discovery() {
                     ))}
 
                     {blocks.length === 0 ? (
-                      <div className={`absolute inset-x-4 top-8 rounded-2xl border border-dashed p-4 text-center text-xs font-semibold transition-colors ${draggedLocation
-                          ? 'border-emerald-300 bg-emerald-50/80 text-emerald-800'
-                          : 'border-slate-300 bg-slate-50/80 text-slate-500'
+                      <div className={`vj-animate-in pointer-events-none absolute inset-x-3 top-6 flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-3 py-5 text-center transition-all duration-300 ${isDraggingToTimetable
+                          ? 'border-emerald-400 bg-emerald-50/90 shadow-[0_0_0_4px_rgba(16,185,129,0.08)]'
+                          : 'border-slate-200 bg-white/60'
                         }`}>
-                        {draggedLocation ? 'Thả để tạo hoạt động đầu tiên' : 'Thả địa điểm vào đây'}
+                        <span className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${isDraggingToTimetable ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                          {isDraggingToTimetable ? <Plus className="h-4 w-4" /> : <CalendarRange className="h-4 w-4" />}
+                        </span>
+                        <span className={`text-xs font-bold ${isDraggingToTimetable ? 'text-emerald-800' : 'text-slate-600'}`}>
+                          {isDraggingToTimetable ? 'Thả vào đây' : 'Chưa có hoạt động'}
+                        </span>
+                        <span className={`text-[10px] leading-snug ${isDraggingToTimetable ? 'text-emerald-700/80' : 'text-slate-400'}`}>
+                          {isDraggingToTimetable ? 'Nhả chuột để đặt vào khung giờ' : 'Kéo địa điểm từ danh sách bên trái'}
+                        </span>
                       </div>
                     ) : null}
 
                     {isPreviewDate ? (
                       <div
-                        className="pointer-events-none absolute left-2 right-2 z-20"
+                        className="vj-drop-preview pointer-events-none absolute left-2 right-2 z-20"
                         style={{ top: `${dropPreview.topPct}%` }}
                       >
                         <div className="flex -translate-y-1/2 items-center gap-2">
@@ -1557,21 +1933,26 @@ export default function Discovery() {
                       const heightPct = ((block.endMin - block.startMin) / daySpanMinutes()) * 100;
                       const laneWidth = 100 / block.laneCount;
                       const leftPct = block.lane * laneWidth;
+                      const isBeingDragged = draggedEventId === block.id;
                       return (
                         <button
                           key={block.id}
                           type="button"
-                          className="absolute overflow-hidden rounded-xl border border-[var(--vj-accent)]/25 bg-white px-2 py-1.5 text-left shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition hover:-translate-y-px hover:border-[var(--vj-accent)]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vj-accent)]"
+                          draggable
+                          onDragStart={(event) => handleEventDragStart(block, event)}
+                          onDragEnd={handleEventDragEnd}
+                          className={`group/event vj-event-block absolute cursor-grab overflow-hidden rounded-xl border bg-white px-2 py-1.5 text-left shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition active:cursor-grabbing hover:-translate-y-px hover:border-[var(--vj-accent)]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vj-accent)] ${isBeingDragged ? 'border-[var(--vj-accent)] opacity-50 ring-2 ring-[var(--vj-accent)]/30' : 'border-[var(--vj-accent)]/25'}`}
                           style={{
                             top: `${topPct}%`,
                             height: `max(${heightPct}%, 36px)`,
                             left: `calc(${leftPct}% + 4px)`,
                             width: `calc(${laneWidth}% - 8px)`,
                           }}
-                          title={`${block.startTime} - ${block.endTime}`}
+                          title={`${block.startTime} - ${block.endTime} · Kéo để đổi ngày/giờ`}
                         >
                           <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-[var(--vj-accent)]" aria-hidden />
-                          <span className="block pl-2 text-[11px] font-extrabold leading-snug text-slate-900 line-clamp-2">
+                          <Move className="absolute right-1 top-1 h-3 w-3 text-slate-300 opacity-0 transition group-hover/event:opacity-100" aria-hidden />
+                          <span className="block pl-2 pr-3 text-[11px] font-extrabold leading-snug text-slate-900 line-clamp-2">
                             {getTimetableLabel(block)}
                           </span>
                           <span className="mt-0.5 inline-flex items-center gap-1 pl-2 text-[10px] font-medium tabular-nums text-slate-600">
@@ -1585,7 +1966,35 @@ export default function Discovery() {
                 </div>
               );
             })}
+              </div>
+            </div>
           </div>
+
+        {/* Drag-to-delete strip */}
+        {draggedEventId ? (
+          <div
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+              setDeleteZoneActive(true);
+            }}
+            onDragLeave={() => setDeleteZoneActive(false)}
+            onDrop={handleDeleteZoneDrop}
+            className={`vj-slide-up shrink-0 border-t-2 border-dashed px-4 py-3 text-center transition-all duration-200 ${deleteZoneActive
+                ? 'scale-[1.01] border-red-500 bg-red-100 vj-pulse-accent'
+                : 'border-red-300/70 bg-gradient-to-r from-red-50 via-orange-50/80 to-red-50'
+              }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${deleteZoneActive ? 'bg-red-500 text-white' : 'bg-red-100 text-red-500'}`}>
+                <Trash2 className="h-4 w-4" />
+              </span>
+              <span className={`text-xs font-bold ${deleteZoneActive ? 'text-red-800' : 'text-red-600/90'}`}>
+                {deleteZoneActive ? 'Thả để xóa khỏi lịch' : 'Kéo hoạt động vào đây để xóa'}
+              </span>
+            </div>
+          </div>
+        ) : null}
         </div>
       </div>
 

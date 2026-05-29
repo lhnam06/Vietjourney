@@ -241,7 +241,8 @@ public class TimelineService {
     @Transactional
     @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public JoinTimelineByCodeResponse joinTimelineByCode(JoinTimelineByCodeRequest request) {
-        String codeHash = sha256(request.getCode());
+        String normalizedCode = request.getCode().trim().toUpperCase(java.util.Locale.ROOT);
+        String codeHash = sha256(normalizedCode);
         TimelineInviteCode inviteCode = timelineInviteCodeRepository.findActiveByCodeHashForUpdate(codeHash)
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_INVITE_CODE_INVALID));
 
@@ -261,7 +262,10 @@ public class TimelineService {
         Timeline timeline = inviteCode.getTimeline();
 
         if (timeline.getOwner().getId().equals(user.getId())) {
-            throw new AppException(ErrorCode.TIMELINE_MEMBER_ALREADY_EXISTS);
+            return JoinTimelineByCodeResponse.builder()
+                    .timelineId(timeline.getId())
+                    .role(com.project.backend.modules.timeline.enums.TimelineMemberRole.OWNER)
+                    .build();
         }
 
         boolean isNewMember = false;

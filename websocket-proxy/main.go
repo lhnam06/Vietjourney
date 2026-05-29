@@ -52,6 +52,99 @@ func verifyJWT(tokenString string) (*jwt.Token, error) {
 	})
 }
 
+func extractTokenString(r *http.Request) string {
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+	return tokenString
+}
+
+func authenticateRequest(w http.ResponseWriter, r *http.Request) (*jwt.Token, bool) {
+	tokenString := extractTokenString(r)
+	if tokenString == "" {
+		http.Error(w, "Missing authentication token", http.StatusUnauthorized)
+		return nil, false
+	}
+
+	token, err := verifyJWT(tokenString)
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid authentication token", http.StatusUnauthorized)
+		return nil, false
+	}
+	return token, true
+}
+
+func jwtSubject(token *jwt.Token) string {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return ""
+	}
+	sub, _ := claims["sub"].(string)
+	return strings.TrimSpace(sub)
+}
+
+func subscribeRedisToConn(ctx context.Context, channelName string, conn *websocket.Conn) {
+	pubsub := redisClient.Subscribe(ctx, channelName)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+				log.Printf("Error writing back to websocket (%s): %v", channelName, err)
+				return
+			}
+		}
+	}
+}
+
+func handleNotificationWebSocket(w http.ResponseWriter, r *http.Request) {
+	token, ok := authenticateRequest(w, r)
+	if !ok {
+		return
+	}
+
+	username := jwtSubject(token)
+	if username == "" {
+		http.Error(w, "Invalid token subject", http.StatusUnauthorized)
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Failed to upgrade notification connection: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	channelName := "user:" + username
+	go subscribeRedisToConn(ctx, channelName, conn)
+
+	log.Printf("Notification socket connected for user %s", username)
+
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("Notification websocket closed for %s: %v", username, err)
+			}
+			break
+		}
+	}
+}
+
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Expected path: /ws/timeline/{timelineId}
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -61,25 +154,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	timelineId := pathParts[2]
 
-	// Extract JWT token from Query or Headers
-	tokenString := r.URL.Query().Get("token")
-	if tokenString == "" {
-		authHeader := r.Header.Get("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-		}
-	}
-
-	if tokenString == "" {
-		http.Error(w, "Missing authentication token", http.StatusUnauthorized)
+	token, ok := authenticateRequest(w, r)
+	if !ok {
 		return
 	}
-
-	token, err := verifyJWT(tokenString)
-	if err != nil || !token.Valid {
-		http.Error(w, "Invalid authentication token", http.StatusUnauthorized)
-		return
-	}
+	_ = token
 
 	// Upgrade the HTTP server connection to the WebSocket protocol
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -93,26 +172,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	channelName := "timeline:" + timelineId
-	pubsub := redisClient.Subscribe(ctx, channelName)
-	defer pubsub.Close()
-
-	// Handle broadcasts from Redis -> WebSocket Client
-	go func() {
-		ch := pubsub.Channel()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg := <-ch:
-				err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload))
-				if err != nil {
-					log.Printf("Error writing back to websocket: %v", err)
-					cancel()
-					return
-				}
-			}
-		}
-	}()
+	go subscribeRedisToConn(ctx, channelName, conn)
 
 	// Handle Transient events from WebSocket Client -> Redis
 	for {
@@ -152,7 +212,7 @@ func submitProposalToBackend(timelineId string, msg ProposalMessage) {
 	}
 
 	url := fmt.Sprintf("%s/api/v1/timelines/%s/proposals", backendURL, timelineId)
-	
+
 	// Flatten the frontend's nested structure to match backend's SubmitProposalRequest
 	// Frontend sends { type: 'PROPOSAL_SUBMIT', payload: { action: 'ADD', data: {...} }, ... }
 	changeType, _ := msg.Payload["action"].(string)
@@ -168,7 +228,7 @@ func submitProposalToBackend(timelineId string, msg ProposalMessage) {
 	req, _ := http.NewRequest("POST", url, strings.NewReader(string(payloadBytes)))
 	req.Header.Set("Content-Type", "application/json")
 	if msg.Token != "" {
-		req.Header.Set("Authorization", "Bearer " + msg.Token)
+		req.Header.Set("Authorization", "Bearer "+msg.Token)
 	}
 
 	client := &http.Client{}
@@ -183,18 +243,15 @@ func submitProposalToBackend(timelineId string, msg ProposalMessage) {
 		log.Printf("Backend returned error for proposal: %s", resp.Status)
 	} else {
 		log.Printf("Proposal successfully saved to backend for timeline %s", timelineId)
-		
+
 		// Broadcast the new proposal event to all connected clients via Redis
 		broadcastMsg := map[string]interface{}{
-			"type": "PROPOSAL_CREATED",
+			"type":      "PROPOSAL_CREATED",
 			"timestamp": time.Now().UnixMilli(),
-			// Since we don't have the full backend response object here, 
-			// we broadcast a generic event to trigger clients to fetch.
-			// The frontend logic already handles 'PROPOSAL_CREATED' by calling fetchTimeline.
 			"data": map[string]interface{}{
-				"status": "PENDING",
+				"status":     "PENDING",
 				"changeType": changeType,
-				"payload": actualPayload,
+				"payload":    actualPayload,
 			},
 		}
 		broadcastBytes, _ := json.Marshal(broadcastMsg)
@@ -210,9 +267,10 @@ func submitProposalToBackend(timelineId string, msg ProposalMessage) {
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8081" 
+		port = "8081"
 	}
 
+	http.HandleFunc("/ws/notifications", handleNotificationWebSocket)
 	http.HandleFunc("/ws/timeline/", handleWebSocket)
 
 	log.Printf("Go WebSocket Proxy listening on :%s", port)
