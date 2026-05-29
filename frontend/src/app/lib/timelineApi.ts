@@ -1,5 +1,5 @@
 import { requestJson } from './api';
-import type { TimelineItem } from '../data/mockData';
+import type { TimelineItem } from '../types/domain';
 
 export type ApiTimelinePlace = {
   id: string;
@@ -81,7 +81,7 @@ export async function resetTimelineInviteCode(
 export async function joinTimelineByCode(code: string, accessToken: string) {
   return requestJson<{ timelineId: string; role: string }>(
     `/api/v1/timelines/join-by-code`,
-    { method: 'POST', body: JSON.stringify({ code }), accessToken }
+    { method: 'POST', body: JSON.stringify({ code: code.trim().toUpperCase() }), accessToken }
   );
 }
 

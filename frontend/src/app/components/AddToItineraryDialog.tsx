@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Clock3, StickyNote, Wallet } from 'lucide-react';
-import type { Location, TimelineItem, Transaction, Trip, User } from '../data/mockData';
+import type { Location, TimelineItem, Transaction, Trip, User } from '../types/domain';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';

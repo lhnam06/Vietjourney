@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { buildWsUrl } from '../lib/wsConfig';
 
 export interface NotificationSocketEvent {
   id: string;
@@ -28,14 +29,16 @@ export function useNotificationSocket() {
       return;
     }
 
-    const DEFAULT_WS = 'ws://localhost:8081';
-    const WS_BASE = (import.meta.env.VITE_WS_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_WS;
-    const wsUrl = `${WS_BASE}/ws/notifications?token=${encodeURIComponent(token)}`;
+    const wsUrl = buildWsUrl('/ws/notifications', { token });
+    if (!wsUrl) {
+      setIsConnected(false);
+      return;
+    }
+
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
       setIsConnected(true);
-      console.log('Connected to notification socket');
     };
 
     socket.onmessage = (event) => {
@@ -49,11 +52,10 @@ export function useNotificationSocket() {
 
     socket.onclose = () => {
       setIsConnected(false);
-      console.log('Notification socket closed');
     };
 
-    socket.onerror = (error) => {
-      console.error('Notification socket error:', error);
+    socket.onerror = () => {
+      setIsConnected(false);
     };
 
     ws.current = socket;
@@ -62,6 +64,7 @@ export function useNotificationSocket() {
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.close();
       }
+      ws.current = null;
     };
   }, [isAuthenticated, token]);
 
