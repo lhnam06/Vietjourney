@@ -7,7 +7,7 @@ spring:
     password: ${DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
   flyway:
     baseline-on-migrate: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration,classpath:db/{vendor}
   jpa:
     hibernate:
       ddl-auto: none
@@ -31,3 +31,16 @@ jwt:
   signer_key: ${JWT_SIGNER_KEY:REMOVED_JWT_SIGNER_KEY}
   valid_duration: 36000
   refreshable_duration: 604800
+
+search:
+  hybrid:
+    openai-base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    openai-api-key: ${OPENAI_API_KEY:}
+    embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1536}
+    keyword-weight: ${HYBRID_SEARCH_KEYWORD_WEIGHT:0.45}
+    vector-weight: ${HYBRID_SEARCH_VECTOR_WEIGHT:0.55}
+    keyword-threshold: ${HYBRID_SEARCH_KEYWORD_THRESHOLD:0.2}
+    vector-threshold: ${HYBRID_SEARCH_VECTOR_THRESHOLD:0.2}
+    candidate-limit: ${HYBRID_SEARCH_CANDIDATE_LIMIT:200}
+    reindex-batch-size: ${HYBRID_SEARCH_REINDEX_BATCH_SIZE:32}

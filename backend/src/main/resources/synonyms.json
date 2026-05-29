@@ -1,0 +1,143 @@
+{
+  "coffee": [
+    "ca phe den", "cafe", "americano", "ca phe phin", "espresso", "highlands", "phuc long", "quan ca phe", "cold brew", "caphe", "coffee house", "ca phe vot", "coffee bar", "coffee shop", "tiem ca phe", "ca phe", "ca phe sua", "ca phe da", "the coffee house", "bac xiu", "latte", "cappuccino"
+  ],
+  "tea_milktea": [
+    "topping", "koi the", "tra vai", "trân châu", "tea", "dingtea", "tra chanh", "gong cha", "tra tac", "tra", "tra gung", "tpot", "tra oolong", "tra dao", "tocotoco", "quan tra sua", "tra hoa cuc", "tra sua", "tiem tra sua", "matcha", "tra trân châu", "bubble tea", "milk tea", "oolong"
+  ],
+  "juice_smoothie": [
+    "fresh juice", "ep cam", "nuoc dua", "ep dua hau", "smoothie", "nuoc trai cay", "nuoc ep", "coconut water", "sinh to bo", "sugarcane juice", "nuoc ep trai cay", "juice", "fruit juice", "sinh to dau", "ep ca rot", "sinh to xoai", "nuoc mia", "sinh to"
+  ],
+  "alcoholic": [
+    "bia tuoi", "craft beer", "rooftop", "do uong co con", "bia", "vodka", "pub", "quan nhau", "beer", "bia hoi", "club", "bia thu cong", "draught beer", "mocktail", "rooftop bar", "lounge", "nhau", "wine", "ruou vang", "gin", "cocktail", "bar", "whiskey", "sky bar"
+  ],
+  "karaoke": [
+    "hat karaoke", "phong karaoke", "singing", "karaoke bar", "karaoke", "karaoke phong rieng", "hat", "quan karaoke", "ktv"
+  ],
+  "dessert": [
+    "waffle", "banh flan", "frozen yogurt", "gelato", "banh ngot", "banh kem", "tiem banh", "che thai", "che ba ba", "kem", "trang mieng", "cupcake", "tart", "che khuc bach", "flan", "cake", "kem cuon", "pancake", "crepe", "tiramisu", "ice cream", "mousse", "che", "bakery", "kem tuoi", "patisserie"
+  ],
+  "main_course": [
+    "cơm bình dân", "restaurant", "quan an", "cơm rang", "am thuc", "com", "cơm", "nha hang", "com binh dan", "food", "com rang", "cơm sườn", "cơm gà", "cơm tấm", "com ga", "com tam", "cơm chiên", "cơm niêu", "quan com", "com nieu", "ăn uống"
+  ],
+  "pho": [
+    "vietnamese noodle", "pho bo", "pho xao", "pho", "noodle soup", "pho cuon", "pho ga", "beef noodle"
+  ],
+  "bun": [
+    "bun cha", "vermicelli", "rice noodle", "bun ca", "bun mam", "bun rieu", "bun oc", "bun moc", "bun", "bun bo", "bun thit nuong"
+  ],
+  "mi_hutieu": [
+    "hu tieu", "noodle", "mì gà", "mì Quảng", "mì", "wonton noodle", "mi", "mì bò", "hu tieu mi", "hủ tiếu", "mì hoành thánh", "hủ tiếu Nam Vang", "mi xao", "mi quang"
+  ],
+  "chao_xoi": [
+    "xoi", "sticky rice", "chao", "xôi", "xôi xéo", "xôi lạc", "xôi gà", "cháo", "cháo gà", "cháo lòng", "cháo trắng", "congee", "porridge"
+  ],
+  "banh_mi": [
+    "banh mi", "bánh mì xíu mại", "banh my", "bánh mì thịt", "bánh mỳ", "vietnamese baguette", "bánh mì chảo", "bánh mì", "sandwich", "bánh mì pâté"
+  ],
+  "banh_trang": [
+    "bánh tráng cuốn", "goi cuon", "banh trang tron", "bánh tráng nướng", "bánh tráng trộn", "banh trang", "nem cuốn", "rice paper", "spring roll", "bánh tráng"
+  ],
+  "hotpot": [
+    "lau hai san", "buffet lau", "lẩu hải sản", "steamboat", "lẩu bò", "lau de", "lau bo", "lau nuong", "lẩu nướng", "hotpot", "lẩu dê", "lẩu", "hot pot", "lẩu Thái", "shabu shabu", "lau thai", "lau"
+  ],
+  "nuong_bbq": [
+    "thit nuong", "nuong", "thịt nướng", "nướng than hoa", "grilled", "nướng Hàn Quốc", "nướng", "quán nướng", "lẩu nướng", "bbq", "nướng lò đất", "korean bbq", "than hoa"
+  ],
+  "hai_san": [
+    "seafood", "cua", "cua rang muối", "hai san", "hải sản", "tom", "tôm hùm", "lobster", "ca", "do bien", "muc", "shellfish", "đồ biển", "cá", "tôm", "so", "sò", "mực", "quan oc", "oyster", "oc", "ốc"
+  ],
+  "vegetarian": [
+    "an chay", "quan chay", "vegetarian", "ăn chay", "cơm chay", "chay", "thuan chay", "healthy", "do chay", "thuần chay", "nhà hàng chay", "vegan", "com chay", "plant based", "buffet chay", "đồ chay"
+  ],
+  "buffet": [
+    "nhà hàng buffet", "quán buffet", "buffet nướng", "buffet lẩu", "tự chọn", "tu chon", "all you can eat", "buffet", "buffet hải sản"
+  ],
+  "fast_food": [
+    "hàng rong", "đồ ăn nhẹ", "đồ ăn vỉa hè", "an nhanh", "ăn nhanh", "via he", "hang rong", "vỉa hè", "street food", "snack", "quán vặt", "ăn vặt", "fast food", "an vat"
+  ],
+  "com_ga_vit": [
+    "cơm gà", "ga", "chicken", "gà chiên", "gà nướng", "vịt", "xôi gà", "cơm vịt", "gà", "vit", "com vit", "thịt gà", "com ga", "duck", "gà rang muối"
+  ],
+  "bo_heo": [
+    "sườn heo", "bo ne", "heo", "bò né", "bò lúc lắc", "thịt heo", "thit bo", "pork", "sườn", "bò", "beefsteak", "heo quay", "suon", "bò kho", "thịt bò", "bo", "beef", "steak"
+  ],
+  "international": [
+    "sushi", "hàn quốc", "sashimi", "nhật", "thai", "tây", "chinese", "han quoc", "western", "ramen", "nhat", "thái", "japanese", "korean", "thai food", "pizza", "trung quốc", "burger", "dim sum", "hamburger", "dimsum", "pasta", "pad thai", "kimchi", "ý", "tteokbokki", "italian", "udon"
+  ],
+  "cultural_space": [
+    "temple", "trien lam", "mieu", "chua", "dinh", "di tích", "di tich", "lịch sử", "tu viện", "lich su", "gallery", "thánh thất", "chùa", "phủ", "van hoa", "nha tho", "văn hóa", "church", "đền", "thanh that", "bảo tàng", "bao tang", "museum", "phu", "den", "heritage", "nhà thờ", "cathedral", "triển lãm", "pagoda", "tu vien", "monastery", "miếu", "historical"
+  ],
+  "outdoor_activity": [
+    "nature", "sông", "ho", "bờ sông", "chạy bộ", "eco", "di bo", "khu vui chơi", "thiên nhiên", "cây xanh", "sinh thái", "chay bo", "bo song", "park", "lake", "dã ngoại", "công viên", "thien nhien", "khu sinh thái", "river", "song", "hồ", "cong vien", "walking", "jogging", "sinh thai", "da ngoai", "đi bộ", "picnic"
+  ],
+  "sports_fitness": [
+    "boxing", "sports", "võ thuật", "tennis", "gym", "tập gym", "trampoline", "sân golf", "nhảy", "bể bơi", "soccer", "be boi", "tap gym", "bóng đá", "bơi", "cầu lông", "the thao", "vo thuat", "bong da", "leo núi", "swimming pool", "fitness", "climbing", "cau long", "football", "thể thao", "boi", "badminton", "nhay", "yoga", "leo thuyền", "martial arts", "golf", "bowling", "pilates"
+  ],
+  "cinema_show": [
+    "nhạc sống", "lotte cinema", "bhd", "movie", "sân khấu", "rap phim", "phim", "cgv", "xem phim", "nhac song", "theatre", "ca nhac", "rạp chiếu phim", "cinema", "phim chiếu rạp", "biểu diễn", "ca nhạc", "galaxy cinema", "rạp", "live music", "concert", "bieu dien", "show"
+  ],
+  "shopping": [
+    "nhà sách", "flea market", "market", "chợ đêm", "cho", "sieu thi", "aeon", "shopping", "chợ truyền thống", "sách", "quần áo", "mua sắm", "lottemart", "nha sach", "chợ", "thoi trang", "vincom", "sach", "cho dem", "tttm", "mua sam", "thời trang", "cho truyen thong", "night market", "trung tâm thương mại", "quan ao", "gigamall", "siêu thị", "bookstore", "mall"
+  ],
+  "workshop": [
+    "workshop", "khoa hoc", "khóa học", "handmade", "thủ công", "lam gom", "cooking class", "lớp nhảy", "làm gốm", "thu cong", "học nấu ăn", "drawing", "pottery", "ceramic", "lớp học", "diy", "vẽ", "dance class", "ve", "nấu ăn", "nau an", "lop nhay", "lop hoc", "lớp vẽ", "painting"
+  ],
+  "family": [
+    "bo me", "tre em", "gia dinh", "bố mẹ", "ca nha", "trẻ em", "gia đình", "con nít", "cả nhà", "kids", "parents", "children", "family"
+  ],
+  "dating": [
+    "lang man", "cặp đôi", "hen ho", "lãng mạn", "tình nhân", "cozy", "2 nguoi", "cap doi", "riêng tư", "rieng tu", "tinh nhan", "hẹn hò", "date", "2 người", "romantic", "couple"
+  ],
+  "group_gathering": [
+    "công ty", "sinh nhat", "group", "ban be", "tiệc", "tụ tập", "tu tap", "tiec", "team", "bạn bè", "nhóm", "party", "hội", "gathering", "hoi", "sinh nhật", "nhom", "cong ty", "birthday"
+  ],
+  "celebration": [
+    "tốt nghiệp", "sinh nhat", "tiệc", "kỷ niệm", "tot nghiep", "le", "tiec", "lễ", "anniversary", "đám cưới", "party", "celebration", "wedding", "ky niem", "sinh nhật", "dam cuoi", "birthday", "graduation"
+  ],
+  "work_study": [
+    "làm việc", "work from cafe", "có wifi", "học bài", "working cafe", "hoc bai", "free wifi", "co wifi", "tập trung", "lam viec", "coworking", "wifi", "study", "yên tĩnh", "yen tinh", "laptop", "work"
+  ],
+  "checkin_photography": [
+    "check in", "sống ảo", "đẹp", "không gian đẹp", "góc chụp", "view dep", "view đẹp", "chụp ảnh", "song ao", "background đẹp", "khong gian dep", "chup anh", "checkin", "dep", "goc chup", "trang trí đẹp", "decor đẹp", "instagrammable"
+  ],
+  "relax": [
+    "relax", "thư giãn", "chill", "ngồi chơi", "nghỉ ngơi", "giải trí", "nghi ngoi", "chilling", "thoải mái", "giai tri", "ngoi choi", "thu gian", "thoai mai"
+  ],
+  "outdoor_vibe": [
+    "ngoài trời", "sân vườn", "võng", "cây xanh", "không gian mở", "vong", "cay xanh", "thoáng", "vuon", "hammock", "san vuon", "garden", "thoang", "ngoai troi", "outdoor", "vườn"
+  ],
+  "quiet_vibe": [
+    "vắng", "chill", "yên tĩnh", "ít người", "nhẹ nhàng", "vang", "nhe nhang", "không ồn", "tĩnh lặng", "it nguoi", "yen tinh", "lo-fi", "tinh lang", "quiet"
+  ],
+  "vibrant_vibe": [
+    "vui vẻ", "sôi động", "đông vui", "dj", "nhạc sôi động", "soi dong", "vui", "náo nhiệt", "nhộn nhịp", "nao nhiet", "dong vui", "vui ve", "nhon nhip", "vibrant", "lively"
+  ],
+  "view_vibe": [
+    "view dep", "view đẹp", "sân thượng", "bình minh", "hoang hon", "nhìn ra sông", "river view", "city view", "rooftop", "sunset", "cảnh đẹp", "canh dep", "hoàng hôn", "san thuong", "nhin ra song", "tầng thượng", "view"
+  ],
+  "luxury_vibe": [
+    "sang trọng", "sang trong", "phòng riêng", "cao cấp", "đắt", "upscale", "phong rieng", "vip", "đẳng cấp", "dang cap", "dat", "luxury", "cao cap", "premium", "fine dining"
+  ],
+  "traditional_vibe": [
+    "phin", "vintage", "cà phê vợt", "sai gon xua", "xưa", "ca phe vot", "truyền thống", "cổ xưa", "hoài niệm", "co xua", "cổ điển", "sài gòn xưa", "hoai niem", "truyen thong", "retro", "xua", "traditional", "co dien"
+  ],
+  "street_food": [
+    "hàng rong", "đồ ăn vặt", "via he", "vỉa hè sài gòn", "hang rong", "vỉa hè", "quán cóc", "street food", "lề đường", "le duong", "quan coc", "xe đẩy", "xe day", "ăn vặt", "an vat"
+  ],
+  "takeaway": [
+    "giao hàng", "mang ve", "order online", "to go", "mang về", "baemin", "đặt hàng", "grab food", "delivery", "take away", "giao hang", "mang di", "takeaway", "shopee food", "dat hang"
+  ],
+  "cheap": [
+    "dưới 50k", "giá tốt", "rẻ", "giá rẻ", "no bụng", "bình dân", "duoi 50k", "affordable", "re", "tiết kiệm", "giá cả phải chăng", "budget", "gia tot", "gia re", "tiet kiem", "dưới 100k", "binh dan"
+  ],
+  "expensive": [
+    "nhà hàng cao cấp", "đắt", "upscale", "sang trọng", "xịn", "xin xo", "dat", "luxury", "sang trong", "cao cap", "premium", "fine dining", "buffet cao cấp", "cao cấp"
+  ],
+  "wifi": [
+    "làm việc online", "có wifi", "working cafe", "work from cafe", "free wifi", "co wifi", "internet", "wifi"
+  ],
+  "pet_friendly": [
+    "chó", "thu cung", "cho", "mèo", "pet friendly", "cho phep cho meo", "pet", "dog friendly", "cho phép thú cưng", "thú cưng", "cho mang cho", "meo"
+  ]
+}
