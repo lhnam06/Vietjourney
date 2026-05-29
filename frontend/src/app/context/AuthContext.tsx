@@ -1,81 +1,129 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  type AuthUser,
+  getMyInfo,
+  getStoredToken,
+  loginRequest,
+  logoutRequest,
+  refreshTokenRequest,
+  registerRequest,
+  setStoredToken,
+} from '../lib/authApi';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  token: string | null;
   isAuthenticated: boolean;
   loading: boolean;
-  signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUpWithPassword: (email: string, password: string) => Promise<void>;
+  signInWithPassword: (username: string, password: string) => Promise<void>;
+  signUp: (args: { username: string; password: string; displayName: string }) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithOAuth: (provider: 'google') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(getStoredToken());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    console.log('[AuthContext] Token state changed:', token);
+  }, [token]);
 
-    async function init() {
-      const { data, error } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (!error) setSession(data.session ?? null);
-      setLoading(false);
+  useEffect(() => {
+    console.log('[AuthContext] User state changed:', user?.username);
+  }, [user]);
+
+  const bootstrap = useCallback(async () => {
+    const storedToken = getStoredToken();
+    if (!storedToken) {
+      setUser(null);
+      setToken(null);
+      return;
     }
+    try {
+      const info = await getMyInfo(storedToken);
+      setUser(info);
+      setToken(storedToken);
+      return;
+    } catch {
+      try {
+        const { token: newToken } = await refreshTokenRequest(storedToken);
+        setStoredToken(newToken);
+        setToken(newToken);
+        setUser(await getMyInfo(newToken));
+      } catch {
+        setStoredToken(null);
+        setToken(null);
+        setUser(null);
+      }
+    }
+  }, []);
 
-    init();
+  useEffect(() => {
+    let mounted = true;
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('[AuthContext] Bootstrap timed out, setting loading to false');
+        setLoading(false);
+      }
+    }, 5000);
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return;
-      setSession(nextSession);
-      setLoading(false);
-    });
+    (async () => {
+      setLoading(true);
+      await bootstrap();
+      clearTimeout(timeout);
+      if (mounted) {
+        setLoading(false);
+      }
+    })();
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      clearTimeout(timeout);
     };
-  }, []);
+  }, [bootstrap]);
 
-  const user = useMemo(() => session?.user ?? null, [session]);
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        isAuthenticated: !!user,
-        loading,
-        signInWithPassword: async (email: string, password: string) => {
-          const { error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) throw error;
-        },
-        signUpWithPassword: async (email: string, password: string) => {
-          const { error } = await supabase.auth.signUp({ email, password });
-          if (error) throw error;
-        },
-        signOut: async () => {
-          const { error } = await supabase.auth.signOut();
-          if (error) throw error;
-        },
-        signInWithOAuth: async (provider: 'google') => {
-          const { error } = await supabase.auth.signInWithOAuth({
-            provider,
-            options: { redirectTo: window.location.origin },
-          });
-          if (error) throw error;
-        },
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      token,
+      isAuthenticated: !!user,
+      loading,
+      signInWithPassword: async (username, password) => {
+        console.log('[AuthContext] signInWithPassword called for:', username);
+        const { token: newToken } = await loginRequest(username, password);
+        console.log('[AuthContext] Login success, received token:', newToken ? 'YES' : 'NO');
+        setStoredToken(newToken);
+        setToken(newToken);
+        const info = await getMyInfo(newToken);
+        setUser(info);
+      },
+      signUp: async (args) => {
+        await registerRequest(args);
+        const { token: newToken } = await loginRequest(args.username, args.password);
+        setStoredToken(newToken);
+        setToken(newToken);
+        setUser(await getMyInfo(newToken));
+      },
+      signOut: async () => {
+        if (token) {
+          try {
+            await logoutRequest(token);
+          } catch {
+            /* still clear local session */
+          }
+        }
+        setStoredToken(null);
+        setToken(null);
+        setUser(null);
+      },
+    }),
+    [user, token, loading, bootstrap]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

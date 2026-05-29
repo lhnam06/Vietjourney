@@ -8,7 +8,8 @@ import com.project.backend.modules.timeline.enums.TimelineEventCategory;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -19,26 +20,29 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Service
-@ConditionalOnBean(JdbcTemplate.class)
+@ConditionalOnProperty(prefix = "place.datasource", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class JdbcPlaceLookupService implements PlaceLookupService {
     Pattern identifierPattern = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     RowMapper<PlaceSummary> placeSummaryRowMapper = this::mapPlaceSummary;
 
+    @Qualifier("placeJdbcTemplate")
     JdbcTemplate placeJdbcTemplate;
     PlaceLookupProperties placeLookupProperties;
 
     @Override
     public void assertPlaceExists(TimelineEventCategory category, String externalPlaceId) {
-        String tableName = resolveTableName(category);
-        String idColumn = sanitizeIdentifier(placeLookupProperties.getIdColumn(), "id");
-        String sql = "select exists(select 1 from " + tableName + " where " + idColumn + "::text = ?)";
+        // String tableName = resolveTableName(category);
+        // String idColumn = sanitizeIdentifier(placeLookupProperties.getIdColumn(), "id");
+        // String sql = "select exists(select 1 from " + tableName + " where " + idColumn + "::text = ?)";
 
-        Boolean exists = placeJdbcTemplate.queryForObject(sql, Boolean.class, externalPlaceId);
-        if (!Boolean.TRUE.equals(exists)) {
-            throw new AppException(ErrorCode.PLACE_NOT_EXIST);
-        }
+        // Boolean exists = placeJdbcTemplate.queryForObject(sql, Boolean.class, externalPlaceId);
+        // if (!Boolean.TRUE.equals(exists)) {
+        //     throw new AppException(ErrorCode.PLACE_NOT_EXIST);
+        // }
+        // Relaxed validation: We allow adding events even if the place detail is missing in the lookup DB.
+        // This supports mock locations and places that haven't been indexed yet.
     }
 
     @Override

@@ -4,11 +4,12 @@ import { Clock, Coffee, GripVertical, Landmark, MapPin, MoreVertical, Trash2, Co
 import { Card } from './ui/card';
 import { TimelineItem, Location } from '../data/mockData';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { onLocationImageError } from '../lib/imagePlaceholder';
 
 interface TimelineBlockProps {
   index: number;
   item: TimelineItem;
-  location: Location;
+  location?: Location | null; // Made optional/nullable
   moveItem: (dragIndex: number, hoverIndex: number) => void;
   isEditing: boolean;
   onEditStart: () => void;
@@ -18,12 +19,19 @@ interface TimelineBlockProps {
   hasOverlap?: boolean;
   onEditTime?: () => void;
   onRemove?: () => void;
-  onDuplicate?: () => void;
+  onDuplicate?: void;
+  onClick?: void;
+  // New: direct data fallback from API
+  displayName?: string;
+  displayImage?: string;
+  isPending?: boolean;
+  changeType?: "ADD" | "UPDATE" | "DELETE" | string;
 }
 
 const ItemType = 'TIMELINE_ITEM';
 
-function getActivityIcon(location: Location) {
+function getActivityIcon(location: Location | null | undefined) {
+  if (!location || !location.tags) return MapPin;
   const tags = location.tags.join(' ').toLowerCase();
   const name = location.name.toLowerCase();
 
@@ -47,12 +55,18 @@ export default function TimelineBlock({
   onEditTime,
   onRemove,
   onDuplicate,
+  onClick,
+  displayName,
+  displayImage,
+  isPending = false,
+  changeType,
 }: TimelineBlockProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemType,
     item: { index },
+    canDrag: !isPending, // Ghost items cannot be dragged
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -61,7 +75,7 @@ export default function TimelineBlock({
   const [{ isOver }, drop] = useDrop({
     accept: ItemType,
     hover(draggedItem: { index: number }) {
-      if (!ref.current) return;
+      if (!ref.current || isPending) return;
 
       const dragIndex = draggedItem.index;
       const hoverIndex = index;
@@ -80,70 +94,96 @@ export default function TimelineBlock({
 
   return (
     <div ref={preview}>
-      <div className="flex gap-3">
+      <div className={`flex gap-3 ${isPending ? 'opacity-70' : ''}`}>
         {/* Timeline rail */}
         <div className="w-14 flex flex-col items-center pt-1">
           <div className="text-xs font-extrabold text-white/90 tabular-nums">{item.startTime}</div>
           <div className="text-[11px] text-white/65 leading-none mt-0.5">Ngày</div>
           <div className="relative flex-1 w-full flex justify-center mt-2">
-            <div className="absolute top-0 bottom-0 w-px bg-white/25" />
-            <div className="relative z-10 mt-1 w-3.5 h-3.5 rounded-full bg-[#F4B23A] ring-4 ring-[color-mix(in_oklab,#F4B23A_25%,transparent)]" />
-            {!isLast && <div className="absolute top-6 bottom-0 w-px bg-white/25" />}
+            <div className={`absolute top-0 bottom-0 w-px ${isPending ? 'bg-white/10' : 'bg-white/25'}`} />
+            <div className={`relative z-10 mt-1 w-3.5 h-3.5 rounded-full ${isPending ? 'bg-amber-400/50 border-2 border-dashed border-white/50' : 'bg-[#F4B23A] ring-4 ring-[color-mix(in_oklab,#F4B23A_25%,transparent)]'}`} />
+            {!isLast && <div className={`absolute top-6 bottom-0 w-px ${isPending ? 'bg-white/10' : 'bg-white/25'}`} />}
           </div>
         </div>
 
         {/* Card */}
         <Card
           ref={ref}
-          className={`relative overflow-hidden transition-all cursor-move bg-white/95 border border-white/25 shadow-[0_10px_25px_rgba(0,0,0,.18)] hover:shadow-[0_14px_34px_rgba(0,0,0,.22)] rounded-2xl ${
+          className={`relative overflow-hidden transition-all duration-500 ease-[var(--vj-ease-out-expo)] bg-white/95 border shadow-[var(--vj-shadow-premium)] rounded-2xl ${
+            isPending 
+              ? 'border-dashed border-amber-500/50 cursor-default bg-amber-50/10 shadow-sm' 
+              : 'border-white/25 cursor-pointer hover:shadow-[var(--vj-shadow-hover)] hover:-translate-y-1'
+          } ${
             isDragging ? 'opacity-50' : ''
           } ${isOver ? 'border-[var(--vj-accent)] border-2' : ''} ${
             isEditing ? 'ring-2 ring-[var(--vj-accent)] ring-offset-2 shadow-lg' : ''
           } ${hasOverlap ? 'ring-2 ring-rose-500 ring-offset-2' : ''}`}
-          onClick={onEditStart}
+          onClick={() => {
+            if (isPending) return;
+            onClick?.();
+            onEditStart();
+          }}
         >
           <div className="flex gap-3 p-3">
             {/* Drag Handle */}
-            <div className="flex-shrink-0 flex items-center text-slate-300 hover:text-slate-500">
-              <GripVertical className="w-4.5 h-4.5" />
-            </div>
+            {!isPending && (
+              <div className="flex-shrink-0 flex items-center text-slate-300 hover:text-slate-500">
+                <GripVertical className="w-4.5 h-4.5" />
+              </div>
+            )}
 
             {/* Image + icon overlay */}
-            <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 relative">
+            <div className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 relative ${isPending ? 'grayscale-[0.5]' : ''}`}>
               <img
-                src={location.image}
-                alt={location.name}
+                src={displayImage || location?.image}
+                alt={displayName || location?.name}
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="strict-origin-when-cross-origin"
+                onError={onLocationImageError}
               />
               <div className="absolute bottom-1 right-1 w-7 h-7 rounded-lg bg-white/95 shadow flex items-center justify-center border border-slate-200">
                 {(() => {
                   const Icon = getActivityIcon(location);
-                  return <Icon className="w-4 h-4 text-[var(--vj-primary)]" />;
+                  return <Icon className={`w-4 h-4 ${isPending ? 'text-amber-500' : 'text-[var(--vj-primary)]'}`} />;
                 })()}
               </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0">
-              <h3 className="font-extrabold text-slate-900 leading-snug truncate">
-                {location.name}
-              </h3>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h3 className="font-extrabold text-slate-900 leading-snug whitespace-nowrap py-0.5">
+                  {displayName || location?.name || 'Hoạt động'}
+                </h3>
+                {isPending && (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-tighter ${
+                    changeType === 'ADD' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                    changeType === 'DELETE' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                    'bg-amber-100 text-amber-700 border-amber-200'
+                  }`}>
+                    {changeType === 'ADD' ? 'Thêm mới' : changeType === 'DELETE' ? 'Xóa bỏ' : 'Cập nhật'}
+                  </span>
+                )}
+              </div>
 
               <div className="flex items-center gap-2 text-xs text-slate-700 mt-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 border border-slate-200">
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isPending ? 'bg-amber-50 border-amber-100 text-amber-600' : 'bg-slate-100 border-slate-200'}`}>
                   <Clock className="w-3.5 h-3.5" />
                   {item.startTime}–{item.endTime}
                 </span>
                 {ownerName && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 border border-slate-200 text-slate-700">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isPending ? 'bg-amber-50 border-amber-100 text-amber-600' : 'bg-slate-100 border-slate-200'}`}>
                     <User className="w-3.5 h-3.5" />
-                    {ownerName}
+                    {isPending ? `Đề xuất bởi ${ownerName}` : ownerName}
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="flex-shrink-0">
+            {!isPending && (
+              <div className="flex-shrink-0">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -188,6 +228,7 @@ export default function TimelineBlock({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+            )}
           </div>
 
           {/* Editing Indicator */}

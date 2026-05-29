@@ -1,7 +1,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 16px;
+  /* Slight fluid type + rhythm (scales with viewport width) */
+  --font-size: clamp(14px, 0.22vw + 13.1px, 16px);
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -43,15 +44,45 @@
   /* Vietjourney palette tokens (brand) */
   --vj-bg: #073f3a;
   --vj-bg-2: #0a4f49;
-  --vj-surface: rgba(255, 255, 255, 0.92);
-  --vj-surface-2: rgba(255, 255, 255, 0.78);
-  --vj-border: rgba(255, 255, 255, 0.12);
+  --vj-surface: rgba(255, 255, 255, 0.94);
+  --vj-surface-2: rgba(255, 255, 255, 0.82);
+  --vj-border: rgba(255, 255, 255, 0.15);
   --vj-primary: #0b5d55;
   --vj-primary-2: #0a4f49;
   --vj-accent: #ff6b35;
   --vj-accent-2: #ff7d4d;
-  --vj-text-on-dark: rgba(255, 255, 255, 0.92);
-  --vj-text-on-dark-muted: rgba(255, 255, 255, 0.72);
+  --vj-text-on-dark: rgba(255, 255, 255, 0.96);
+  --vj-text-on-dark-muted: rgba(255, 255, 255, 0.75);
+
+  /* Premium Glassmorphism & Effects */
+  --vj-glass-bg: rgba(255, 255, 255, 0.7);
+  --vj-glass-border: rgba(255, 255, 255, 0.3);
+  --vj-glass-blur: blur(12px);
+  --vj-shadow-premium: 0 20px 50px -12px rgba(0, 0, 0, 0.2);
+  --vj-shadow-hover: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
+  
+  /* Motion & Transitions */
+  --vj-ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --vj-transition-all: all 0.5s var(--vj-ease-out-expo);
+  --vj-transition-fast: all 0.2s ease-out;
+
+  /* Layout rhythm (fluid) */
+  --vj-content-max: min(1400px, calc(100vw - 2 * clamp(12px, 3vw, 28px)));
+  --vj-content-wide-max: min(1440px, calc(100vw - 2 * clamp(12px, 3vw, 28px)));
+  --vj-page-pad-x: clamp(12px, 2.8vw, 24px);
+  --vj-page-pad-y: clamp(0.5rem, 1.2vw, 1.5rem);
+  --vj-layout-gap: clamp(0.75rem, 1.5vw, 1.5rem);
+  --vj-stack-gap: clamp(0.75rem, 1.5vw, 1.25rem);
+  --vj-inset: clamp(0.875rem, 1.4vw, 1.5rem);
+  --vj-panel-max: min(32.5rem, calc(100vw - 2 * var(--vj-page-pad-x)));
+  --vj-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --vj-transition-all: none;
+    --vj-transition-fast: none;
+  }
 }
 
 .dark {
@@ -137,6 +168,22 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    font-size: var(--font-size);
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--vj-accent) 75%, white);
+    outline-offset: 2px;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--vj-font);
@@ -157,26 +204,22 @@
   * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
   */
 
-  html {
-    font-size: var(--font-size);
-  }
-
   h1 {
-    font-size: var(--text-2xl);
+    font-size: clamp(1.375rem, 2vw + 1rem, 1.75rem);
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    line-height: 1.35;
   }
 
   h2 {
-    font-size: var(--text-xl);
+    font-size: clamp(1.2rem, 1.4vw + 0.95rem, 1.375rem);
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    line-height: 1.4;
   }
 
   h3 {
-    font-size: var(--text-lg);
+    font-size: clamp(1.05rem, 0.9vw + 0.9rem, 1.125rem);
     font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    line-height: 1.45;
   }
 
   h4 {
