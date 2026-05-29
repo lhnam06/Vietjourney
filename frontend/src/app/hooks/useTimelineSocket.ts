@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { buildWsUrl } from '../lib/wsConfig';
 
 type SocketCallback = (message: any) => void;
+
 export function useTimelineSocket(tripId: string, token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<any>(null);
@@ -10,9 +12,8 @@ export function useTimelineSocket(tripId: string, token: string | null) {
   useEffect(() => {
     if (!tripId || !token) return;
 
-    const DEFAULT_WS = 'ws://localhost:8081';
-    const WS_BASE = (import.meta.env.VITE_WS_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_WS;
-    const wsUrl = `${WS_BASE}/ws/timeline/${tripId}?token=${token}`;
+    const wsUrl = buildWsUrl(`/ws/timeline/${encodeURIComponent(tripId)}`, { token });
+    if (!wsUrl) return;
 
     const socket = new WebSocket(wsUrl);
 

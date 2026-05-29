@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Clock, Coffee, GripVertical, Landmark, MapPin, MoreVertical, Trash2, Copy, Pencil, User, UtensilsCrossed } from 'lucide-react';
 import { Card } from './ui/card';
-import { TimelineItem, Location } from '../data/mockData';
+import { TimelineItem, Location } from '../types/domain';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { onLocationImageError } from '../lib/imagePlaceholder';
 
@@ -93,10 +93,10 @@ export default function TimelineBlock({
   drag(drop(ref));
 
   return (
-    <div ref={preview}>
-      <div className={`flex gap-3 ${isPending ? 'opacity-70' : ''}`}>
+    <div ref={preview} className="min-w-0">
+      <div className={`flex min-w-0 gap-3 ${isPending ? 'opacity-70' : ''}`}>
         {/* Timeline rail */}
-        <div className="w-14 flex flex-col items-center pt-1">
+        <div className="w-12 shrink-0 flex flex-col items-center pt-1 sm:w-14">
           <div className="text-xs font-extrabold text-white/90 tabular-nums">{item.startTime}</div>
           <div className="text-[11px] text-white/65 leading-none mt-0.5">Ngày</div>
           <div className="relative flex-1 w-full flex justify-center mt-2">
@@ -109,7 +109,7 @@ export default function TimelineBlock({
         {/* Card */}
         <Card
           ref={ref}
-          className={`relative overflow-hidden transition-all duration-500 ease-[var(--vj-ease-out-expo)] bg-white/95 border shadow-[var(--vj-shadow-premium)] rounded-2xl ${
+          className={`relative min-w-0 flex-1 overflow-hidden transition-all duration-500 ease-[var(--vj-ease-out-expo)] bg-white/95 border shadow-[var(--vj-shadow-premium)] rounded-2xl ${
             isPending 
               ? 'border-dashed border-amber-500/50 cursor-default bg-amber-50/10 shadow-sm' 
               : 'border-white/25 cursor-pointer hover:shadow-[var(--vj-shadow-hover)] hover:-translate-y-1'
@@ -124,16 +124,16 @@ export default function TimelineBlock({
             onEditStart();
           }}
         >
-          <div className="flex gap-3 p-3">
+          <div className="flex min-w-0 gap-2.5 p-3 sm:gap-3 sm:p-3.5">
             {/* Drag Handle */}
             {!isPending && (
-              <div className="flex-shrink-0 flex items-center text-slate-300 hover:text-slate-500">
-                <GripVertical className="w-4.5 h-4.5" />
+              <div className="flex shrink-0 items-center text-slate-300 hover:text-slate-500">
+                <GripVertical className="h-4 w-4" />
               </div>
             )}
 
             {/* Image + icon overlay */}
-            <div className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 relative ${isPending ? 'grayscale-[0.5]' : ''}`}>
+            <div className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-xl sm:h-14 sm:w-14 ${isPending ? 'grayscale-[0.5]' : ''}`}>
               <img
                 src={displayImage || location?.image}
                 alt={displayName || location?.name}
@@ -152,9 +152,9 @@ export default function TimelineBlock({
             </div>
 
             {/* Content */}
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <h3 className="font-extrabold text-slate-900 leading-snug whitespace-nowrap py-0.5">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex min-w-0 items-start gap-2">
+                <h3 className="line-clamp-2 min-w-0 flex-1 font-extrabold leading-snug text-slate-900">
                   {displayName || location?.name || 'Hoạt động'}
                 </h3>
                 {isPending && (
@@ -168,7 +168,7 @@ export default function TimelineBlock({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-700 mt-1">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-700">
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isPending ? 'bg-amber-50 border-amber-100 text-amber-600' : 'bg-slate-100 border-slate-200'}`}>
                   <Clock className="w-3.5 h-3.5" />
                   {item.startTime}–{item.endTime}
@@ -183,7 +183,7 @@ export default function TimelineBlock({
             </div>
 
             {!isPending && (
-              <div className="flex-shrink-0">
+              <div className="shrink-0 self-start">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button

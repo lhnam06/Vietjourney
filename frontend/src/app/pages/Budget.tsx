@@ -7,7 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockTransactions, mockUsers, calculateDebtSettlement, mockTrips } from '../data/mockData';
+import { calculateDebtSettlement, createDefaultTrip } from '../types/domain';
 import { loadTripData } from '../lib/tripStorage';
 
 // Format VND currency
@@ -30,9 +30,18 @@ export default function Budget() {
   const { tripId: tripIdParam } = useParams();
   const tripId = tripIdParam || 'trip-1';
   const stored = typeof window !== 'undefined' ? loadTripData(tripId) : null;
-  const trip = stored?.trip ?? mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
-  const transactions = stored?.transactions?.length ? stored.transactions : mockTransactions;
-  const users = mockUsers.filter((u) => trip.participants.includes(u.id));
+  const trip = stored?.trip ?? createDefaultTrip(tripId);
+  const transactions = stored?.transactions ?? [];
+  const users = useMemo(() => {
+    if (!stored?.trip?.participants?.length) return [];
+    return stored.trip.participants.map((participantId, index) => ({
+      id: participantId,
+      name: `Thành viên ${index + 1}`,
+      email: '',
+      avatar: '',
+      preferences: { pace: 3, budgetLevel: 2, favoriteCategories: [] },
+    }));
+  }, [stored?.trip?.participants]);
 
   // Calculate totals
   const totalSpent = useMemo(
@@ -40,7 +49,7 @@ export default function Budget() {
     [transactions]
   );
   
-  const budgetPercentage = (totalSpent / trip.totalBudget) * 100;
+  const budgetPercentage = trip.totalBudget > 0 ? (totalSpent / trip.totalBudget) * 100 : 0;
 
   // Calculate debt settlement
   const balances = useMemo(() => calculateDebtSettlement(transactions, users), [transactions, users]);
@@ -84,6 +93,16 @@ export default function Budget() {
 
         <ScrollArea className="flex-1">
           <div className="max-w-[var(--vj-content-wide-max)] mx-auto px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] space-y-[var(--vj-stack-gap)]">
+            {transactions.length === 0 ? (
+              <Card className="p-8 text-center shadow-lg rounded-2xl">
+                <Receipt className="mx-auto mb-3 size-10 text-slate-400" />
+                <h2 className="text-lg font-semibold text-slate-800">Chưa có giao dịch</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Thêm chi phí từ lịch trình hoặc tạo giao dịch mới để theo dõi ngân sách chuyến đi.
+                </p>
+              </Card>
+            ) : (
+              <>
             {/* Budget Summary Card - NGÂN SÁCH */}
             <Card className="p-6 bg-gradient-to-br from-[var(--vj-primary)] to-[var(--vj-primary-2)] text-white shadow-xl border border-[var(--vj-border)] rounded-2xl">
               <div className="flex items-start justify-between mb-6">
@@ -111,12 +130,13 @@ export default function Budget() {
               <div className="flex items-center justify-between pt-4 border-t border-white/20">
                 <span className="text-sm text-white/80 uppercase tracking-wide">Còn Lại</span>
                 <span className="text-xl font-bold text-green-300">
-                  {formatVND(trip.totalBudget - totalSpent)}
+                  {formatVND(Math.max(0, trip.totalBudget - totalSpent))}
                 </span>
               </div>
             </Card>
 
             {/* Debt Settlement Section - CHIA TIỀN */}
+            {users.length > 0 && (
             <Card className="p-6 shadow-lg rounded-2xl">
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
@@ -142,12 +162,11 @@ export default function Budget() {
                     <Card key={user.id} className={`p-5 rounded-xl ${isPositive ? 'bg-green-50 border-green-200 border-2' : balance < 0 ? 'bg-red-50 border-red-200 border-2' : 'bg-slate-50 border border-slate-200'}`}>
                       <div className="flex items-center gap-3 mb-4">
                         <Avatar className="w-12 h-12 ring-2 ring-white">
-                          <AvatarImage src={user.avatar} />
                           <AvatarFallback>{user.name[0]}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900 truncate">{user.name}</p>
-                          <p className="text-xs text-slate-500">{user.email}</p>
+                          {user.email ? <p className="text-xs text-slate-500">{user.email}</p> : null}
                         </div>
                       </div>
 
@@ -167,7 +186,6 @@ export default function Budget() {
                         </div>
                       </div>
 
-                      {/* Payment icons for Vietnam */}
                       {balance !== 0 && (
                         <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
                           <p className="text-xs text-slate-500 flex-shrink-0">Chuyển khoản:</p>
@@ -189,6 +207,7 @@ export default function Budget() {
                 })}
               </div>
             </Card>
+            )}
 
             {/* Category Breakdown */}
             <Card className="p-6 shadow-lg rounded-2xl">
@@ -200,7 +219,7 @@ export default function Budget() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {Object.entries(transactionsByCategory).map(([category, items]) => {
                   const total = items.reduce((sum, t) => sum + t.amount, 0);
-                  const percentage = (total / totalSpent) * 100;
+                  const percentage = totalSpent > 0 ? (total / totalSpent) * 100 : 0;
                   
                   return (
                     <div key={category} className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
@@ -231,7 +250,7 @@ export default function Budget() {
               <div className="space-y-3">
                 {transactions.map((transaction) => {
                   const payer = users.find((u) => u.id === transaction.paidBy);
-                  if (!payer) return null;
+                  const payerName = payer?.name ?? 'Thành viên';
 
                   return (
                     <div
@@ -239,14 +258,13 @@ export default function Budget() {
                       className="flex items-center gap-4 p-4 bg-gradient-to-r from-slate-50 to-white rounded-xl hover:shadow-md transition-all border border-slate-200"
                     >
                       <Avatar className="w-10 h-10 ring-2 ring-slate-200">
-                        <AvatarImage src={payer.avatar} />
-                        <AvatarFallback>{payer.name[0]}</AvatarFallback>
+                        <AvatarFallback>{payerName[0]}</AvatarFallback>
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-slate-900 mb-1">{transaction.description}</p>
                         <div className="flex items-center gap-3 text-sm text-slate-600">
-                          <span>Thanh toán bởi {payer.name}</span>
+                          <span>Thanh toán bởi {payerName}</span>
                           <span>•</span>
                           <Badge variant="outline" className="text-xs border-[#0A4A6E] text-[#0A4A6E]">
                             {transaction.category}
@@ -269,6 +287,8 @@ export default function Budget() {
                 })}
               </div>
             </Card>
+              </>
+            )}
           </div>
         </ScrollArea>
       </div>

@@ -29,6 +29,9 @@ public class RedisNotificationRealtimeGateway implements NotificationRealtimeGat
             log.debug("Published notification {} to channel {}", notification.getId(), channel);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize notification for realtime gateway: {}", notification.getId(), e);
+        } catch (Exception e) {
+            // Redis outages must not break REST flows (e.g. join-by-code creating notifications).
+            log.error("Failed to publish notification {} to Redis channel {}: {}", notification.getId(), channel, e.getMessage());
         }
     }
 }
