@@ -713,21 +713,29 @@ export default function Workspace() {
             {/* Day switcher + hints */}
             <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
               <div className="flex items-center justify-between gap-3">
-                <div className="max-w-[150px] sm:max-w-[250px] md:max-w-[400px] overflow-x-auto rounded-xl bg-white/10 border border-white/15 flex p-1 gap-1 custom-scrollbar-x">
-                  {dates.map((d) => {
+                <div className="flex max-w-[180px] gap-1.5 overflow-x-auto rounded-2xl border border-white/15 bg-white/10 p-1.5 no-scrollbar sm:max-w-[340px] md:max-w-[520px]">
+                  {dates.map((d, index) => {
                     const isActive = d === selectedDate;
-                    const label = new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                    const dateObj = new Date(`${d}T12:00:00Z`);
+                    const weekday = dateObj.toLocaleDateString('vi-VN', { weekday: 'short' });
+                    const dayMonth = dateObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
                     return (
                       <button
                         key={d}
                         type="button"
                         onClick={() => setSelectedDate(d)}
-                        className={`px-3 h-8 rounded-lg text-sm font-semibold transition-colors shrink-0 whitespace-nowrap ${
-                          isActive ? 'bg-white text-slate-900' : 'text-white/85 hover:bg-white/10'
+                        className={`flex shrink-0 flex-col items-center justify-center rounded-xl px-3 py-1 leading-tight transition-colors ${
+                          isActive
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-white/80 hover:bg-white/15 hover:text-white'
                         }`}
                         aria-pressed={isActive}
+                        title={`Ngày ${index + 1}`}
                       >
-                        {label}
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${isActive ? 'text-[var(--vj-accent)]' : 'text-white/55'}`}>
+                          {weekday}
+                        </span>
+                        <span className="text-sm font-bold tabular-nums">{dayMonth}</span>
                       </button>
                     );
                   })}
@@ -744,7 +752,17 @@ export default function Workspace() {
                     Đề xuất
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 bg-white/10 border-white/25 text-white hover:bg-white/15" asChild>
-                    <Link to={`/timetable/${tripId}`}>
+                    <Link
+                      to="/"
+                      onClick={() => {
+                        setLastTripId(tripId);
+                        try {
+                          window.localStorage.setItem('vj:discovery:current-trip-id', JSON.stringify(tripId));
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                    >
                       <CalendarRange className="w-4 h-4 mr-1.5" />
                       Thời khoá biểu
                     </Link>
