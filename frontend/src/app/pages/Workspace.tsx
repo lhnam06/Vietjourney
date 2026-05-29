@@ -38,10 +38,11 @@ import { Button } from '../components/ui/button';
 import { Button as UIButton } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
-import { ScrollArea, ScrollBar } from '../components/ui/scroll-area';
+import { ScrollArea } from '../components/ui/scroll-area';
 import { mockLocations, mockUsers, TimelineItem, Location, mockTrips } from '../data/mockData';
 import SimpleMap from '../components/SimpleMap';
 import TimelineBlock from '../components/TimelineBlock';
+import { DateScrollStrip } from '../components/DateScrollStrip';
 import { toast } from 'sonner';
 import { fetchRoadRoutePolyline, type LatLngTuple } from '../lib/roadRoute';
 import { setLastTripId } from '../lib/tripStorage';
@@ -143,7 +144,7 @@ export default function Workspace() {
           hasPlace: !!ev.place
         })));
         
-        const { items, tripMeta, placesByLocationId } = mapApiTimelineToTimetable(detail);
+        const { items, tripMeta, placesByLocationId, labelByLocationId: labels } = mapApiTimelineToTimetable(detail);
         const freshItems = items || [];
         setTimelineItems(freshItems);
         setTripMetadata({ ...tripMeta, placesByLocationId });
@@ -156,7 +157,7 @@ export default function Workspace() {
           console.error("[Workspace] Failed to fetch proposals:", e);
         }
         setPendingProposals(proposals);
-        cacheSet(CACHE_KEY, { items: freshItems, tripMeta, placesByLocationId, proposals });
+        cacheSet(CACHE_KEY, { items: freshItems, tripMeta, labelByLocationId: labels, placesByLocationId, proposals });
       } else {
         setTimelineItems([]);
       }
@@ -662,16 +663,16 @@ export default function Workspace() {
       <div className="h-full bg-[var(--vj-bg)]">
         <div className="h-full max-w-[var(--vj-content-wide-max)] mx-auto w-full px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] flex flex-col lg:flex-row gap-[var(--vj-layout-gap)] min-h-0">
           {/* Column 1: Timeline - LỊCH TRÌNH CHUYẾN ĐI */}
-          <div className="w-full lg:w-[min(33.75rem,100%)] lg:max-w-[var(--vj-panel-max)] lg:shrink-0 bg-[var(--vj-primary)]/40 backdrop-blur-3xl border border-[var(--vj-border)] flex flex-col rounded-3xl shadow-[var(--vj-shadow-premium)] min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
+          <div className="w-full min-w-0 overflow-hidden lg:w-[min(33.75rem,100%)] lg:max-w-[var(--vj-panel-max)] lg:shrink-0 bg-[var(--vj-primary)]/40 backdrop-blur-3xl border border-[var(--vj-border)] flex flex-col rounded-3xl shadow-[var(--vj-shadow-premium)] min-h-0 transition-all duration-700 ease-[var(--vj-ease-out-expo)]">
           {/* Sticky header */}
           <div className="sticky top-0 z-20 border-b border-white/5 bg-gradient-to-br from-[var(--vj-primary)]/80 via-[var(--vj-primary)]/40 to-transparent backdrop-blur-xl">
             <div className="p-[var(--vj-inset)]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-black text-white tracking-tight drop-shadow-sm">Lịch Trình Chuyến Đi</h2>
-                  <p className="mt-1.5 text-xs font-medium text-white/70 uppercase tracking-widest">{trip.name}</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-black text-white tracking-tight drop-shadow-sm sm:text-2xl">Lịch Trình Chuyến Đi</h2>
+                  <p className="mt-1 text-xs font-medium text-white/70 uppercase tracking-widest truncate">{trip.name}</p>
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex shrink-0 items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
@@ -694,7 +695,7 @@ export default function Workspace() {
               </div>
               
               {/* Online Users */}
-              <div className="flex items-center gap-2 mt-4">
+              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <div className="flex -space-x-2">
                   {onlineUsers.map((user) => (
                     <Avatar key={user.id} className="w-8 h-8 border-2 border-white ring-2 ring-green-400">
@@ -712,8 +713,11 @@ export default function Workspace() {
 
             {/* Day switcher + hints */}
             <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex max-w-[180px] gap-1.5 overflow-x-auto rounded-2xl border border-white/15 bg-white/10 p-1.5 no-scrollbar sm:max-w-[340px] md:max-w-[520px]">
+              <div className="flex flex-col gap-3">
+                <DateScrollStrip
+                  activeId={selectedDate}
+                  className="rounded-2xl border border-white/15 bg-white/10 p-1.5"
+                >
                   {dates.map((d, index) => {
                     const isActive = d === selectedDate;
                     const dateObj = new Date(`${d}T12:00:00Z`);
@@ -723,6 +727,7 @@ export default function Workspace() {
                       <button
                         key={d}
                         type="button"
+                        data-scroll-active={isActive ? 'true' : undefined}
                         onClick={() => setSelectedDate(d)}
                         className={`flex shrink-0 flex-col items-center justify-center rounded-xl px-3 py-1 leading-tight transition-colors ${
                           isActive
@@ -739,16 +744,16 @@ export default function Workspace() {
                       </button>
                     );
                   })}
-                </div>
+                </DateScrollStrip>
 
-                <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => setProposalSidebarOpen(!proposalSidebarOpen)}
                     className={`h-8 border-white/25 text-white hover:bg-white/15 ${proposalSidebarOpen ? 'bg-white/20' : 'bg-white/10'}`}
                   >
-                    <TrendingUp className="w-4 h-4 mr-2" />
+                    <TrendingUp className="w-4 h-4 mr-1.5" />
                     Đề xuất
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 bg-white/10 border-white/25 text-white hover:bg-white/15" asChild>
@@ -772,13 +777,13 @@ export default function Workspace() {
                     className="h-8 bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)] text-white shadow-sm"
                     onClick={() => setSearchDialogOpen(true)}
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Plus className="w-4 h-4 mr-1.5" />
                     Thêm hoạt động
                   </Button>
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-xs text-white/70">
+              <div className="mt-3 flex flex-col gap-2 text-xs text-white/70 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex flex-col gap-1">
                   <span className="inline-flex items-center gap-1.5">
                     <GripVertical className="w-3.5 h-3.5" />
@@ -824,7 +829,7 @@ export default function Workspace() {
                     </Popover>
                   </span>
                 </div>
-                <span className="inline-flex items-center gap-1.5 self-end">
+                <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0">
                   ⌘/Ctrl + ↑/↓
                   <span className="text-white/55">để di chuyển mục đã chọn</span>
                 </span>
@@ -833,8 +838,8 @@ export default function Workspace() {
           </div>
 
           {/* Timeline Items */}
-          <ScrollArea className="flex-1 min-h-0 p-[var(--vj-inset)] bg-[var(--vj-primary)] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-            <div className="space-y-4 min-w-max pb-4">
+          <ScrollArea className="flex-1 min-h-0 min-w-0 bg-[var(--vj-primary)]">
+            <div className="min-w-0 w-full space-y-3 p-[var(--vj-inset)] pb-4">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-white/70">
                   <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
@@ -882,7 +887,7 @@ export default function Workspace() {
                 const ownerUser = mockUsers[index % mockUsers.length];
                 
                 return (
-                  <div key={item.id}>
+                  <div key={item.id} className="min-w-0">
                     <TimelineBlock
                       index={index}
                       item={item}
@@ -949,8 +954,8 @@ export default function Workspace() {
 
                     {/* Transportation Widget */}
                     {index < visibleTimelineItems.length - 1 && (
-                      <div className="flex items-center justify-center gap-3 my-3 sm:ml-14">
-                        <div className="flex items-center gap-2 text-xs text-white/90 bg-white/10 px-4 py-2 rounded-2xl border border-white/15 shadow-sm">
+                      <div className="my-2 flex items-center pl-12 sm:pl-14">
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white/90 shadow-sm">
                           <TransportIcon className="w-4 h-4 text-white/90" />
                           <div className="leading-tight">
                             <div className="font-extrabold">{transport.label}</div>
@@ -963,18 +968,7 @@ export default function Workspace() {
                 );
               })}
             </div>
-            <ScrollBar orientation="horizontal" className="bg-white/10" />
           </ScrollArea>
-
-          {/* Add Activity Button */}
-          <div className="p-[var(--vj-inset)] border-t border-white/10 bg-gradient-to-r from-[var(--vj-primary)] to-[var(--vj-primary-2)]">
-            <Button
-              className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-medium rounded-xl h-11"
-              onClick={() => setSearchDialogOpen(true)}
-            >
-              + Thêm Hoạt Động Mới
-            </Button>
-          </div>
           </div>
 
           {/* Column 2: Map */}

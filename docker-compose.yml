@@ -33,10 +33,10 @@ services:
       - "8082:8082"
     environment:
       PORT: "8082"
-      DB_URL: jdbc:postgresql://postgres:5432/vietjourney
-      DB_USERNAME: vietjourney
-      DB_PASSWORD: vietjourney
-      PLACE_DB_ENABLED: "false"
+      DB_URL: jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?prepareThreshold=0
+      DB_USERNAME: postgres.jegerdfhcbrcziuuhsbe
+      DB_PASSWORD: BripbPKL9y4AWz2A
+      PLACE_DB_ENABLED: "true"
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
       JWT_SIGNER_KEY: "LocalDevJwtSecret_ChangeMe_UseLongRandomString!"

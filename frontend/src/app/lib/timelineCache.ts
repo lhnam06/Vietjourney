@@ -48,3 +48,20 @@ export function mergeTimelineCacheItems(
     proposals: extras?.proposals ?? prev?.proposals,
   });
 }
+
+/** Workspace cache may omit labels — derive from places when needed. */
+export function resolveTimelineLabels(
+  cached: Partial<TimelineCacheData> | undefined
+): Record<string, string> {
+  if (!cached) return {};
+  if (cached.labelByLocationId && Object.keys(cached.labelByLocationId).length > 0) {
+    return cached.labelByLocationId;
+  }
+  const places = cached.placesByLocationId as Record<string, { name?: string | null }> | undefined;
+  if (!places) return {};
+  return Object.fromEntries(
+    Object.entries(places)
+      .map(([id, place]) => [id, place?.name?.trim() ?? ''])
+      .filter(([, name]) => name.length > 0)
+  );
+}

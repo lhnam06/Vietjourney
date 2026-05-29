@@ -11,7 +11,7 @@ import { mockLocations, Location, TimelineItem, mockTrips, mockUsers, mockTimeli
 import { toast } from 'sonner';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
 import { addTimelineEvent, deleteTimelineEvent, getMyTimelines, getTimelineDetail, mapApiTimelineToTimetable, moveTimelineEvent } from '../lib/timelineApi';
-import { mergeTimelineCacheItems, readTimelineCache } from '../lib/timelineCache';
+import { mergeTimelineCacheItems, readTimelineCache, resolveTimelineLabels } from '../lib/timelineCache';
 import { appendTransaction, getLastTripId, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
@@ -488,10 +488,11 @@ export default function Discovery() {
 
   const timetableLayouts = useMemo(() => layoutsByDate(timetableItems), [timetableItems]);
 
-  const getTimetableLabel = (block: TimetableBlock) =>
-    labelByLocationId[block.locationId] ||
+  const getTimetableLabel = useCallback((block: TimetableBlock) =>
+    labelByLocationId?.[block.locationId] ||
     mockLocations.find((location) => location.id === block.locationId)?.name ||
-    'Hoạt động';
+    'Hoạt động',
+  [labelByLocationId]);
 
   const baseLocations = useMemo(() => {
     if (catalogAttempted) return catalogLocations;
@@ -994,8 +995,8 @@ export default function Discovery() {
 
     const cached = !isMockTrip ? readTimelineCache(tripId) : undefined;
     if (cached) {
-      setTimetableItems(cached.items);
-      setLabelByLocationId(cached.labelByLocationId);
+      setTimetableItems(cached.items ?? []);
+      setLabelByLocationId(resolveTimelineLabels(cached));
       if (cached.tripMeta) setTripMetadata(cached.tripMeta);
     }
 
