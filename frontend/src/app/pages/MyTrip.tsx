@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ArrowRight, CalendarRange, Compass, LayoutGrid, Loader2, Plus, Route, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -9,6 +9,7 @@ import { getStoredToken } from '../lib/authApi';
 import { createTimeline, getMyTimelines, type ApiTimelineDetail } from '../lib/timelineApi';
 import { getLastTripId, setLastTripId } from '../lib/tripStorage';
 import { cacheGet, cacheSet, cacheIsStale, cacheClear } from '../lib/apiCache';
+import { readTimelineCache } from '../lib/timelineCache';
 import { toast } from 'sonner';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -29,7 +30,7 @@ const rememberDiscoveryTrip = (timelineId: string) => {
 
 const TIMELINES_CACHE = 'profile:my-timelines';
 
-type TripRouteTarget = 'discovery' | 'workspace' | 'timetable';
+type TripRouteTarget = 'discovery' | 'workspace';
 
 const tripRouteSteps: Array<{
   target: TripRouteTarget;
@@ -52,14 +53,74 @@ const tripRouteSteps: Array<{
     icon: LayoutGrid,
     accentClass: 'from-emerald-500/15 to-teal-500/10 text-emerald-900 border-emerald-200/80',
   },
-  {
-    target: 'timetable',
-    label: 'Timetable',
-    description: 'Xem thời khoá biểu tổng',
-    icon: CalendarRange,
-    accentClass: 'from-sky-500/15 to-blue-500/10 text-sky-900 border-sky-200/80',
-  },
 ];
+
+function TripScheduleSummary({
+  timeline,
+  onOpenDiscovery,
+}: {
+  timeline: ApiTimelineDetail;
+  onOpenDiscovery: () => void;
+}) {
+  const cached = readTimelineCache(timeline.id);
+  const previewRows = useMemo(() => {
+    if (cached?.items.length) {
+      return [...cached.items]
+        .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))
+        .slice(0, 4)
+        .map((item) => ({
+          key: item.id,
+          label: cached.labelByLocationId[item.locationId] ?? 'Hoạt động',
+          when: `${item.date} · ${item.startTime}${item.endTime ? `–${item.endTime}` : ''}`,
+        }));
+    }
+    return (timeline.events ?? [])
+      .filter((event) => event.startTime)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      .slice(0, 4)
+      .map((event) => ({
+        key: event.id,
+        label: event.place?.name?.trim() || 'Hoạt động',
+        when: `${event.startTime.slice(0, 10)} · ${event.startTime.slice(11, 16)}`,
+      }));
+  }, [cached, timeline.events, timeline.id]);
+
+  const activityCount = cached?.items.length ?? timeline.events?.length ?? 0;
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          <CalendarRange className="h-3.5 w-3.5" />
+          Lịch trình · {activityCount} hoạt động
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 rounded-full px-2.5 text-xs text-[var(--vj-primary)] hover:bg-[var(--vj-primary)]/10"
+          onClick={onOpenDiscovery}
+        >
+          Mở trên Khám phá
+        </Button>
+      </div>
+      {previewRows.length > 0 ? (
+        <ul className="mt-2 space-y-1.5">
+          {previewRows.map((row) => (
+            <li key={row.key} className="flex items-baseline justify-between gap-2 text-xs">
+              <span className="truncate font-medium text-slate-800">{row.label}</span>
+              <span className="shrink-0 text-slate-500">{row.when}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-slate-500">
+          Chưa có hoạt động — mở Khám phá và kéo địa điểm vào thời khoá biểu.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function TripRouteNav({
   timelineId,
@@ -71,7 +132,7 @@ function TripRouteNav({
   return (
     <div className="mt-4 rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3">
       <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Lộ trình chuyến đi</p>
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-stretch">
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch">
         {tripRouteSteps.map((step, index) => {
           const Icon = step.icon;
           return (
@@ -155,8 +216,6 @@ export default function MyTrip() {
     rememberDiscoveryTrip(timelineId);
     if (target === 'discovery') {
       navigate('/');
-    } else if (target === 'timetable') {
-      navigate(`/timetable/${timelineId}`);
     } else {
       navigate(`/workspace/${timelineId}`);
     }
@@ -234,7 +293,7 @@ export default function MyTrip() {
             <p className="mt-1 text-sm text-slate-600">Chọn một timeline rồi thêm hoạt động từ trang Khám Phá.</p>
           </div>
           {lastTripId ? (
-            <Button onClick={() => selectTimeline(lastTripId, 'workspace')} className="bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)]">
+            <Button onClick={() => selectTimeline(lastTripId, 'discovery')} className="bg-[var(--vj-accent)] hover:bg-[var(--vj-accent-2)]">
               Tiếp tục chuyến gần nhất
             </Button>
           ) : null}
@@ -286,6 +345,10 @@ export default function MyTrip() {
                           Thêm hoạt động
                         </Button>
                       </div>
+                      <TripScheduleSummary
+                        timeline={timeline}
+                        onOpenDiscovery={() => selectTimeline(timeline.id, 'discovery')}
+                      />
                       <TripRouteNav timelineId={timeline.id} onNavigate={selectTimeline} />
                     </div>
                   );

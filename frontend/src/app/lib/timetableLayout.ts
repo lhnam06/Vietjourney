@@ -25,6 +25,30 @@ export function eachTripDay(startIso: string, endIso: string): string[] {
   return out;
 }
 
+/**
+ * Split trip days into calendar-week pages (Mon–Sun boundary at end of Sunday).
+ * e.g. Fri–Wed trip → [Fri,Sat,Sun] then [Mon,Tue,Wed].
+ */
+export function chunkTripDatesByCalendarWeek(dates: string[]): string[][] {
+  if (!dates.length) return [];
+  const chunks: string[][] = [];
+  let current: string[] = [];
+
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i]!;
+    current.push(date);
+    const isSunday = new Date(`${date}T12:00:00Z`).getUTCDay() === 0;
+    const isLastDay = i === dates.length - 1;
+    if (isSunday || isLastDay) {
+      chunks.push(current);
+      current = [];
+    }
+  }
+
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
 function parseIsoDate(s: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   const d = new Date(`${s}T12:00:00Z`);
