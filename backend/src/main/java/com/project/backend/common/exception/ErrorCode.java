@@ -34,6 +34,7 @@ public enum  ErrorCode {
     PASSWORD_HAS_SPACE(3007, "Password must not contain space [_]", HttpStatus.BAD_REQUEST),
     PASSWORD_INCORRECT(3008, "Password is incorrect", HttpStatus.BAD_REQUEST),
     OLD_PASSWORD_REQUIRED(3009, "Old pasword cannot be blank", HttpStatus.BAD_REQUEST),
+    PASSWORD_MISS_LETTER(3010, "Password must contain at least one letter", HttpStatus.BAD_REQUEST), // <-- Lỗi mới
     // display name:
     DISPLAY_NAME_LONG(4001, "Display name must not exceed 50 characters", HttpStatus.BAD_REQUEST),
 

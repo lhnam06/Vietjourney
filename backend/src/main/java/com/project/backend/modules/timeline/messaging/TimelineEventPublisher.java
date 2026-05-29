@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,10 @@ public class TimelineEventPublisher {
         );
         
         log.info("Publishing event to {}: {}", channel, type);
-        redisTemplate.convertAndSend(channel, message);
+        try {
+            redisTemplate.convertAndSend(channel, message);
+        } catch (RedisConnectionFailureException exception) {
+            log.warn("Redis is unavailable, skipped timeline event publish for channel {}", channel);
+        }
     }
 }
