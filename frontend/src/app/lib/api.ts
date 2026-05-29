@@ -1,6 +1,12 @@
 const DEFAULT_BASE = 'http://localhost:8082';
 
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_BASE;
+const envApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, '');
+
+/** In dev, route /api through Vite proxy to avoid browser CORS against Render. */
+export const API_BASE = import.meta.env.DEV ? '' : envApiBase || DEFAULT_BASE;
+
+/** Upstream API used by the Vite dev proxy (see vite.config.ts). */
+export const configuredApiTarget = envApiBase || DEFAULT_BASE;
 
 export type ApiEnvelope<T> = {
   code: number;
