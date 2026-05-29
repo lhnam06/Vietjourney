@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { mockLocations, Location } from '../data/mockData';
+import type { Location } from '../types/domain';
 import { filterPlaces } from '../lib/placesApi';
 import { placeApiRowToLocation } from '../lib/recommendationUtils';
 
@@ -79,8 +79,8 @@ export default function SearchPlacesDialog({ open, onOpenChange, onSelect }: Sea
       } catch (err) {
         if (!cancelled) {
           console.error('[SearchDialog] Failed to fetch places:', err);
-          setError('Không thể kết nối tới cơ sở dữ liệu địa điểm. Đang sử dụng dữ liệu mẫu.');
-          setDbLocations(mockLocations);
+          setError('Không thể kết nối tới cơ sở dữ liệu địa điểm.');
+          setDbLocations([]);
         }
       } finally {
         if (!cancelled) setIsLoading(false);

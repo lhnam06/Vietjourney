@@ -122,7 +122,8 @@ export default function Notifications() {
   };
 
   return (
-    <div className="mx-auto max-w-[var(--vj-content-max)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)]">
+    <div className="min-h-full bg-slate-50">
+      <div className="mx-auto max-w-[var(--vj-content-max)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)]">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-[#0b5d55]">Thông báo</h1>
@@ -159,7 +160,7 @@ export default function Notifications() {
           {notifications.map((n) => (
             <Card 
               key={n.id} 
-              className={`transition-all border-slate-200 hover:border-[#0b5d55]/30 cursor-pointer overflow-hidden ${n.status === 'UNREAD' ? 'bg-[#0b5d55]/5 border-l-4 border-l-[#0b5d55]' : ''}`}
+              className={`cursor-pointer overflow-hidden bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#0b5d55]/40 hover:shadow-md ${n.status === 'UNREAD' ? 'border-slate-200 border-l-4 border-l-[#0b5d55] bg-[color-mix(in_oklab,#0b5d55_6%,white)]' : 'border-slate-200'}`}
               onClick={() => handleAction(n)}
             >
               <div className="p-4 flex gap-4">
@@ -200,6 +201,7 @@ export default function Notifications() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

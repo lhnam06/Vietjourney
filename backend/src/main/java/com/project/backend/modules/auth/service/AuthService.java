@@ -82,7 +82,7 @@ public class AuthService {
 
     private String generateToken(User user) {
         // Create header (encode algorithm)
-        JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
+        JWSHeader header = new JWSHeader(JWSAlgorithm.HS256);
 
         // Create payload
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
