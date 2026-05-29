@@ -7,7 +7,13 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, Location, TimelineItem, mockTrips, mockUsers, mockTimeline, mockTransactions } from '../data/mockData';
+import {
+  createDefaultTrip,
+  LEGACY_DEMO_TRIP_ID,
+  type Location,
+  type TimelineItem,
+  type User,
+} from '../types/domain';
 import { toast } from 'sonner';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
 import { addTimelineEvent, deleteTimelineEvent, getMyTimelines, getTimelineDetail, mapApiTimelineToTimetable, moveTimelineEvent } from '../lib/timelineApi';
@@ -372,7 +378,7 @@ export default function Discovery() {
   } | null>(null);
   const [recommendedLocations, setRecommendedLocations] = useState<Location[] | null>(null);
   const [recoLoading, setRecoLoading] = useState(false);
-  /** When personalized fetch fails or returns no rows, we fall back to mock data. */
+  /** When personalized fetch fails or returns no rows, catalog data may still be shown. */
   const [recoFallback, setRecoFallback] = useState<'none' | 'error' | 'empty'>('none');
   const [recoErrorMessage, setRecoErrorMessage] = useState<string | null>(null);
   const [recoRetryKey, setRecoRetryKey] = useState(0);
@@ -391,7 +397,7 @@ export default function Discovery() {
   const navigate = useNavigate();
   const listCardsRef = useRef<HTMLDivElement>(null);
 
-  const [currentTripId, setCurrentTripId] = useLocalStorageState('vj:discovery:current-trip-id', () => getLastTripId('trip-1'));
+  const [currentTripId, setCurrentTripId] = useLocalStorageState('vj:discovery:current-trip-id', () => getLastTripId(LEGACY_DEMO_TRIP_ID));
 
   useEffect(() => {
     if (categoryFilter !== activeCategoryFilter) {
@@ -414,7 +420,7 @@ export default function Discovery() {
         try {
           const timelines = await getMyTimelines(token);
           setRealTimelines(timelines || []);
-          if (currentTripId === 'trip-1' && timelines && timelines.length > 0) {
+          if (currentTripId === LEGACY_DEMO_TRIP_ID && timelines && timelines.length > 0) {
             // Auto-select the first real timeline for the user if they are on mock
             setCurrentTripId(timelines[0].id);
             setLastTripId(timelines[0].id);
@@ -428,7 +434,7 @@ export default function Discovery() {
   }, [isAuthenticated]);
 
   const tripId = currentTripId;
-  const isMockTrip = tripId === 'trip-1';
+  const isMockTrip = tripId === LEGACY_DEMO_TRIP_ID;
 
   const isOwner = useMemo(() => {
     if (!user || !tripMetadata || !tripMetadata.ownerId) return false;
@@ -443,9 +449,18 @@ export default function Discovery() {
       const found = realTimelines.find(t => t.id === tripId);
       if (found) return { ...found, destination: found.destination || 'Việt Nam', participants: [] };
     }
-    return mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+    return createDefaultTrip(tripId);
   }, [tripId, isMockTrip, realTimelines]);
-  const tripUsers = mockUsers.filter((u) => trip.participants.includes(u.id));
+  const tripUsers = useMemo<User[]>(() => {
+    if (!user) return [];
+    return [{
+      id: String(user.id),
+      name: user.displayName?.trim() || user.username,
+      email: '',
+      avatar: '',
+      preferences: { pace: 3, budgetLevel: 2, favoriteCategories: [] },
+    }];
+  }, [user]);
   const effectiveCenter: [number, number] = userCenter ?? HCMC_CENTER;
 
   const tripDates = useMemo(() => {
@@ -487,19 +502,17 @@ export default function Discovery() {
   const timetableLayouts = useMemo(() => layoutsByDate(timetableItems), [timetableItems]);
 
   const getTimetableLabel = useCallback((block: TimetableBlock) =>
-    labelByLocationId?.[block.locationId] ||
-    mockLocations.find((location) => location.id === block.locationId)?.name ||
-    'Hoạt động',
+    labelByLocationId?.[block.locationId] || 'Hoạt động',
   [labelByLocationId]);
 
   const baseLocations = useMemo(() => {
     if (catalogAttempted) return catalogLocations;
-    return recommendedLocations ?? mockLocations;
+    return recommendedLocations ?? [];
   }, [catalogAttempted, catalogLocations, recommendedLocations]);
   const optionSourceLocations =
     catalogLocations.length > 0
       ? catalogLocations
-      : recommendedLocations ?? mockLocations;
+      : recommendedLocations ?? [];
 
   const districtOptions = useMemo(() => {
     const unique = new Set<string>();
@@ -993,13 +1006,9 @@ export default function Discovery() {
         version: 1,
       });
       const stored = loadTripData(tripId);
-      const baseItems = stored?.timeline ?? mockTimeline;
+      const baseItems = stored?.timeline ?? [];
       setTimetableItems(baseItems);
-      setLabelByLocationId(
-        Object.fromEntries(
-          mockLocations.map((location) => [location.id, location.name])
-        )
-      );
+      setLabelByLocationId({});
     }
   }, [isMockTrip, tripId, token, realTimelines]);
 
@@ -1329,13 +1338,13 @@ export default function Discovery() {
               {isAuthenticated && !recoLoading && recoFallback === 'empty' && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-white">
                   <AlertCircle className="size-3.5" />
-                  Chưa có gợi ý — đang xem danh mục máy chủ hoặc mẫu TP.HCM
+                  Chưa có gợi ý — đang xem danh mục từ máy chủ
                 </p>
               )}
               {isAuthenticated && !recoLoading && recoFallback === 'error' && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-red-500/25 px-3 py-1 text-xs font-semibold text-white">
                   <AlertCircle className="size-3.5" />
-                  Lỗi tải gợi ý — đang xem danh mục máy chủ hoặc mẫu
+                  Lỗi tải gợi ý — đang xem danh mục từ máy chủ
                 </p>
               )}
             </div>
@@ -1393,7 +1402,7 @@ export default function Discovery() {
                 <AlertCircle className="text-amber-600" />
                 <AlertTitle>Chưa có đủ dữ liệu gợi ý</AlertTitle>
                 <AlertDescription className="text-amber-900/85">
-                  Hệ thống chưa trả về địa điểm gợi ý. Bạn vẫn có thể xem địa điểm từ máy chủ hoặc bộ dữ liệu mẫu TP.HCM.
+                  Hệ thống chưa trả về địa điểm gợi ý. Bạn vẫn có thể xem địa điểm từ máy chủ.
                 </AlertDescription>
               </Alert>
             </div>
@@ -1407,7 +1416,7 @@ export default function Discovery() {
                   <p>{catalogError}</p>
                   <p className="text-xs mt-1.5 text-slate-600">
                     Đảm bảo backend chạy và CSDL có các bảng phục vụ ô lọc (ví dụ <code className="text-xs">places_food</code>,{' '}
-                    <code className="text-xs">places_drink</code>, <code className="text-xs">places_activity</code>). Hiện tại đang hiển thị địa điểm mẫu TP.HCM.
+                    <code className="text-xs">places_drink</code>, <code className="text-xs">places_activity</code>).
                   </p>
                   <Button
                     type="button"
@@ -1996,7 +2005,7 @@ export default function Discovery() {
         defaultEndTime={addDefaults?.endTime}
         onCreate={async (item, tx) => {
           if (isMockTrip && isAuthenticated) {
-            toast.error('Bạn đang xem chuyến đi mẫu. Vui lòng tạo hoặc chọn một chuyến đi thật trong trang "Chuyến đi của tôi" để lưu lại.');
+            toast.error('Bạn chưa chọn chuyến đi thật. Vui lòng tạo hoặc chọn một chuyến đi trong trang "Chuyến đi của tôi" để lưu lại.');
             navigate('/timelines');
             return;
           }
@@ -2090,8 +2099,8 @@ export default function Discovery() {
             }
           } else if (!isAuthenticated) {
             // Local storage only for guests
-            upsertTimelineItem(tripId, trip, item, mockTimeline, mockTransactions);
-            if (tx) appendTransaction(tripId, trip, tx, mockTimeline, mockTransactions);
+            upsertTimelineItem(tripId, trip, item);
+            if (tx) appendTransaction(tripId, trip, tx);
           }
 
           setTimetableItems((prev) => [...prev.filter((entry) => entry.id !== savedItem.id), savedItem]);

@@ -1,4 +1,4 @@
-import type { Location } from '../data/mockData';
+import type { Location } from '../types/domain';
 import type { PlaceInteractionPayload, RecommendedPlace } from './recommendationApi';
 import type { PlaceResponse } from './placesApi';
 

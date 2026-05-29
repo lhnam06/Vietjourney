@@ -235,7 +235,6 @@ export default function MyTrip() {
       const timeline = await createTimeline(
         {
           title: title.trim(),
-          description: 'Trip created from My Trip',
           startDate,
           endDate,
           visibility: 'PRIVATE',

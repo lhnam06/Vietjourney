@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { importLibrary } from '@googlemaps/js-api-loader';
-import type { Location } from '../data/mockData';
+import type { Location } from '../types/domain';
 
 type LatLng = [number, number];
 
