@@ -51,6 +51,99 @@ func verifyJWT(tokenString string) (*jwt.Token, error) {
     })
 }
 
+func extractTokenString(r *http.Request) string {
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+	return tokenString
+}
+
+func authenticateRequest(w http.ResponseWriter, r *http.Request) (*jwt.Token, bool) {
+	tokenString := extractTokenString(r)
+	if tokenString == "" {
+		http.Error(w, "Missing authentication token", http.StatusUnauthorized)
+		return nil, false
+	}
+
+	token, err := verifyJWT(tokenString)
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid authentication token", http.StatusUnauthorized)
+		return nil, false
+	}
+	return token, true
+}
+
+func jwtSubject(token *jwt.Token) string {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return ""
+	}
+	sub, _ := claims["sub"].(string)
+	return strings.TrimSpace(sub)
+}
+
+func subscribeRedisToConn(ctx context.Context, channelName string, conn *websocket.Conn) {
+	pubsub := redisClient.Subscribe(ctx, channelName)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+				log.Printf("Error writing back to websocket (%s): %v", channelName, err)
+				return
+			}
+		}
+	}
+}
+
+func handleNotificationWebSocket(w http.ResponseWriter, r *http.Request) {
+	token, ok := authenticateRequest(w, r)
+	if !ok {
+		return
+	}
+
+	username := jwtSubject(token)
+	if username == "" {
+		http.Error(w, "Invalid token subject", http.StatusUnauthorized)
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Failed to upgrade notification connection: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	channelName := "user:" + username
+	go subscribeRedisToConn(ctx, channelName, conn)
+
+	log.Printf("Notification socket connected for user %s", username)
+
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("Notification websocket closed for %s: %v", username, err)
+			}
+			break
+		}
+	}
+}
+
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
     // Expected path: /ws/timeline/{timelineId}
     pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -61,14 +154,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
     timelineId := pathParts[2]
 
     // Extract JWT token from Query or Headers
-    tokenString := r.URL.Query().Get("token")
-    if tokenString == "" {
-       authHeader := r.Header.Get("Authorization")
-       if strings.HasPrefix(authHeader, "Bearer ") {
-          tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-       }
-    }
-
+    tokenString := extractTokenString(r)
     if tokenString == "" {
        http.Error(w, "Missing authentication token", http.StatusUnauthorized)
        return
@@ -212,6 +298,7 @@ func main() {
        port = "8081"
     }
 
+    http.HandleFunc("/ws/notifications", handleNotificationWebSocket)
     http.HandleFunc("/ws/timeline/", handleWebSocket)
 
     log.Printf("Go WebSocket Proxy listening on :%s", port)

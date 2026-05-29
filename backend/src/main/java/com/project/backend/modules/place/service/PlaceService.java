@@ -28,8 +28,8 @@ public class PlaceService {
     public PageResponse<PlaceResponse> filterPlaces(PlaceFilterRequest request) {
         validateRequest(request);
 
-        List<Tuple> rows  = placeQueryRepository.findByFilter(request);
-        long        total = placeQueryRepository.countByFilter(request);
+        List<Tuple> rows = placeQueryRepository.findByFilter(request);
+        long total = extractTotal(rows, request);
 
         List<PlaceResponse> data = rows.stream()
                 .map(placeMapper::toResponse)
@@ -44,6 +44,16 @@ public class PlaceService {
                 .size(request.getSize())
                 .totalPages(totalPages)
                 .build();
+    }
+
+    private long extractTotal(List<Tuple> rows, PlaceFilterRequest request) {
+        if (!rows.isEmpty()) {
+            Object rawTotal = rows.get(0).get("total_count");
+            if (rawTotal instanceof Number number) {
+                return number.longValue();
+            }
+        }
+        return placeQueryRepository.countByFilter(request);
     }
 
     private void validateRequest(PlaceFilterRequest req) {

@@ -33,10 +33,10 @@ services:
       - "8082:8082"
     environment:
       PORT: "8082"
-      DB_URL: jdbc:postgresql://postgres:5432/vietjourney
-      DB_USERNAME: vietjourney
-      DB_PASSWORD: vietjourney
-      PLACE_DB_ENABLED: "false"
+      DB_URL: jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0
+      DB_USERNAME: REMOVED_SUPABASE_USERNAME
+      DB_PASSWORD: REMOVED_SUPABASE_PASSWORD
+      PLACE_DB_ENABLED: "true"
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
       JWT_SIGNER_KEY: "LocalDevJwtSecret_ChangeMe_UseLongRandomString!"

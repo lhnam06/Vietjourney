@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Location } from '../data/mockData';
+import type { Location } from '../types/domain';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
@@ -13,8 +13,39 @@ interface LeafletMapViewProps {
   locations: Location[];
   center?: LatLng;
   userLocation?: LatLng;
+  userAccuracy?: number;
   showRoute?: boolean;
   routeCoordinates?: LatLng[];
+  onMapReady?: (api: LeafletMapApi) => void;
+}
+
+export type LeafletMapApi = {
+  flyToUser: () => void;
+};
+
+function MapReadyBridge({
+  userLocation,
+  onMapReady,
+}: {
+  userLocation?: LatLng;
+  onMapReady?: (api: LeafletMapApi) => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!onMapReady) return;
+    onMapReady({
+      flyToUser: () => {
+        if (!userLocation) return;
+        map.flyTo({ lat: userLocation[0], lng: userLocation[1] }, Math.max(map.getZoom(), 15), {
+          animate: true,
+          duration: 0.8,
+        });
+      },
+    });
+  }, [map, onMapReady, userLocation]);
+
+  return null;
 }
 
 const createCustomIcon = (category: string = 'activity', index?: number, isPending?: boolean) => {
@@ -48,10 +79,23 @@ const createCustomIcon = (category: string = 'activity', index?: number, isPendi
 
 const userMarkerIcon = L.divIcon({
   className: 'vj-user-marker',
-  html: '<div style="width:16px;height:16px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 4px rgba(239,68,68,0.2), 0 2px 10px rgba(0,0,0,0.3);animation: pulse 2s infinite;"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
+  html: `
+    <div class="vj-user-marker-dot" aria-hidden="true">
+      <span class="vj-user-marker-pulse"></span>
+      <span class="vj-user-marker-core"></span>
+    </div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+  popupAnchor: [0, -14],
 });
+
+const ROUTE_STYLES = {
+  shadow: { color: '#041f1c', weight: 10, opacity: 0.12, lineCap: 'round' as const, lineJoin: 'round' as const },
+  casing: { color: '#ffffff', weight: 7, opacity: 0.85, lineCap: 'round' as const, lineJoin: 'round' as const },
+  main: { color: '#0d6b62', weight: 5, opacity: 0.95, lineCap: 'round' as const, lineJoin: 'round' as const },
+  accent: { color: '#ff8555', weight: 2.5, opacity: 0.9, lineCap: 'round' as const, lineJoin: 'round' as const },
+};
 
 const formatVND = (amount: number) => {
   if (amount === 0) return 'Miễn phí';
@@ -76,9 +120,10 @@ function FitBounds({
 
   useEffect(() => {
     if (!map) return;
+
     if (points.length >= 2) {
       const bounds = L.latLngBounds(points.map(([lat, lng]) => L.latLng(lat, lng)));
-      map.fitBounds(bounds, { padding: [48, 48] });
+      map.fitBounds(bounds, { padding: [52, 52] });
       return;
     }
     if (points.length === 1) {
@@ -91,12 +136,19 @@ function FitBounds({
   return null;
 }
 
+function formatAccuracyMeters(meters: number) {
+  if (meters < 1000) return `±${Math.round(meters)} m`;
+  return `±${(meters / 1000).toFixed(1)} km`;
+}
+
 export default function LeafletMapView({
   locations,
   center = [21.0285, 105.8542],
   userLocation,
+  userAccuracy,
   showRoute = false,
   routeCoordinates = [],
+  onMapReady,
 }: LeafletMapViewProps) {
   const points = useMemo<LatLng[]>(() => {
     if (showRoute && routeCoordinates.length) return routeCoordinates;
@@ -125,12 +177,15 @@ export default function LeafletMapView({
       />
 
       <FitBounds points={points} fallbackCenter={center} />
+      <MapReadyBridge userLocation={userLocation} onMapReady={onMapReady} />
 
       {polyline.length >= 2 && (
-        <Polyline
-          positions={polyline.map(([lat, lng]) => ({ lat, lng }))}
-          pathOptions={{ color: '#FF6B35', weight: 5, opacity: 0.9 }}
-        />
+        <>
+          <Polyline positions={polyline.map(([lat, lng]) => ({ lat, lng }))} pathOptions={ROUTE_STYLES.shadow} />
+          <Polyline positions={polyline.map(([lat, lng]) => ({ lat, lng }))} pathOptions={ROUTE_STYLES.casing} />
+          <Polyline positions={polyline.map(([lat, lng]) => ({ lat, lng }))} pathOptions={ROUTE_STYLES.main} />
+          <Polyline positions={polyline.map(([lat, lng]) => ({ lat, lng }))} pathOptions={ROUTE_STYLES.accent} />
+        </>
       )}
 
       {locations.map((loc, idx) => {
@@ -185,9 +240,34 @@ export default function LeafletMapView({
       })}
 
       {userLocation && Number.isFinite(userLocation[0]) && Number.isFinite(userLocation[1]) ? (
-        <Marker position={{ lat: userLocation[0], lng: userLocation[1] }} icon={userMarkerIcon}>
-          <Popup>Bạn đang ở đây</Popup>
-        </Marker>
+        <>
+          {userAccuracy && userAccuracy > 0 ? (
+            <Circle
+              center={{ lat: userLocation[0], lng: userLocation[1] }}
+              radius={userAccuracy}
+              pathOptions={{
+                color: '#2563eb',
+                fillColor: '#2563eb',
+                fillOpacity: 0.1,
+                weight: 1.5,
+                opacity: 0.55,
+              }}
+            />
+          ) : null}
+          <Marker position={{ lat: userLocation[0], lng: userLocation[1] }} icon={userMarkerIcon}>
+            <Popup>
+              <div style={{ fontWeight: 700, color: '#0d6b62' }}>Vị trí của bạn</div>
+              <div style={{ fontSize: 11, marginTop: 4, opacity: 0.75 }}>
+                {userLocation[0].toFixed(5)}, {userLocation[1].toFixed(5)}
+              </div>
+              {userAccuracy ? (
+                <div style={{ fontSize: 11, marginTop: 4, opacity: 0.75 }}>
+                  Độ chính xác: {formatAccuracyMeters(userAccuracy)}
+                </div>
+              ) : null}
+            </Popup>
+          </Marker>
+        </>
       ) : null}
     </MapContainer>
   );
