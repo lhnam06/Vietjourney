@@ -1,21 +1,26 @@
 spring:
+  main:
+    lazy-initialization: true
   datasource:
-    url: jdbc:postgresql://localhost:5432/tourism_db
-    username: postgres
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0}
+    username: ${DB_USERNAME:REMOVED_SUPABASE_USERNAME}
+    password: ${DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
   flyway:
     baseline-on-migrate: true
     locations: classpath:db/migration
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: none
+    show-sql: false
+server:
+  port: ${PORT:8082}
+  address: 0.0.0.0
 place:
   datasource:
-    enabled: ${PLACE_DB_ENABLED:false}
-    url: ${PLACE_DB_URL:}
-    username: ${PLACE_DB_USERNAME:}
-    password: ${PLACE_DB_PASSWORD:}
+    enabled: ${PLACE_DB_ENABLED:true}
+    url: ${PLACE_DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0}
+    username: ${PLACE_DB_USERNAME:REMOVED_SUPABASE_USERNAME}
+    password: ${PLACE_DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
   lookup:
     food-table: ${PLACE_DB_FOOD_TABLE:places_food}
     drink-table: ${PLACE_DB_DRINK_TABLE:places_drink}
@@ -23,6 +28,6 @@ place:
     id-column: ${PLACE_DB_ID_COLUMN:id}
 
 jwt:
-  signer_key: ${JWT_SIGNER_KEY}
+  signer_key: ${JWT_SIGNER_KEY:REMOVED_JWT_SIGNER_KEY}
   valid_duration: 36000
   refreshable_duration: 604800

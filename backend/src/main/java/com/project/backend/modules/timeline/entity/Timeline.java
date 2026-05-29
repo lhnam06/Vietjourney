@@ -60,4 +60,8 @@ public class Timeline {
     @UpdateTimestamp
     @Column(nullable = false)
     LocalDateTime updatedAt;
+
+    @Version
+    @Column(nullable = false)
+    Integer version;
 }

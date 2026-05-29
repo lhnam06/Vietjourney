@@ -35,4 +35,11 @@ build/
 ### Custom Secrets & Environment Variables ###
 .env
 *.env
+.env.example
+
+### Local runtime artifacts ###
+app-*.out
+app-*.err
+app-*.pid
+*.class
 

@@ -1,22 +1,143 @@
-import { useState } from 'react';
-import { Camera, MapPin, Calendar, Settings, Heart, Zap, DollarSign } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
+import { Camera, MapPin, Calendar, Settings, Heart, Zap, DollarSign, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Slider } from '../components/ui/slider';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockUsers, mockTrips } from '../data/mockData';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Skeleton } from '../components/ui/skeleton';
+import { mockUsers } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
+import { getStoredToken } from '../lib/authApi';
+import { ApiError } from '../lib/api';
+import { getMyRecommendationProfile, type UserRecommendationProfile } from '../lib/recommendationApi';
+import { getMyTimelines, type ApiTimelineDetail } from '../lib/timelineApi';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { cacheGet, cacheSet, cacheIsStale } from '../lib/apiCache';
+
+function sortByScore<T extends { score: number }>(rows: T[]) {
+  return [...rows].sort((a, b) => b.score - a.score);
+}
 
 export default function Profile() {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const currentUser = mockUsers[0];
-  const userTrips = mockTrips;
 
-  const [pace, setPace] = useState(currentUser.preferences.pace);
-  const [budgetLevel, setBudgetLevel] = useState(currentUser.preferences.budgetLevel);
-  const [favoriteCategories, setFavoriteCategories] = useState(
+  const TIMELINES_CACHE = 'profile:my-timelines';
+  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>(() => cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []);
+  const [timelinesLoading, setTimelinesLoading] = useState(() => !cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE)?.length);
+  const [timelinesError, setTimelinesError] = useState<string | null>(null);
+
+  const [pace, setPace] = useLocalStorageState<number>('vj:profile:pace', currentUser.preferences.pace);
+  const [budgetLevel, setBudgetLevel] = useLocalStorageState<number>('vj:profile:budget-level', currentUser.preferences.budgetLevel);
+  const [favoriteCategories, setFavoriteCategories] = useLocalStorageState<string[]>(
+    'vj:profile:favorite-categories',
     currentUser.preferences.favoriteCategories
   );
+
+  const [recoProfile, setRecoProfile] = useState<UserRecommendationProfile | null>(null);
+  const [recoProfileLoading, setRecoProfileLoading] = useState(false);
+  const [recoProfileError, setRecoProfileError] = useState<string | null>(null);
+  const [recoProfileRetry, setRecoProfileRetry] = useState(0);
+
+  const displayName =
+    isAuthenticated && user?.displayName?.trim()
+      ? user.displayName
+      : isAuthenticated && user?.username
+        ? user.username
+        : currentUser.name;
+
+  useEffect(() => {
+    if (!isAuthenticated || authLoading) {
+      setRecoProfile(null);
+      setRecoProfileLoading(false);
+      setRecoProfileError(null);
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) {
+      setRecoProfile(null);
+      return;
+    }
+
+    let cancelled = false;
+    setRecoProfileError(null);
+    setRecoProfileLoading(true);
+
+    void (async () => {
+      try {
+        const data = await getMyRecommendationProfile(token);
+        if (!cancelled) setRecoProfile(data);
+      } catch (e) {
+        if (!cancelled) {
+          setRecoProfile(null);
+          setRecoProfileError(
+            e instanceof ApiError ? e.message : 'Không tải được hồ sơ gợi ý.'
+          );
+        }
+      } finally {
+        if (!cancelled) setRecoProfileLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authLoading, recoProfileRetry]);
+
+  useEffect(() => {
+    if (!isAuthenticated || authLoading) {
+      setTimelines([]);
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) return;
+
+    // Skip fetch if cache is fresh
+    if (!cacheIsStale(TIMELINES_CACHE) && cacheGet(TIMELINES_CACHE)) return;
+
+    const hasCachedData = (cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []).length > 0;
+    let cancelled = false;
+    if (!hasCachedData) setTimelinesLoading(true);
+    setTimelinesError(null);
+
+    void (async () => {
+      try {
+        const data = await getMyTimelines(token);
+        if (!cancelled) {
+          const rows = data ?? [];
+          cacheSet(TIMELINES_CACHE, rows, { persistent: true });
+          setTimelines(rows);
+        }
+      } catch (e) {
+        if (!cancelled && !hasCachedData) {
+          setTimelinesError(e instanceof ApiError ? e.message : 'Không tải được danh sách chuyến đi.');
+        }
+      } finally {
+        if (!cancelled) setTimelinesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authLoading]);
+
+  const sortedReco = useMemo(() => {
+    if (!recoProfile) return null;
+    return {
+      tags: sortByScore(recoProfile.tags ?? []).slice(0, 24),
+      districts: sortByScore(recoProfile.districts ?? []).slice(0, 16),
+      categories: sortByScore(recoProfile.categories ?? []).slice(0, 8),
+    };
+  }, [recoProfile]);
+
+  const recoIsEmpty =
+    !!recoProfile &&
+    !(recoProfile.tags?.length || recoProfile.districts?.length || recoProfile.categories?.length);
 
   const allCategories = ['Ẩm Thực', 'Văn Hóa', 'Lịch Sử', 'Phiêu Lưu', 'Thiên Nhiên', 'Nhiếp Ảnh', 'Mua Sắm', 'Nghỉ Dưỡng', 'Giải Trí', 'Địa Phương'];
 
@@ -32,18 +153,18 @@ export default function Profile() {
   const budgetLabels = ['Tiết Kiệm', 'Trung Bình', 'Cao Cấp'];
 
   return (
-    <div className="h-screen bg-slate-50">
+    <div className="h-full bg-slate-50">
       <ScrollArea className="h-full">
-        <div className="max-w-5xl mx-auto p-6 space-y-6">
+        <div className="max-w-[var(--vj-content-max)] mx-auto px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] space-y-[var(--vj-stack-gap)]">
           {/* Profile Header */}
           <Card className="overflow-hidden shadow-lg">
             <div className="h-32 bg-gradient-to-r from-[#0A4A6E] via-[#0d5d8a] to-[#0A4A6E]" />
-            <div className="px-6 pb-6">
+            <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
               <div className="flex items-end justify-between -mt-16 mb-4">
                 <div className="relative">
                   <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-[#FF6B35]/20">
                     <AvatarImage src={currentUser.avatar} />
-                    <AvatarFallback>{currentUser.name[0]}</AvatarFallback>
+                    <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <Button
                     size="icon"
@@ -59,13 +180,17 @@ export default function Profile() {
               </div>
 
               <div className="mb-4">
-                <h1 className="text-3xl font-bold text-[#0A4A6E] mb-1">{currentUser.name}</h1>
-                <p className="text-slate-600">{currentUser.email}</p>
+                <h1 className="text-3xl font-bold text-[#0A4A6E] mb-1">{displayName}</h1>
+                <p className="text-slate-600">
+                  {isAuthenticated && user
+                    ? `@${user.username}`
+                    : currentUser.email}
+                </p>
               </div>
 
               <div className="flex gap-6 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-[#0A4A6E]">{userTrips.length}</p>
+                  <p className="text-2xl font-bold text-[#0A4A6E]">{timelines.length}</p>
                   <p className="text-sm text-slate-600">Chuyến Đi</p>
                 </div>
                 <div className="w-px bg-slate-200" />
@@ -80,6 +205,119 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* Backend recommendation profile (GET /api/v1/recommendations/profile/me) */}
+          <Card className="p-6 shadow-lg">
+            <div className="flex items-center gap-2 mb-6">
+              <Sparkles className="w-5 h-5 text-[#FF6B35]" />
+              <h2 className="text-xl font-bold text-[#0A4A6E]">HỒ SƠ GỢI Ý (TỪ HÀNH VI)</h2>
+            </div>
+
+            {!authLoading && !isAuthenticated && (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
+                <p className="text-sm text-slate-700">
+                  Đăng nhập để xem trọng số thẻ tag, quận và loại địa điểm mà hệ thống học được từ bạn trên Khám phá.
+                </p>
+                <Button asChild className="mt-3 bg-[#0A4A6E] hover:bg-[#0d5d8a]">
+                  <Link to={`/auth?next=${encodeURIComponent('/profile')}`}>Đến đăng nhập</Link>
+                </Button>
+              </div>
+            )}
+
+            {isAuthenticated && recoProfileLoading && (
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-full max-w-md" />
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-7 w-24 rounded-full" />
+                  <Skeleton className="h-7 w-32 rounded-full" />
+                  <Skeleton className="h-7 w-28 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full max-w-lg" />
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-7 w-36 rounded-full" />
+                  <Skeleton className="h-7 w-28 rounded-full" />
+                </div>
+              </div>
+            )}
+
+            {isAuthenticated && !recoProfileLoading && recoProfileError && (
+              <Alert variant="destructive" className="border-red-200 bg-red-50/90">
+                <AlertCircle />
+                <AlertTitle>Không tải được hồ sơ gợi ý</AlertTitle>
+                <AlertDescription className="text-red-900/85">
+                  <p>{recoProfileError}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 border-red-300 bg-white text-red-900 hover:bg-red-50"
+                    onClick={() => setRecoProfileRetry((n) => n + 1)}
+                  >
+                    <RefreshCw className="size-3.5 mr-1.5" />
+                    Thử lại
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {isAuthenticated && !recoProfileLoading && !recoProfileError && recoProfile && recoIsEmpty && (
+              <p className="text-sm text-slate-600">
+                Chưa có tín hiệu trong hồ sơ (đã suy giảm theo thời gian hoặc chưa có tương tác). Ghé{' '}
+                <Link to="/" className="font-semibold text-[#0A4A6E] underline underline-offset-2">
+                  Khám phá
+                </Link>{' '}
+                và mở vài địa điểm để làm đầy dần profile.
+              </p>
+            )}
+
+            {isAuthenticated && !recoProfileLoading && !recoProfileError && sortedReco && !recoIsEmpty && (
+              <div className="space-y-8">
+                <section>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {sortedReco.tags.map((t) => (
+                      <Badge
+                        key={`${t.tagGroup}:${t.tagValue}`}
+                        variant="secondary"
+                        className="bg-[#0A4A6E]/10 text-[#0A4A6E] hover:bg-[#0A4A6E]/15 gap-1.5 px-3 py-1"
+                      >
+                        <span className="font-semibold capitalize">
+                          {t.tagGroup}: {t.tagValue}
+                        </span>
+                        <span className="tabular-nums text-slate-600">{t.score.toFixed(1)}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Quận / Khu</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {sortedReco.districts.map((d) => (
+                      <Badge
+                        key={d.value}
+                        variant="outline"
+                        className="border-[#FF6B35]/40 text-slate-800 gap-1.5 px-3 py-1"
+                      >
+                        <span>{d.value}</span>
+                        <span className="tabular-nums text-slate-500">{d.score.toFixed(1)}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Loại địa điểm</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {sortedReco.categories.map((c) => (
+                      <Badge key={c.value} className="bg-[#FF6B35] hover:bg-[#ff7d4d] text-white gap-1.5 px-3 py-1">
+                        <span>{c.value}</span>
+                        <span className="tabular-nums opacity-90">{c.score.toFixed(1)}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
           </Card>
 
           {/* Travel Preferences */}
@@ -189,44 +427,69 @@ export default function Profile() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {userTrips.map((trip) => (
-                <Card
-                  key={trip.id}
-                  className="overflow-hidden hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-[#FF6B35]"
-                >
-                  <div className="relative h-40">
-                    <img
-                      src={trip.coverImage}
-                      alt={trip.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <h3 className="font-bold text-white text-lg mb-1">{trip.name}</h3>
-                      <div className="flex items-center gap-2 text-white/90 text-sm">
-                        <MapPin className="w-4 h-4" />
-                        <span>{trip.destination}</span>
+              {timelinesLoading && (
+                <>
+                  <Skeleton className="h-56 w-full rounded-xl" />
+                  <Skeleton className="h-56 w-full rounded-xl" />
+                </>
+              )}
+              
+              {!timelinesLoading && timelinesError && (
+                <div className="col-span-full">
+                   <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Lỗi</AlertTitle>
+                    <AlertDescription>{timelinesError}</AlertDescription>
+                  </Alert>
+                </div>
+              )}
+
+              {!timelinesLoading && !timelinesError && timelines.length === 0 && (
+                <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                  <p className="text-slate-500">Bạn chưa có chuyến đi nào.</p>
+                  <Button asChild variant="link" className="text-[#0A4A6E]">
+                    <Link to="/timelines">Tạo timeline ngay</Link>
+                  </Button>
+                </div>
+              )}
+
+              {!timelinesLoading && timelines.map((trip) => (
+                <Link key={trip.id} to={`/workspace/${trip.id}`}>
+                  <Card
+                    className="overflow-hidden h-full hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-[#FF6B35]"
+                  >
+                    <div className="relative h-40">
+                      <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                        <MapPin className="w-12 h-12 text-slate-400 opacity-20" />
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="font-bold text-white text-lg mb-1">{trip.title}</h3>
+                        <div className="flex items-center gap-2 text-white/90 text-sm">
+                          <MapPin className="w-4 h-4" />
+                          <span className="truncate">{trip.description || 'Chưa có mô tả'}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 text-slate-600">
-                        <Calendar className="w-4 h-4" />
-                        <span>
-                          {new Date(trip.startDate).toLocaleDateString('vi-VN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <Calendar className="w-4 h-4" />
+                          <span>
+                            {new Date(trip.startDate).toLocaleDateString('vi-VN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                        <Badge className="bg-[#0A4A6E]/10 text-[#0A4A6E] hover:bg-[#0A4A6E]/20">
+                          {trip.members?.length || 1} người
+                        </Badge>
                       </div>
-                      <Badge className="bg-[#0A4A6E]/10 text-[#0A4A6E] hover:bg-[#0A4A6E]/20">
-                        {trip.participants.length} người
-                      </Badge>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+                </Link>
               ))}
             </div>
           </Card>

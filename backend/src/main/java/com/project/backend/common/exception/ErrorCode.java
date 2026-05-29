@@ -14,6 +14,8 @@ public enum  ErrorCode {
     UNAUTHENTICATED(1002, "Incorrect Username or Password", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1003, "No Access Permission", HttpStatus.UNAUTHORIZED),
     USER_EXISTED(1004, "User already exists!", HttpStatus.BAD_REQUEST),
+    METHOD_NOT_ALLOWED(1005, "Method not allowed", HttpStatus.METHOD_NOT_ALLOWED),
+    INVALID_REQUEST_BODY(1006, "Invalid request body", HttpStatus.BAD_REQUEST),
 
     // Validation Regex Error
     INVALID_KEY(8888, "Invalid Message Key", HttpStatus.BAD_REQUEST),
@@ -40,6 +42,8 @@ public enum  ErrorCode {
 
     ROLE_NOT_EXIST(4002, "Role does not exist", HttpStatus.BAD_REQUEST),
     PLACE_NOT_EXIST(4003, "Place does not exist", HttpStatus.BAD_REQUEST),
+    INVALID_CATEGORY(4004, "Invalid category. Must be: food, drink or activity", HttpStatus.BAD_REQUEST),
+    INVALID_PRICE_RANGE(4005, "minPrice must be less than or equal to maxPrice", HttpStatus.BAD_REQUEST),
 
     TIMELINE_NOT_EXIST(5001, "Timeline does not exist", HttpStatus.NOT_FOUND),
     TIMELINE_EVENT_NOT_EXIST(5002, "Timeline event does not exist", HttpStatus.NOT_FOUND),
@@ -50,7 +54,15 @@ public enum  ErrorCode {
     TIMELINE_EVENT_OUTSIDE_TIMELINE_RANGE(5007, "Timeline event is outside the timeline date range", HttpStatus.BAD_REQUEST),
     TIMELINE_EVENT_OVERLAP(5008, "Timeline event overlaps with an existing event", HttpStatus.BAD_REQUEST),
     TIMELINE_ACCESS_DENIED(5009, "You do not have access to this timeline", HttpStatus.FORBIDDEN),
-    TIMELINE_CONCURRENT_MODIFICATION(5010, "Timeline was modified concurrently, please retry", HttpStatus.CONFLICT);
+    TIMELINE_CONCURRENT_MODIFICATION(5010, "Timeline was modified concurrently, please retry", HttpStatus.CONFLICT),
+    TIMELINE_INVITE_CODE_INVALID(5011, "Invalid or expired invite code", HttpStatus.BAD_REQUEST),
+
+    NOTIFICATION_NOT_EXIST(6001, "Notification does not exist", HttpStatus.NOT_FOUND),
+    NOTIFICATION_ACCESS_DENIED(6002, "You do not have access to this notification", HttpStatus.FORBIDDEN),
+    
+    PROPOSAL_NOT_FOUND(7001, "Proposal does not exist", HttpStatus.NOT_FOUND),
+    INVALID_PROPOSAL_DATA(7002, "Invalid proposal data", HttpStatus.BAD_REQUEST),
+    PROPOSAL_ALREADY_PROCESSED(7003, "Proposal already processed", HttpStatus.BAD_REQUEST);
     int code;
     String message;
     HttpStatusCode statusCode;

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // Assume auth context exposes token
+import { toast } from 'sonner';
 
 type SocketCallback = (message: any) => void;
+
 export function useTimelineSocket(tripId: string, token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<any>(null);
@@ -10,11 +11,12 @@ export function useTimelineSocket(tripId: string, token: string | null) {
   useEffect(() => {
     if (!tripId || !token) return;
 
-    // Use environment variable or default to 8080 for the Go Proxy
-    const wsUrl = `ws://localhost:8080/ws/timeline/${tripId}?token=${token}`;
-    
+    // Use dynamic host to support both localhost and local network access via Vite proxy
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/timeline/${tripId}?token=${token}`;
+
     const socket = new WebSocket(wsUrl);
-    
+
     socket.onopen = () => {
       console.log('Connected to timeline workspace');
       setIsConnected(true);
@@ -52,5 +54,24 @@ export function useTimelineSocket(tripId: string, token: string | null) {
     }
   };
 
-  return { isConnected, lastMessage, sendEvent };
+  const sendProposal = (timelineId: string, baseVersion: number, changeType: string, payload: any) => {
+    if (ws.current && isConnected) {
+      console.log("[Socket] Sending proposal:", { type: changeType, timelineId });
+      ws.current.send(JSON.stringify({
+        type: 'PROPOSAL_SUBMIT',
+        timeline_id: timelineId,
+        base_version: baseVersion,
+        payload: {
+          action: changeType,
+          data: payload
+        },
+        token: token
+      }));
+    } else {
+      console.warn("[Socket] Cannot send proposal: Not connected", { isConnected, hasWs: !!ws.current });
+      toast.error("Mất kết nối với máy chủ đồng bộ. Vui lòng thử lại sau giây lát.");
+    }
+  };
+
+  return { isConnected, lastMessage, sendEvent, sendProposal };
 }
