@@ -1,4 +1,4 @@
-import type { TimelineItem } from '../data/mockData';
+import type { TimelineItem } from '../types/domain';
 
 export const TIMETABLE_DAY_START_HOUR = 6;
 export const TIMETABLE_DAY_END_HOUR = 23;

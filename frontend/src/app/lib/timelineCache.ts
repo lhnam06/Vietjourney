@@ -1,5 +1,5 @@
 import { cacheGet, cacheSet } from './apiCache';
-import type { TimelineItem } from '../data/mockData';
+import type { TimelineItem } from '../types/domain';
 
 export type TimelineCacheData = {
   items: TimelineItem[];

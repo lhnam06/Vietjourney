@@ -1,5 +1,5 @@
 import { requestJson } from './api';
-import type { TimelineItem } from '../data/mockData';
+import type { TimelineItem } from '../types/domain';
 
 export type ApiTimelinePlace = {
   id: string;
