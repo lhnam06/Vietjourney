@@ -1,4 +1,5 @@
-import type { TimelineItem, Transaction, Trip } from '../data/mockData';
+import type { TimelineItem, Transaction, Trip } from '../types/domain';
+import { LEGACY_DEMO_TRIP_ID } from '../types/domain';
 
 type TripData = {
   trip: Trip;
@@ -9,7 +10,7 @@ type TripData = {
 const keyForTrip = (tripId: string) => `vj:trip:${tripId}`;
 const keyLastTrip = `vj:lastTripId`;
 
-export function getLastTripId(fallback = 'trip-1') {
+export function getLastTripId(fallback = LEGACY_DEMO_TRIP_ID) {
   try {
     const raw = localStorage.getItem(keyLastTrip);
     return raw || fallback;

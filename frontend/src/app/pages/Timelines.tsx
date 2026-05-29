@@ -144,8 +144,13 @@ export default function Timelines() {
       setJoinCode('');
       cacheClear(TIMELINES_CACHE);
       setReloadKey((n) => n + 1);
-      setLastTripId(result.timelineId); // Update lastTripId for navigation
-      navigate(`/timetable/${result.timelineId}`);
+      setLastTripId(result.timelineId);
+      try {
+        window.localStorage.setItem('vj:discovery:current-trip-id', JSON.stringify(result.timelineId));
+      } catch {
+        // ignore
+      }
+      navigate('/');
     } catch (e) {
       setJoinError(e instanceof ApiError ? e.message : 'Khong the tham gia timeline.');
     } finally {
@@ -501,8 +506,20 @@ export default function Timelines() {
                         {timeline.startDate} {"->"} {timeline.endDate} · role: {myRole}
                       </p>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/timetable/${timeline.id}`}>Mo timetable</Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setLastTripId(timeline.id);
+                        try {
+                          window.localStorage.setItem('vj:discovery:current-trip-id', JSON.stringify(timeline.id));
+                        } catch {
+                          // ignore
+                        }
+                        navigate('/');
+                      }}
+                    >
+                      Mở lịch trình
                     </Button>
                   </div>
                 </div>
