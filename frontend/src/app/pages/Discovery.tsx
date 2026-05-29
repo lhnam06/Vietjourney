@@ -20,7 +20,7 @@ import {
   enqueueRecommendationInteraction,
   flushRecommendationInteractionQueue,
 } from '../lib/recommendationInteractionQueue';
-import { filterPlaces } from '../lib/placesApi';
+import { fetchAllPlacePages, type PlaceFilterRequest } from '../lib/placesApi';
 import {
   buildInteractionBase,
   HCMC_CENTER,
@@ -50,8 +50,6 @@ import {
 type CategoryFilter = 'food' | 'drink' | 'activity';
 type PriceFilter = 'all' | 'free' | 'budget' | 'mid' | 'premium';
 type SortFilter = 'relevance' | 'rating' | 'priceAsc' | 'priceDesc';
-
-const CATALOG_PAGE_SIZE = 20;
 
 const categoryFilterOptions: Array<{ value: CategoryFilter; label: string }> = [
   { value: 'food', label: 'Ẩm thực' },
@@ -120,14 +118,7 @@ const TIMETABLE_LEFT_PILL_GUTTER_PX = 32;
 const EDGE_HOLD_MS = 500;
 
 const globalCache = {
-  catalogUniverse: null as Location[] | null,
-  catalogLocationsMap: new Map<string, {
-    data: Location[];
-    total?: number;
-    page?: number;
-    totalPages?: number;
-    timestamp: number;
-  }>(),
+  catalogLocationsMap: new Map<string, { data: Location[]; timestamp: number }>(),
   recommendedLocations: null as Location[] | null,
   recommendationsTimestamp: 0,
 };
@@ -155,24 +146,6 @@ function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
     Math.sin(dLat / 2) ** 2 +
     Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
   return 2 * earthKm * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-function backendRowKey(row: {
-  id?: string | null;
-  category?: string | null;
-  name?: string | null;
-  address?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-}) {
-  const rawId = typeof row.id === 'string' ? row.id.trim() : '';
-  if (rawId) return `${row.category ?? 'place'}:${rawId}`;
-  const category = (row.category ?? 'place').trim().toLowerCase();
-  const name = (row.name ?? '').trim().toLowerCase();
-  const address = (row.address ?? '').trim().toLowerCase();
-  const lat = Number.isFinite(row.latitude as number) ? Number(row.latitude).toFixed(5) : 'na';
-  const lng = Number.isFinite(row.longitude as number) ? Number(row.longitude).toFixed(5) : 'na';
-  return `${category}:${name}:${address}:${lat}:${lng}`;
 }
 
 const minutesToHHmm = (minutes: number) => {
@@ -405,13 +378,9 @@ export default function Discovery() {
   const [recoRetryKey, setRecoRetryKey] = useState(0);
   /** Public places catalog from `POST /api/v1/places/filter`. */
   const [catalogLocations, setCatalogLocations] = useState<Location[]>([]);
-  const [catalogTotal, setCatalogTotal] = useState(0);
-  const [catalogHasMore, setCatalogHasMore] = useState(false);
-  const [catalogPage, setCatalogPage] = useState(0);
-  const [loadingMoreCatalog, setLoadingMoreCatalog] = useState(false);
   const [catalogAttempted, setCatalogAttempted] = useState(false);
-  const [catalogUniverse, setCatalogUniverse] = useState<Location[] | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogLoadingMore, setCatalogLoadingMore] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogRetryKey, setCatalogRetryKey] = useState(0);
   const [realTimelines, setRealTimelines] = useState<any[]>([]);
@@ -423,6 +392,20 @@ export default function Discovery() {
   const listCardsRef = useRef<HTMLDivElement>(null);
 
   const [currentTripId, setCurrentTripId] = useLocalStorageState('vj:discovery:current-trip-id', () => getLastTripId('trip-1'));
+
+  useEffect(() => {
+    if (categoryFilter !== activeCategoryFilter) {
+      setCategoryFilter(activeCategoryFilter);
+    }
+  }, [categoryFilter, activeCategoryFilter, setCategoryFilter]);
+
+  const prevCategoryRef = useRef(activeCategoryFilter);
+  useEffect(() => {
+    if (prevCategoryRef.current === activeCategoryFilter) return;
+    prevCategoryRef.current = activeCategoryFilter;
+    setSelectedTagGroup(DEFAULT_TAG_GROUP[activeCategoryFilter]);
+    setSelectedTagValues([]);
+  }, [activeCategoryFilter, setSelectedTagGroup, setSelectedTagValues]);
 
   useEffect(() => {
     const loadTimelines = async () => {
@@ -514,7 +497,9 @@ export default function Discovery() {
     return recommendedLocations ?? mockLocations;
   }, [catalogAttempted, catalogLocations, recommendedLocations]);
   const optionSourceLocations =
-    catalogUniverse ?? catalogLocations ?? recommendedLocations ?? mockLocations;
+    catalogLocations.length > 0
+      ? catalogLocations
+      : recommendedLocations ?? mockLocations;
 
   const districtOptions = useMemo(() => {
     const unique = new Set<string>();
@@ -605,8 +590,6 @@ export default function Discovery() {
     sortFilter,
     effectiveCenter,
   ]);
-
-  const visibleResultCount = searchQuery.trim() ? filteredLocations.length : catalogTotal;
 
   const nearbyRecommendationIds = useMemo(() => {
     return new Set(
@@ -707,44 +690,24 @@ export default function Discovery() {
     [setWeekPageIndex]
   );
 
+  const [displayLimit, setDisplayLimit] = useState(20);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const buildCatalogFilterBody = useCallback(
-    (page: number): Parameters<typeof filterPlaces>[0] => {
-      const body: Parameters<typeof filterPlaces>[0] = {
-        page,
-        size: CATALOG_PAGE_SIZE,
-        category: activeCategoryFilter,
-      };
-      if (districtFilter !== 'all') body.district = districtFilter;
-      if (minRatingFilter > 0) body.minRating = minRatingFilter;
-
-      if (priceFilter === 'budget') {
-        body.minPrice = 1;
-        body.maxPrice = 100_000;
-      } else if (priceFilter === 'free') {
-        body.minPrice = 0;
-        body.maxPrice = 0;
-      } else if (priceFilter === 'mid') {
-        body.minPrice = 100_000;
-        body.maxPrice = 300_000;
-      } else if (priceFilter === 'premium') {
-        body.minPrice = 300_000;
-      }
-
-      if (selectedTagValues.length > 0) {
-        body.tags = { [selectedTagGroup]: selectedTagValues };
-      }
-      return body;
-    },
-    [activeCategoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues]
-  );
+  useEffect(() => {
+    setDisplayLimit(20);
+  }, [filteredLocations]);
 
   useEffect(() => {
-    if (categoryFilter !== activeCategoryFilter) {
-      setCategoryFilter(activeCategoryFilter);
-    }
-  }, [activeCategoryFilter, categoryFilter, setCategoryFilter]);
+    const currentRef = loadMoreRef.current;
+    if (!currentRef) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setDisplayLimit((prev) => Math.min(prev + 20, filteredLocations.length));
+      }
+    }, { rootMargin: '400px' });
+    observer.observe(currentRef);
+    return () => observer.disconnect();
+  }, [filteredLocations.length, displayLimit]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -765,100 +728,84 @@ export default function Discovery() {
 
   useEffect(() => {
     let cancelled = false;
-    
-    if (globalCache.catalogUniverse && catalogRetryKey === 0) {
-      setCatalogUniverse(globalCache.catalogUniverse);
-      return;
-    }
-
-    void (async () => {
-      try {
-        const size = 100;
-        const firstPage = await filterPlaces({ page: 0, size });
-        if (cancelled) return;
-        const rows = [...(firstPage.data ?? [])];
-        const totalPages = Math.max(1, firstPage.totalPages ?? 1);
-        for (let page = 1; page < totalPages; page++) {
-          const nextPage = await filterPlaces({ page, size });
-          if (cancelled) return;
-          rows.push(...(nextPage.data ?? []));
-        }
-        const uniqueRows = Array.from(
-          new Map(rows.map((row) => [backendRowKey(row), row])).values()
-        );
-        if (!cancelled) {
-          const mapped = uniqueRows.map(placeApiRowToLocation);
-          setCatalogUniverse(mapped);
-          globalCache.catalogUniverse = mapped;
-        }
-      } catch {
-        // Keep existing option source if universe fetch fails.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [catalogRetryKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const cacheKey = JSON.stringify({ categoryFilter: activeCategoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues });
+    const cacheKey = JSON.stringify({
+      categoryFilter: activeCategoryFilter,
+      districtFilter,
+      minRatingFilter,
+      priceFilter,
+      selectedTagGroup,
+      selectedTagValues,
+    });
     const cached = globalCache.catalogLocationsMap.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000 && catalogRetryKey === 0) {
       setCatalogLocations(cached.data);
-      setCatalogTotal(cached.total ?? cached.data.length);
-      setCatalogHasMore((cached.page ?? 0) + 1 < (cached.totalPages ?? 1));
-      setCatalogPage(cached.page ?? 0);
       setCatalogAttempted(true);
       setCatalogLoading(false);
+      setCatalogLoadingMore(false);
       setCatalogError(null);
       return;
     }
 
     setCatalogLoading(true);
+    setCatalogLoadingMore(false);
     setCatalogError(null);
-    setCatalogPage(0);
-    setCatalogHasMore(false);
     void (async () => {
       try {
-        const firstPage = await filterPlaces(buildCatalogFilterBody(0));
+        const buildBody = (page: number): PlaceFilterRequest => {
+          const body: PlaceFilterRequest = {
+            page,
+            size: 100,
+            category: activeCategoryFilter,
+          };
+          if (districtFilter !== 'all') body.district = districtFilter;
+          if (minRatingFilter > 0) body.minRating = minRatingFilter;
+
+          if (priceFilter === 'budget') {
+            body.minPrice = 1;
+            body.maxPrice = 100_000;
+          } else if (priceFilter === 'free') {
+            body.minPrice = 0;
+            body.maxPrice = 0;
+          } else if (priceFilter === 'mid') {
+            body.minPrice = 100_000;
+            body.maxPrice = 300_000;
+          } else if (priceFilter === 'premium') {
+            body.minPrice = 300_000;
+          }
+
+          if (selectedTagValues.length > 0) {
+            body.tags = { [selectedTagGroup]: selectedTagValues };
+          }
+          return body;
+        };
+
+        const uniqueRows = await fetchAllPlacePages(buildBody, {
+          isCancelled: () => cancelled,
+          onFirstPage: (rows, totalPages) => {
+            if (cancelled) return;
+            const mapped = rows.map(placeApiRowToLocation);
+            setCatalogLocations(mapped);
+            setCatalogAttempted(true);
+            setCatalogLoading(false);
+            if (totalPages > 1) setCatalogLoadingMore(true);
+          },
+        });
+
         if (cancelled) return;
-        const rows = firstPage.data ?? [];
-        const totalPages = Math.max(1, firstPage.totalPages ?? 1);
-        const uniqueRows = Array.from(
-          new Map(rows.map((row) => [backendRowKey(row), row])).values()
-        );
+
         if (!uniqueRows.length) {
           setCatalogLocations([]);
-          setCatalogTotal(0);
-          setCatalogHasMore(false);
-          globalCache.catalogLocationsMap.set(cacheKey, {
-            data: [],
-            total: 0,
-            page: 0,
-            totalPages: 1,
-            timestamp: Date.now(),
-          });
+          globalCache.catalogLocationsMap.set(cacheKey, { data: [], timestamp: Date.now() });
           return;
         }
+
         const mapped = uniqueRows.map(placeApiRowToLocation);
         setCatalogLocations(mapped);
-        setCatalogTotal(firstPage.total ?? mapped.length);
-        setCatalogHasMore(totalPages > 1);
-        setCatalogPage(0);
-        globalCache.catalogLocationsMap.set(cacheKey, {
-          data: mapped,
-          total: firstPage.total ?? mapped.length,
-          page: 0,
-          totalPages,
-          timestamp: Date.now(),
-        });
+        globalCache.catalogLocationsMap.set(cacheKey, { data: mapped, timestamp: Date.now() });
       } catch (e) {
         if (!cancelled) {
           setCatalogLocations([]);
-          setCatalogTotal(0);
-          setCatalogHasMore(false);
           setCatalogError(
             e instanceof ApiError ? e.message : 'Không tải được danh sách địa điểm từ máy chủ.'
           );
@@ -866,6 +813,7 @@ export default function Discovery() {
       } finally {
         if (!cancelled) {
           setCatalogLoading(false);
+          setCatalogLoadingMore(false);
           setCatalogAttempted(true);
         }
       }
@@ -874,7 +822,6 @@ export default function Discovery() {
       cancelled = true;
     };
   }, [
-    buildCatalogFilterBody,
     catalogRetryKey,
     activeCategoryFilter,
     districtFilter,
@@ -882,47 +829,6 @@ export default function Discovery() {
     priceFilter,
     selectedTagGroup,
     selectedTagValues,
-  ]);
-
-  useEffect(() => {
-    const currentRef = loadMoreRef.current;
-    if (!currentRef || !catalogHasMore || catalogLoading || loadingMoreCatalog) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries[0]?.isIntersecting) return;
-      void (async () => {
-        setLoadingMoreCatalog(true);
-        try {
-          const nextPage = catalogPage + 1;
-          const pageResult = await filterPlaces(buildCatalogFilterBody(nextPage));
-          const mapped = (pageResult.data ?? []).map(placeApiRowToLocation);
-          if (!mapped.length) {
-            setCatalogHasMore(false);
-            return;
-          }
-          setCatalogLocations((prev) => {
-            const merged = new Map(prev.map((loc) => [loc.id, loc]));
-            for (const loc of mapped) merged.set(loc.id, loc);
-            return Array.from(merged.values());
-          });
-          setCatalogPage(nextPage);
-          setCatalogHasMore(nextPage + 1 < (pageResult.totalPages ?? 1));
-        } catch {
-          setCatalogHasMore(false);
-        } finally {
-          setLoadingMoreCatalog(false);
-        }
-      })();
-    }, { rootMargin: '320px' });
-
-    observer.observe(currentRef);
-    return () => observer.disconnect();
-  }, [
-    buildCatalogFilterBody,
-    catalogHasMore,
-    catalogLoading,
-    catalogPage,
-    loadingMoreCatalog,
   ]);
 
   useEffect(() => {
@@ -1042,8 +948,11 @@ export default function Discovery() {
       return;
     }
     const allow = new Set(availableTagValues.map((x) => x.label.toLowerCase()));
-    setSelectedTagValues((prev) => prev.filter((x) => allow.has(x.toLowerCase())));
-  }, [activeCategoryFilter, selectedTagGroup, availableTagValues, tagGroupOptions, setSelectedTagGroup, setSelectedTagValues]);
+    setSelectedTagValues((prev) => {
+      const next = prev.filter((x) => allow.has(x.toLowerCase()));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [selectedTagGroup, availableTagValues, tagGroupOptions, activeCategoryFilter, setSelectedTagGroup, setSelectedTagValues]);
 
   const fetchTimeline = useCallback(async () => {
     if (!tripId || tripId === 'undefined') {
@@ -1402,6 +1311,9 @@ export default function Discovery() {
               {catalogLoading && (
                 <p className="mt-2 text-xs font-bold text-white/60 animate-pulse">Đang đồng bộ dữ liệu…</p>
               )}
+              {!catalogLoading && catalogLoadingMore && (
+                <p className="mt-2 text-xs font-medium text-white/55">Đang tải thêm địa điểm…</p>
+              )}
               {!catalogLoading && catalogLocations.length > 0 && !recommendedLocations && (
                 <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold text-white/90 border border-white/10">
                   <MapPin className="size-3.5 text-emerald-400" />
@@ -1540,11 +1452,7 @@ export default function Discovery() {
                       key={filter.value}
                       variant={activeCategoryFilter === filter.value ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => {
-                        setCategoryFilter(filter.value);
-                        setSelectedTagGroup(DEFAULT_TAG_GROUP[filter.value]);
-                        setSelectedTagValues([]);
-                      }}
+                      onClick={() => setCategoryFilter(filter.value)}
                       className={`rounded-full transition-transform active:scale-95 ${filterChipClass(activeCategoryFilter === filter.value)}`}
                     >
                       {filter.label}
@@ -1561,7 +1469,7 @@ export default function Discovery() {
                     variant={districtFilter === 'all' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setDistrictFilter('all')}
-                    className={`rounded-full ${filterChipClass(districtFilter === 'all')}`}
+                    className={`h-8 rounded-full px-3 ${filterChipClass(districtFilter === 'all')}`}
                   >
                     Tất cả khu vực
                   </Button>
@@ -1572,7 +1480,7 @@ export default function Discovery() {
                       variant={districtFilter === district ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setDistrictFilter(district)}
-                      className={`rounded-full ${filterChipClass(districtFilter === district)}`}
+                      className={`h-8 rounded-full px-3 ${filterChipClass(districtFilter === district)}`}
                     >
                       {district}
                     </Button>
@@ -1580,43 +1488,44 @@ export default function Discovery() {
                 </div>
               </div>
 
-              <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Đánh giá</p>
-                <div className="flex flex-wrap gap-2">
-                  {minRatingOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      variant={minRatingFilter === option.value ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setMinRatingFilter(option.value)}
-                      className={`rounded-full ${filterChipClass(minRatingFilter === option.value)}`}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2.5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Đánh giá</p>
+                  <div className="flex flex-wrap gap-2">
+                    {minRatingOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={minRatingFilter === option.value ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setMinRatingFilter(option.value)}
+                        className={`h-8 rounded-full px-3 text-xs ${filterChipClass(minRatingFilter === option.value)}`}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mức giá</p>
+                  <div className="flex flex-wrap gap-2">
+                    {priceFilterOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={priceFilter === option.value ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPriceFilter(option.value)}
+                        className={`h-8 rounded-full px-3 text-xs ${filterChipClass(priceFilter === option.value)}`}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mức giá</p>
-                <div className="flex flex-wrap gap-2">
-                  {priceFilterOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      variant={priceFilter === option.value ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setPriceFilter(option.value)}
-                      className={`rounded-full ${filterChipClass(priceFilter === option.value)}`}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Bộ tag theo nhóm</p>
                 <div className="flex flex-wrap gap-2">
                   {tagGroupOptions.map((group) => (
@@ -1629,13 +1538,13 @@ export default function Discovery() {
                         setSelectedTagGroup(group);
                         setSelectedTagValues([]);
                       }}
-                      className={`rounded-full ${filterChipClass(selectedTagGroup === group)}`}
+                      className={`h-8 rounded-full px-3 ${filterChipClass(selectedTagGroup === group)}`}
                     >
                       {tagGroupLabel(group)}
                     </Button>
                   ))}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   {availableTagValues.length === 0 ? (
                     <span className="w-full rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
                       Nhóm tag này chưa có dữ liệu khả dụng.
@@ -1685,19 +1594,14 @@ export default function Discovery() {
           <div className="px-[var(--vj-inset)] py-3 bg-slate-100 border-b border-slate-200">
             <p className="text-sm text-slate-600 flex items-center justify-between gap-2">
               <span>
-                <span className="font-bold text-[var(--vj-primary)]">{visibleResultCount}</span> địa điểm được tìm thấy
+                <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
               </span>
               {(recoLoading && isAuthenticated) || catalogLoading ? (
                 <span className="ml-2 text-xs font-medium text-slate-500">Đồng bộ dữ liệu…</span>
-              ) : loadingMoreCatalog ? (
-                <span className="ml-2 text-xs font-medium text-slate-500">Đang tải thêm…</span>
               ) : null}
             </p>
             {!catalogLoading && filteredLocations.length > 0 && (
               <p className="mt-1 text-xs text-slate-500">
-                Hiển thị {filteredLocations.length}
-                {catalogTotal > filteredLocations.length ? ` / ${visibleResultCount}` : ''}
-                {' · '}
                 {gpsStatus === 'granted' ? 'Gợi ý gần bạn' : 'Gợi ý gần trung tâm'}: {Math.min(MAX_NEARBY_RECOMMENDATIONS, filteredLocations.length)} địa điểm
               </p>
             )}
@@ -1716,7 +1620,7 @@ export default function Discovery() {
                 </p>
               </div>
             ) : null}
-            {filteredLocations.map((location, index) => (
+            {filteredLocations.slice(0, displayLimit).map((location, index) => (
               <div
                 key={location.id}
                 className="vj-animate-in"
