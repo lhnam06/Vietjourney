@@ -52,7 +52,12 @@ public class PlaceQueryRepositoryImpl implements PlaceQueryRepository {
         WhereClause whereClause = buildWhere(req);
 
         String sql = new StringBuilder()
-                .append(buildFromClause(req.getCategory()))
+                .append("SELECT p.id, p.name, p.address, p.category, p.district, p.rating, ")
+                .append("p.latitude, p.longitude, p.images, p.tags, p.price_range, ")
+                .append("COUNT(*) OVER() AS total_count ")
+                .append("FROM (")
+                .append(buildUnionParts(req.getCategory()))
+                .append(") p")
                 .append(whereClause.sql())
                 .append(" ORDER BY p.rating DESC NULLS LAST")
                 .append(" LIMIT :limit OFFSET :offset")
@@ -133,10 +138,6 @@ public class PlaceQueryRepositoryImpl implements PlaceQueryRepository {
         }
 
         return new WhereClause(sql.toString(), params);
-    }
-
-    private String buildFromClause(String category) {
-        return "SELECT * FROM (" + buildUnionParts(category) + ") p";
     }
 
     private String buildUnionParts(String category) {
