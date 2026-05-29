@@ -104,6 +104,11 @@ const DEFAULT_TAG_GROUP: Record<CategoryFilter, string> = {
   drink: 'sub_category',
   activity: 'sub_category',
 };
+
+function normalizeCategoryFilter(value: unknown): CategoryFilter {
+  if (value === 'food' || value === 'drink' || value === 'activity') return value;
+  return 'food';
+}
 const MAX_NEARBY_RECOMMENDATIONS = 20;
 const DISCOVERY_DRAG_TYPE = 'application/vnd.vietjourney.location-id';
 const DISCOVERY_EVENT_DRAG_TYPE = 'application/vnd.vietjourney.event-id';
@@ -361,6 +366,7 @@ export default function Discovery() {
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle');
   const [searchQuery, setSearchQuery] = useLocalStorageState('vj:discovery:search-query', '');
   const [categoryFilter, setCategoryFilter] = useLocalStorageState<CategoryFilter>('vj:discovery:category-filter', 'food');
+  const activeCategoryFilter = normalizeCategoryFilter(categoryFilter);
   const [districtFilter, setDistrictFilter] = useLocalStorageState<string>('vj:discovery:district-filter', 'all');
   const [minRatingFilter, setMinRatingFilter] = useLocalStorageState<number>('vj:discovery:min-rating-filter', 0);
   const [priceFilter, setPriceFilter] = useLocalStorageState<PriceFilter>('vj:discovery:price-filter', 'all');
@@ -514,22 +520,25 @@ export default function Discovery() {
     const unique = new Set<string>();
     for (const location of optionSourceLocations) {
       const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
-      if (locCat !== categoryFilter) continue;
+      if (locCat !== activeCategoryFilter) continue;
       const district = location.recommendation?.district?.trim();
       if (district) unique.add(district);
     }
     return Array.from(unique).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [optionSourceLocations, categoryFilter]);
+  }, [optionSourceLocations, activeCategoryFilter]);
 
-  const tagGroupOptions = useMemo(() => Object.keys(PREDEFINED_TAGS[categoryFilter]), [categoryFilter]);
+  const tagGroupOptions = useMemo(
+    () => Object.keys(PREDEFINED_TAGS[activeCategoryFilter]),
+    [activeCategoryFilter]
+  );
 
   const availableTagValues = useMemo(() => {
-    const predefinedList = PREDEFINED_TAGS[categoryFilter][selectedTagGroup] || [];
+    const predefinedList = PREDEFINED_TAGS[activeCategoryFilter][selectedTagGroup] ?? [];
 
     const counter = new Map<string, number>();
     for (const location of optionSourceLocations) {
       const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
-      if (locCat !== categoryFilter) continue;
+      if (locCat !== activeCategoryFilter) continue;
       if (districtFilter !== 'all') {
         const locDist = location.recommendation?.district?.trim() || '';
         if (locDist !== districtFilter) continue;
@@ -555,7 +564,7 @@ export default function Discovery() {
       label,
       count: counter.get(label.toLowerCase()) || 0,
     }));
-  }, [optionSourceLocations, selectedTagGroup, categoryFilter, districtFilter, minRatingFilter, priceFilter]);
+  }, [optionSourceLocations, selectedTagGroup, activeCategoryFilter, districtFilter, minRatingFilter, priceFilter]);
 
   const activeFilterCount =
     Number(districtFilter !== 'all') +
@@ -705,7 +714,7 @@ export default function Discovery() {
       const body: Parameters<typeof filterPlaces>[0] = {
         page,
         size: CATALOG_PAGE_SIZE,
-        category: categoryFilter,
+        category: activeCategoryFilter,
       };
       if (districtFilter !== 'all') body.district = districtFilter;
       if (minRatingFilter > 0) body.minRating = minRatingFilter;
@@ -728,21 +737,14 @@ export default function Discovery() {
       }
       return body;
     },
-    [categoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues]
+    [activeCategoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues]
   );
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem('vj:discovery:category-filter');
-      if (raw && raw.includes('all')) setCategoryFilter('food');
-      const tagRaw = window.localStorage.getItem('vj:discovery:selected-tag-group');
-      if (tagRaw && (tagRaw.includes('all') || tagRaw === '""')) {
-        setSelectedTagGroup(DEFAULT_TAG_GROUP.food);
-      }
-    } catch {
-      // ignore storage errors
+    if (categoryFilter !== activeCategoryFilter) {
+      setCategoryFilter(activeCategoryFilter);
     }
-  }, [setCategoryFilter, setSelectedTagGroup]);
+  }, [activeCategoryFilter, categoryFilter, setCategoryFilter]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -800,7 +802,7 @@ export default function Discovery() {
 
   useEffect(() => {
     let cancelled = false;
-    const cacheKey = JSON.stringify({ categoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues });
+    const cacheKey = JSON.stringify({ categoryFilter: activeCategoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues });
     const cached = globalCache.catalogLocationsMap.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000 && catalogRetryKey === 0) {
@@ -874,7 +876,7 @@ export default function Discovery() {
   }, [
     buildCatalogFilterBody,
     catalogRetryKey,
-    categoryFilter,
+    activeCategoryFilter,
     districtFilter,
     minRatingFilter,
     priceFilter,
@@ -1035,13 +1037,13 @@ export default function Discovery() {
 
   useEffect(() => {
     if (!tagGroupOptions.includes(selectedTagGroup)) {
-      setSelectedTagGroup(DEFAULT_TAG_GROUP[categoryFilter]);
+      setSelectedTagGroup(DEFAULT_TAG_GROUP[activeCategoryFilter]);
       setSelectedTagValues([]);
       return;
     }
     const allow = new Set(availableTagValues.map((x) => x.label.toLowerCase()));
     setSelectedTagValues((prev) => prev.filter((x) => allow.has(x.toLowerCase())));
-  }, [categoryFilter, selectedTagGroup, availableTagValues, tagGroupOptions, setSelectedTagGroup, setSelectedTagValues]);
+  }, [activeCategoryFilter, selectedTagGroup, availableTagValues, tagGroupOptions, setSelectedTagGroup, setSelectedTagValues]);
 
   const fetchTimeline = useCallback(async () => {
     if (!tripId || tripId === 'undefined') {
@@ -1536,14 +1538,14 @@ export default function Discovery() {
                   {categoryFilterOptions.map((filter) => (
                     <Button
                       key={filter.value}
-                      variant={categoryFilter === filter.value ? 'default' : 'outline'}
+                      variant={activeCategoryFilter === filter.value ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => {
                         setCategoryFilter(filter.value);
                         setSelectedTagGroup(DEFAULT_TAG_GROUP[filter.value]);
                         setSelectedTagValues([]);
                       }}
-                      className={`rounded-full transition-transform active:scale-95 ${filterChipClass(categoryFilter === filter.value)}`}
+                      className={`rounded-full transition-transform active:scale-95 ${filterChipClass(activeCategoryFilter === filter.value)}`}
                     >
                       {filter.label}
                     </Button>
