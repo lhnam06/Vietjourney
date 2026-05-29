@@ -9,7 +9,7 @@ import { Slider } from '../components/ui/slider';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
-import { mockUsers } from '../data/mockData';
+import { DEFAULT_USER_PREFERENCES } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
 import { ApiError } from '../lib/api';
@@ -52,18 +52,17 @@ function tagGroupLabel(group: string): string {
 
 export default function Profile() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const currentUser = mockUsers[0];
 
   const TIMELINES_CACHE = 'profile:my-timelines';
   const [timelines, setTimelines] = useState<ApiTimelineDetail[]>(() => cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []);
   const [timelinesLoading, setTimelinesLoading] = useState(() => !cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE)?.length);
   const [timelinesError, setTimelinesError] = useState<string | null>(null);
 
-  const [pace, setPace] = useLocalStorageState<number>('vj:profile:pace', currentUser.preferences.pace);
-  const [budgetLevel, setBudgetLevel] = useLocalStorageState<number>('vj:profile:budget-level', currentUser.preferences.budgetLevel);
+  const [pace, setPace] = useLocalStorageState<number>('vj:profile:pace', DEFAULT_USER_PREFERENCES.pace);
+  const [budgetLevel, setBudgetLevel] = useLocalStorageState<number>('vj:profile:budget-level', DEFAULT_USER_PREFERENCES.budgetLevel);
   const [favoriteCategories, setFavoriteCategories] = useLocalStorageState<string[]>(
     'vj:profile:favorite-categories',
-    currentUser.preferences.favoriteCategories
+    DEFAULT_USER_PREFERENCES.favoriteCategories
   );
 
   const [recoProfile, setRecoProfile] = useState<UserRecommendationProfile | null>(null);
@@ -76,7 +75,7 @@ export default function Profile() {
       ? user.displayName
       : isAuthenticated && user?.username
         ? user.username
-        : currentUser.name;
+        : 'Khách';
 
   useEffect(() => {
     if (!isAuthenticated || authLoading) {
@@ -191,7 +190,6 @@ export default function Profile() {
               <div className="flex items-end justify-between -mt-16 mb-4">
                 <div className="relative">
                   <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-[#FF6B35]/20">
-                    <AvatarImage src={currentUser.avatar} />
                     <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <Button
@@ -212,7 +210,7 @@ export default function Profile() {
                 <p className="text-slate-600">
                   {isAuthenticated && user
                     ? `@${user.username}`
-                    : currentUser.email}
+                    : 'Đăng nhập để xem hồ sơ của bạn'}
                 </p>
               </div>
 

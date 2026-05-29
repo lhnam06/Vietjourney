@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -14,6 +14,7 @@ import {
   MapPin,
   Star,
   Pencil,
+  LocateFixed,
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -39,8 +40,9 @@ import { Button as UIButton } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { mockLocations, mockUsers, TimelineItem, Location, mockTrips } from '../data/mockData';
+import { createDefaultTrip, displayTripDestination, LEGACY_DEMO_TRIP_ID, type Location, type TimelineItem, type User } from '../types/domain';
 import SimpleMap from '../components/SimpleMap';
+import type { LeafletMapApi } from '../components/LeafletMapView';
 import TimelineBlock from '../components/TimelineBlock';
 import { DateScrollStrip } from '../components/DateScrollStrip';
 import { toast } from 'sonner';
@@ -48,6 +50,7 @@ import { fetchRoadRoutePolyline, type LatLngTuple } from '../lib/roadRoute';
 import { setLastTripId } from '../lib/tripStorage';
 import { cacheGet, cacheSet, cacheClear } from '../lib/apiCache';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { useGeolocation } from '../hooks/useGeolocation';
 import AddToItineraryDialog from '../components/AddToItineraryDialog';
 import SearchPlacesDialog from '../components/SearchPlacesDialog';
 import { Input } from '../components/ui/input';
@@ -76,12 +79,12 @@ const isoLocalDateTimeToHHmm = (iso: string) => {
 
 export default function Workspace() {
   const { tripId: tripIdParam } = useParams();
-  const tripId = tripIdParam || 'trip-1';
+  const tripId = tripIdParam || LEGACY_DEMO_TRIP_ID;
   const [searchParams] = useSearchParams();
   const { user, token, loading: authLoading, isAuthenticated } = useAuth();
   const { lastMessage, sendProposal } = useTimelineSocket(tripId, token ?? "dummy_token");
 
-  const isMockTrip = tripId === 'trip-1';
+  const isMockTrip = tripId === LEGACY_DEMO_TRIP_ID;
 
   const CACHE_KEY = `timeline:${tripId}`;
 
@@ -117,7 +120,7 @@ export default function Workspace() {
     
     if (authLoading) return;
     
-    if (!token || !tripId || tripId === 'undefined' || (tripId === 'trip-1' && !isAuthenticated)) {
+    if (!token || !tripId || tripId === 'undefined' || (tripId === LEGACY_DEMO_TRIP_ID && !isAuthenticated)) {
       console.log("[Workspace] Skipping fetch", { hasToken: !!token, tripId, isAuthenticated });
       setIsLoading(false);
       return;
@@ -220,8 +223,19 @@ export default function Workspace() {
 
   const trip = useMemo(() => {
     if (tripMetadata) return tripMetadata;
-    return mockTrips.find((t) => t.id === tripId) ?? mockTrips[0];
+    return createDefaultTrip(tripId);
   }, [tripMetadata, tripId]);
+
+  const itineraryUsers = useMemo<User[]>(() => {
+    if (!user) return [];
+    return [{
+      id: String(user.id),
+      name: user.displayName?.trim() || user.username,
+      email: '',
+      avatar: '',
+      preferences: { pace: 3, budgetLevel: 2, favoriteCategories: [] },
+    }];
+  }, [user]);
 
   const moveTimelineItem = async (dragIndex: number, hoverIndex: number) => {
     if (!token) return;
@@ -580,16 +594,6 @@ export default function Workspace() {
           } as Location & { isPending: boolean; authorUsername?: string };
         }
         
-        // 3. Last resort: Mock data
-        let fallback: Location | undefined;
-        if (isMockTrip || isPending) { // Also check mock for pending if DB failed
-          fallback = mockLocations.find((loc) => loc.id === item.locationId);
-        }
-
-        if (fallback) {
-          return { ...fallback, id: isPending ? item.id : fallback.id, isPending: isPending, authorUsername };
-        }
-
         console.warn(`[Workspace] No coordinates found for item:`, item.id, item.locationId);
         return null;
       })
@@ -618,6 +622,8 @@ export default function Workspace() {
 
   const [routePolyline, setRoutePolyline] = useState<LatLngTuple[]>([]);
   const [routeResolving, setRouteResolving] = useState(false);
+  const { position: userLocation, accuracy: userAccuracy, status: geoStatus } = useGeolocation(true);
+  const mapApiRef = useRef<LeafletMapApi | null>(null);
 
   useEffect(() => {
     if (stopsForRoute.length < 2) {
@@ -656,7 +662,7 @@ export default function Workspace() {
     return methods[index % 2];
   };
 
-  const onlineUsers = mockUsers.slice(0, 3);
+  const onlineUsers = itineraryUsers;
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -876,7 +882,7 @@ export default function Workspace() {
                     lng: dbPlace.longitude,
                     image: dbPlace.imageUrl || '',
                     category: (item.category || 'activity').toLowerCase()
-                  } : mockLocations.find((loc) => loc.id === item.locationId);
+                  } : null;
                 }
 
                 const displayName = location?.name || (tripMetadata?.labelByLocationId?.[item.locationId]) || 'Hoạt động';
@@ -884,7 +890,7 @@ export default function Workspace() {
                 const isEditing = editingItem === item.id;
                 const transport = getTransportMethod(index);
                 const TransportIcon = transport.icon;
-                const ownerUser = mockUsers[index % mockUsers.length];
+                const ownerUser = itineraryUsers[0];
                 
                 return (
                   <div key={item.id} className="min-w-0">
@@ -1004,19 +1010,44 @@ export default function Workspace() {
           </div>
 
           <div className="absolute bottom-[var(--vj-inset)] left-[var(--vj-inset)] z-[1000] bg-[#0b5d55]/90 backdrop-blur-xl rounded-2xl p-[var(--vj-inset)] shadow-2xl border border-white/20 text-white min-w-[200px] max-w-[calc(100%-2*var(--vj-inset))]">
-            <p className="text-sm font-black tracking-tight mb-1 flex items-center gap-2">
+            <p className="text-sm font-black tracking-tight flex items-center gap-2">
               <MapPin className="w-4 h-4 text-emerald-400" />
-              {trip.destination}
+              {displayTripDestination(trip.destination)}
             </p>
-            <p className="text-[10px] text-white/70 font-medium leading-relaxed">Tối ưu thứ tự di chuyển theo ngày đang chọn</p>
+            {geoStatus === 'loading' ? (
+              <p className="mt-2 text-[10px] text-blue-200">Đang định vị GPS…</p>
+            ) : geoStatus === 'denied' ? (
+              <p className="mt-2 text-[10px] text-amber-200">Cho phép truy cập vị trí để hiển thị đúng trên bản đồ.</p>
+            ) : userAccuracy && userAccuracy > 1500 ? (
+              <p className="mt-2 text-[10px] text-amber-200">
+                GPS chưa chính xác ({userAccuracy >= 1000 ? `${Math.round(userAccuracy / 1000)} km` : `${Math.round(userAccuracy)} m`}) — thử ra ngoài trời hoặc dùng điện thoại.
+              </p>
+            ) : null}
           </div>
 
           <SimpleMap
             locations={timelineLocations}
             center={mapCenter}
+            userLocation={userLocation ?? undefined}
+            userAccuracy={userAccuracy ?? undefined}
             showRoute={true}
             routeCoordinates={routePolyline.length >= 2 ? routePolyline : routeCoordinates}
+            onMapReady={(api) => {
+              mapApiRef.current = api;
+            }}
           />
+
+          {userLocation ? (
+            <button
+              type="button"
+              aria-label="Vị trí của tôi"
+              title="Vị trí của tôi"
+              className="absolute top-[calc(var(--vj-inset)+3.75rem)] right-[var(--vj-inset)] z-[1100] flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white text-[#1a73e8] shadow-[0_2px_8px_rgba(0,0,0,0.22)] transition hover:bg-slate-50 active:scale-95 active:bg-slate-100 pointer-events-auto touch-manipulation"
+              onClick={() => mapApiRef.current?.flyToUser()}
+            >
+              <LocateFixed className="h-6 w-6" strokeWidth={2.25} />
+            </button>
+          ) : null}
         </div>
         </div>
       </div>
@@ -1062,7 +1093,7 @@ export default function Workspace() {
           tripId={tripId}
           trip={trip}
           location={selectedLocationForAdd}
-          users={mockUsers}
+          users={itineraryUsers}
           onCreate={handleCreateActivity}
           defaultDate={selectedDate}
         />
@@ -1086,7 +1117,7 @@ export default function Workspace() {
               image: dbPlace.imageUrl || '',
               address: dbPlace.address,
               rating: dbPlace.rating
-            } : mockLocations.find(l => l.id === item.locationId);
+            } : null;
             
             const displayName = dbPlace?.name || location?.name || tripMetadata?.labelByLocationId?.[item.locationId] || 'Hoạt động';
             const displayImage = dbPlace?.imageUrl || location?.image || 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80';
