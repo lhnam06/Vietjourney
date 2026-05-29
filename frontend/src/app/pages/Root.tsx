@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import {
   Bell,
-  CalendarRange,
   ChevronDown,
   Compass,
   LogOut,
@@ -36,7 +35,6 @@ import { cacheClearAll } from '../lib/apiCache';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useNotificationSocket } from '../hooks/useNotificationSocket';
 import { getUnreadCountRequest } from '../lib/notificationApi';
-import { getLastTripId } from '../lib/tripStorage';
 import { cn } from '../components/ui/utils';
 import logoUrl from '../../../photos/Vietjourney_logo.png';
 
@@ -111,9 +109,6 @@ export default function Root() {
     return () => window.removeEventListener('vj:notifications-unread', onUnreadChange);
   }, []);
 
-  const lastTripId = getLastTripId();
-  const isTripIdValid = lastTripId && lastTripId !== 'undefined';
-
   const navItems: NavEntry[] = [
     {
       path: '/',
@@ -128,14 +123,6 @@ export default function Root() {
       description: 'Workspace và timeline của bạn',
       icon: RouteIcon,
       isActive: (p) => p === '/mytrip' || p.startsWith('/workspace/'),
-    },
-    {
-      path: isTripIdValid ? `/timetable/${lastTripId}` : '/profile',
-      label: 'Thời khoá biểu',
-      description: 'Xem lịch theo ngày',
-      icon: CalendarRange,
-      isActive: (p) => p.startsWith('/timetable/'),
-      disabled: !isTripIdValid,
     },
     {
       path: '/timelines',
@@ -255,7 +242,7 @@ export default function Root() {
     });
 
   return (
-    <div className="h-[100dvh] flex flex-col md:flex-row bg-[var(--vj-bg)]">
+    <div className="vj-app-shell h-[100dvh] flex flex-col md:flex-row">
       <a
         href="#main-content"
         className="absolute left-[-10000px] top-3 z-[1200] rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[var(--vj-primary)] shadow-lg transition-none focus:left-3 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--vj-accent)]"
