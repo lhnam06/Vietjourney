@@ -29,6 +29,7 @@ import {
   placeApiRowToLocation,
   recommendedPlaceToLocation,
 } from '../lib/recommendationUtils';
+import { tagGroupLabel, tagValueLabel } from '../lib/tagLabels';
 import { ApiError } from '../lib/api';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { onLocationImageError } from '../lib/imagePlaceholder';
@@ -46,12 +47,13 @@ import {
   type TimetableBlock,
 } from '../lib/timetableLayout';
 
-type CategoryFilter = 'all' | 'food' | 'drink' | 'activity';
+type CategoryFilter = 'food' | 'drink' | 'activity';
 type PriceFilter = 'all' | 'free' | 'budget' | 'mid' | 'premium';
 type SortFilter = 'relevance' | 'rating' | 'priceAsc' | 'priceDesc';
 
+const CATALOG_PAGE_SIZE = 20;
+
 const categoryFilterOptions: Array<{ value: CategoryFilter; label: string }> = [
-  { value: 'all', label: 'Tất cả loại hình' },
   { value: 'food', label: 'Ẩm thực' },
   { value: 'drink', label: 'Đồ uống' },
   { value: 'activity', label: 'Trải nghiệm' },
@@ -96,13 +98,11 @@ const PREDEFINED_TAGS: Record<CategoryFilter, Record<string, string[]>> = {
     purpose: ["dating", "relax", "photography", "group_gathering"],
     amenity: ["parking", "restroom", "wifi"]
   },
-  all: {
-    sub_category: ["healthy", "main_course", "hotpot", "vegetarian", "buffet", "fast_food", "coffee", "tea_milktea", "juice_smoothie", "alcoholic", "dessert", "workshop", "sports_fitness", "cultural_space", "outdoor", "cinema_show", "shopping"],
-    purpose: ["celebration", "dating", "family", "checkin_photography", "group_gathering", "work_study", "relax", "photography"],
-    service_style: ["street_food", "takeaway", "casual_dining", "canteen"],
-    vibe: ["quiet", "vibrant", "outdoor", "view", "traditional", "luxury"],
-    amenity: ["restroom", "ac", "wifi", "private_room", "24/7", "pet", "parking"]
-  }
+};
+const DEFAULT_TAG_GROUP: Record<CategoryFilter, string> = {
+  food: 'sub_category',
+  drink: 'sub_category',
+  activity: 'sub_category',
 };
 const MAX_NEARBY_RECOMMENDATIONS = 20;
 const DISCOVERY_DRAG_TYPE = 'application/vnd.vietjourney.location-id';
@@ -116,7 +116,13 @@ const EDGE_HOLD_MS = 500;
 
 const globalCache = {
   catalogUniverse: null as Location[] | null,
-  catalogLocationsMap: new Map<string, { data: Location[]; timestamp: number }>(),
+  catalogLocationsMap: new Map<string, {
+    data: Location[];
+    total?: number;
+    page?: number;
+    totalPages?: number;
+    timestamp: number;
+  }>(),
   recommendedLocations: null as Location[] | null,
   recommendationsTimestamp: 0,
 };
@@ -170,14 +176,13 @@ const minutesToHHmm = (minutes: number) => {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 };
 
-/** Turn a snake_case / variable-style tag into readable words (e.g. "cinema_show" → "Cinema show"). */
-const humanizeTag = (raw: string): string => {
-  if (!raw) return '';
-  const cleaned = raw.replace(/[_-]+/g, ' ').trim().replace(/\s+/g, ' ');
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-};
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+function filterChipClass(active: boolean) {
+  return active
+    ? 'scale-[1.02] bg-[var(--vj-primary)] shadow-md shadow-[var(--vj-primary)]/25 hover:bg-[var(--vj-primary-2)]'
+    : 'border-slate-200 hover:border-[var(--vj-primary)]/30';
+}
 
 const dayLabel = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString('vi-VN', {
@@ -327,7 +332,7 @@ const DiscoveryLocationCard = memo(({
                   variant="secondary"
                   className="rounded-full border-0 bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600"
                 >
-                  {humanizeTag(tag)}
+                  {tagValueLabel(tag)}
                 </Badge>
               ))}
             </div>
@@ -355,11 +360,11 @@ export default function Discovery() {
   const [userCenter, setUserCenter] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle');
   const [searchQuery, setSearchQuery] = useLocalStorageState('vj:discovery:search-query', '');
-  const [categoryFilter, setCategoryFilter] = useLocalStorageState<CategoryFilter>('vj:discovery:category-filter', 'all');
+  const [categoryFilter, setCategoryFilter] = useLocalStorageState<CategoryFilter>('vj:discovery:category-filter', 'food');
   const [districtFilter, setDistrictFilter] = useLocalStorageState<string>('vj:discovery:district-filter', 'all');
   const [minRatingFilter, setMinRatingFilter] = useLocalStorageState<number>('vj:discovery:min-rating-filter', 0);
   const [priceFilter, setPriceFilter] = useLocalStorageState<PriceFilter>('vj:discovery:price-filter', 'all');
-  const [selectedTagGroup, setSelectedTagGroup] = useLocalStorageState<string>('vj:discovery:selected-tag-group', 'all');
+  const [selectedTagGroup, setSelectedTagGroup] = useLocalStorageState<string>('vj:discovery:selected-tag-group', 'sub_category');
   const [selectedTagValues, setSelectedTagValues] = useLocalStorageState<string[]>('vj:discovery:selected-tag-values', []);
   const [sortFilter, setSortFilter] = useLocalStorageState<SortFilter>('vj:discovery:sort-filter', 'relevance');
   const [selectedLocationId, setSelectedLocationId] = useLocalStorageState<string | null>('vj:discovery:selected-location-id', null);
@@ -394,6 +399,10 @@ export default function Discovery() {
   const [recoRetryKey, setRecoRetryKey] = useState(0);
   /** Public places catalog from `POST /api/v1/places/filter`. */
   const [catalogLocations, setCatalogLocations] = useState<Location[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogHasMore, setCatalogHasMore] = useState(false);
+  const [catalogPage, setCatalogPage] = useState(0);
+  const [loadingMoreCatalog, setLoadingMoreCatalog] = useState(false);
   const [catalogAttempted, setCatalogAttempted] = useState(false);
   const [catalogUniverse, setCatalogUniverse] = useState<Location[] | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -504,31 +513,23 @@ export default function Discovery() {
   const districtOptions = useMemo(() => {
     const unique = new Set<string>();
     for (const location of optionSourceLocations) {
-      if (categoryFilter !== 'all') {
-        const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
-        if (locCat !== categoryFilter) continue;
-      }
+      const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
+      if (locCat !== categoryFilter) continue;
       const district = location.recommendation?.district?.trim();
       if (district) unique.add(district);
     }
     return Array.from(unique).sort((a, b) => a.localeCompare(b, 'vi'));
   }, [optionSourceLocations, categoryFilter]);
 
-  const tagGroupOptions = useMemo(() => {
-    return Object.keys(PREDEFINED_TAGS[categoryFilter] || PREDEFINED_TAGS.all);
-  }, [categoryFilter]);
+  const tagGroupOptions = useMemo(() => Object.keys(PREDEFINED_TAGS[categoryFilter]), [categoryFilter]);
 
   const availableTagValues = useMemo(() => {
-    if (selectedTagGroup === 'all') return [];
-    
-    const predefinedList = (PREDEFINED_TAGS[categoryFilter] || PREDEFINED_TAGS.all)[selectedTagGroup] || [];
-    
+    const predefinedList = PREDEFINED_TAGS[categoryFilter][selectedTagGroup] || [];
+
     const counter = new Map<string, number>();
     for (const location of optionSourceLocations) {
-      if (categoryFilter !== 'all') {
-        const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
-        if (locCat !== categoryFilter) continue;
-      }
+      const locCat = (location.recommendation?.category || location.category || '').toLowerCase();
+      if (locCat !== categoryFilter) continue;
       if (districtFilter !== 'all') {
         const locDist = location.recommendation?.district?.trim() || '';
         if (locDist !== districtFilter) continue;
@@ -549,19 +550,17 @@ export default function Discovery() {
         counter.set(value, (counter.get(value) || 0) + 1);
       }
     }
-    
-    return predefinedList.map(label => ({
+
+    return predefinedList.map((label) => ({
       label,
-      count: counter.get(label.toLowerCase()) || 0
+      count: counter.get(label.toLowerCase()) || 0,
     }));
   }, [optionSourceLocations, selectedTagGroup, categoryFilter, districtFilter, minRatingFilter, priceFilter]);
 
   const activeFilterCount =
-    Number(categoryFilter !== 'all') +
     Number(districtFilter !== 'all') +
     Number(minRatingFilter > 0) +
     Number(priceFilter !== 'all') +
-    Number(selectedTagGroup !== 'all') +
     selectedTagValues.length;
 
   const filteredLocations = useMemo(() => {
@@ -597,6 +596,8 @@ export default function Discovery() {
     sortFilter,
     effectiveCenter,
   ]);
+
+  const visibleResultCount = searchQuery.trim() ? filteredLocations.length : catalogTotal;
 
   const nearbyRecommendationIds = useMemo(() => {
     return new Set(
@@ -697,24 +698,51 @@ export default function Discovery() {
     [setWeekPageIndex]
   );
 
-  const [displayLimit, setDisplayLimit] = useState(20);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setDisplayLimit(20);
-  }, [filteredLocations]);
+  const buildCatalogFilterBody = useCallback(
+    (page: number): Parameters<typeof filterPlaces>[0] => {
+      const body: Parameters<typeof filterPlaces>[0] = {
+        page,
+        size: CATALOG_PAGE_SIZE,
+        category: categoryFilter,
+      };
+      if (districtFilter !== 'all') body.district = districtFilter;
+      if (minRatingFilter > 0) body.minRating = minRatingFilter;
+
+      if (priceFilter === 'budget') {
+        body.minPrice = 1;
+        body.maxPrice = 100_000;
+      } else if (priceFilter === 'free') {
+        body.minPrice = 0;
+        body.maxPrice = 0;
+      } else if (priceFilter === 'mid') {
+        body.minPrice = 100_000;
+        body.maxPrice = 300_000;
+      } else if (priceFilter === 'premium') {
+        body.minPrice = 300_000;
+      }
+
+      if (selectedTagValues.length > 0) {
+        body.tags = { [selectedTagGroup]: selectedTagValues };
+      }
+      return body;
+    },
+    [categoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues]
+  );
 
   useEffect(() => {
-    const currentRef = loadMoreRef.current;
-    if (!currentRef) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setDisplayLimit((prev) => Math.min(prev + 20, filteredLocations.length));
+    try {
+      const raw = window.localStorage.getItem('vj:discovery:category-filter');
+      if (raw && raw.includes('all')) setCategoryFilter('food');
+      const tagRaw = window.localStorage.getItem('vj:discovery:selected-tag-group');
+      if (tagRaw && (tagRaw.includes('all') || tagRaw === '""')) {
+        setSelectedTagGroup(DEFAULT_TAG_GROUP.food);
       }
-    }, { rootMargin: '400px' });
-    observer.observe(currentRef);
-    return () => observer.disconnect();
-  }, [filteredLocations.length, displayLimit]);
+    } catch {
+      // ignore storage errors
+    }
+  }, [setCategoryFilter, setSelectedTagGroup]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -774,9 +802,12 @@ export default function Discovery() {
     let cancelled = false;
     const cacheKey = JSON.stringify({ categoryFilter, districtFilter, minRatingFilter, priceFilter, selectedTagGroup, selectedTagValues });
     const cached = globalCache.catalogLocationsMap.get(cacheKey);
-    
+
     if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000 && catalogRetryKey === 0) {
       setCatalogLocations(cached.data);
+      setCatalogTotal(cached.total ?? cached.data.length);
+      setCatalogHasMore((cached.page ?? 0) + 1 < (cached.totalPages ?? 1));
+      setCatalogPage(cached.page ?? 0);
       setCatalogAttempted(true);
       setCatalogLoading(false);
       setCatalogError(null);
@@ -785,59 +816,47 @@ export default function Discovery() {
 
     setCatalogLoading(true);
     setCatalogError(null);
+    setCatalogPage(0);
+    setCatalogHasMore(false);
     void (async () => {
       try {
-        const size = 100;
-        const buildBody = (page: number): Parameters<typeof filterPlaces>[0] => {
-          const body: Parameters<typeof filterPlaces>[0] = { page, size };
-          if (categoryFilter !== 'all') body.category = categoryFilter;
-          if (districtFilter !== 'all') body.district = districtFilter;
-          if (minRatingFilter > 0) body.minRating = minRatingFilter;
-
-          if (priceFilter === 'budget') {
-            body.minPrice = 1;
-            body.maxPrice = 100_000;
-          } else if (priceFilter === 'free') {
-            body.minPrice = 0;
-            body.maxPrice = 0;
-          } else if (priceFilter === 'mid') {
-            body.minPrice = 100_000;
-            body.maxPrice = 300_000;
-          } else if (priceFilter === 'premium') {
-            body.minPrice = 300_000;
-          }
-
-          if (selectedTagGroup !== 'all' && selectedTagValues.length > 0) {
-            body.tags = { [selectedTagGroup]: selectedTagValues };
-          }
-          return body;
-        };
-
-        const firstPage = await filterPlaces(buildBody(0));
+        const firstPage = await filterPlaces(buildCatalogFilterBody(0));
         if (cancelled) return;
-        const rows = [...(firstPage.data ?? [])];
-
+        const rows = firstPage.data ?? [];
         const totalPages = Math.max(1, firstPage.totalPages ?? 1);
-        for (let page = 1; page < totalPages; page++) {
-          const nextPage = await filterPlaces(buildBody(page));
-          if (cancelled) return;
-          rows.push(...(nextPage.data ?? []));
-        }
-
         const uniqueRows = Array.from(
           new Map(rows.map((row) => [backendRowKey(row), row])).values()
         );
         if (!uniqueRows.length) {
           setCatalogLocations([]);
-          globalCache.catalogLocationsMap.set(cacheKey, { data: [], timestamp: Date.now() });
+          setCatalogTotal(0);
+          setCatalogHasMore(false);
+          globalCache.catalogLocationsMap.set(cacheKey, {
+            data: [],
+            total: 0,
+            page: 0,
+            totalPages: 1,
+            timestamp: Date.now(),
+          });
           return;
         }
         const mapped = uniqueRows.map(placeApiRowToLocation);
         setCatalogLocations(mapped);
-        globalCache.catalogLocationsMap.set(cacheKey, { data: mapped, timestamp: Date.now() });
+        setCatalogTotal(firstPage.total ?? mapped.length);
+        setCatalogHasMore(totalPages > 1);
+        setCatalogPage(0);
+        globalCache.catalogLocationsMap.set(cacheKey, {
+          data: mapped,
+          total: firstPage.total ?? mapped.length,
+          page: 0,
+          totalPages,
+          timestamp: Date.now(),
+        });
       } catch (e) {
         if (!cancelled) {
           setCatalogLocations([]);
+          setCatalogTotal(0);
+          setCatalogHasMore(false);
           setCatalogError(
             e instanceof ApiError ? e.message : 'Không tải được danh sách địa điểm từ máy chủ.'
           );
@@ -853,6 +872,7 @@ export default function Discovery() {
       cancelled = true;
     };
   }, [
+    buildCatalogFilterBody,
     catalogRetryKey,
     categoryFilter,
     districtFilter,
@@ -860,6 +880,47 @@ export default function Discovery() {
     priceFilter,
     selectedTagGroup,
     selectedTagValues,
+  ]);
+
+  useEffect(() => {
+    const currentRef = loadMoreRef.current;
+    if (!currentRef || !catalogHasMore || catalogLoading || loadingMoreCatalog) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries[0]?.isIntersecting) return;
+      void (async () => {
+        setLoadingMoreCatalog(true);
+        try {
+          const nextPage = catalogPage + 1;
+          const pageResult = await filterPlaces(buildCatalogFilterBody(nextPage));
+          const mapped = (pageResult.data ?? []).map(placeApiRowToLocation);
+          if (!mapped.length) {
+            setCatalogHasMore(false);
+            return;
+          }
+          setCatalogLocations((prev) => {
+            const merged = new Map(prev.map((loc) => [loc.id, loc]));
+            for (const loc of mapped) merged.set(loc.id, loc);
+            return Array.from(merged.values());
+          });
+          setCatalogPage(nextPage);
+          setCatalogHasMore(nextPage + 1 < (pageResult.totalPages ?? 1));
+        } catch {
+          setCatalogHasMore(false);
+        } finally {
+          setLoadingMoreCatalog(false);
+        }
+      })();
+    }, { rootMargin: '320px' });
+
+    observer.observe(currentRef);
+    return () => observer.disconnect();
+  }, [
+    buildCatalogFilterBody,
+    catalogHasMore,
+    catalogLoading,
+    catalogPage,
+    loadingMoreCatalog,
   ]);
 
   useEffect(() => {
@@ -973,18 +1034,14 @@ export default function Discovery() {
   }, [districtFilter, districtOptions]);
 
   useEffect(() => {
-    if (selectedTagGroup === 'all') {
-      if (selectedTagValues.length > 0) setSelectedTagValues([]);
-      return;
-    }
     if (!tagGroupOptions.includes(selectedTagGroup)) {
-      setSelectedTagGroup('all');
+      setSelectedTagGroup(DEFAULT_TAG_GROUP[categoryFilter]);
       setSelectedTagValues([]);
       return;
     }
     const allow = new Set(availableTagValues.map((x) => x.label.toLowerCase()));
     setSelectedTagValues((prev) => prev.filter((x) => allow.has(x.toLowerCase())));
-  }, [selectedTagGroup, selectedTagValues.length, availableTagValues, tagGroupOptions]);
+  }, [categoryFilter, selectedTagGroup, availableTagValues, tagGroupOptions, setSelectedTagGroup, setSelectedTagValues]);
 
   const fetchTimeline = useCallback(async () => {
     if (!tripId || tripId === 'undefined') {
@@ -1306,11 +1363,11 @@ export default function Discovery() {
   };
 
   const clearAllFilters = () => {
-    setCategoryFilter('all');
+    setCategoryFilter('food');
     setDistrictFilter('all');
     setMinRatingFilter(0);
     setPriceFilter('all');
-    setSelectedTagGroup('all');
+    setSelectedTagGroup(DEFAULT_TAG_GROUP.food);
     setSelectedTagValues([]);
     setSortFilter('relevance');
   };
@@ -1481,11 +1538,12 @@ export default function Discovery() {
                       key={filter.value}
                       variant={categoryFilter === filter.value ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => setCategoryFilter(filter.value)}
-                      className={`rounded-full transition-transform active:scale-95 ${categoryFilter === filter.value
-                          ? 'scale-[1.02] bg-[var(--vj-primary)] shadow-md shadow-[var(--vj-primary)]/25 hover:bg-[var(--vj-primary-2)]'
-                          : 'border-slate-200 hover:border-[var(--vj-primary)]/30'
-                        }`}
+                      onClick={() => {
+                        setCategoryFilter(filter.value);
+                        setSelectedTagGroup(DEFAULT_TAG_GROUP[filter.value]);
+                        setSelectedTagValues([]);
+                      }}
+                      className={`rounded-full transition-transform active:scale-95 ${filterChipClass(categoryFilter === filter.value)}`}
                     >
                       {filter.label}
                     </Button>
@@ -1495,72 +1553,88 @@ export default function Discovery() {
 
               <div className="space-y-2.5">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Quận / khu vực</p>
-                <div>
-                  <select
-                    value={districtFilter}
-                    onChange={(e) => setDistrictFilter(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={districtFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDistrictFilter('all')}
+                    className={`rounded-full ${filterChipClass(districtFilter === 'all')}`}
                   >
-                    <option value="all">Tất cả khu vực</option>
-                    {districtOptions.map((district) => (
-                      <option key={district} value={district}>
-                        {district}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2.5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Đánh giá</p>
-                  <select
-                    value={String(minRatingFilter)}
-                    onChange={(e) => setMinRatingFilter(Number(e.target.value))}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
-                  >
-                    {minRatingOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2.5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mức giá</p>
-                  <select
-                    value={priceFilter}
-                    onChange={(e) => setPriceFilter(e.target.value as PriceFilter)}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
-                  >
-                    {priceFilterOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    Tất cả khu vực
+                  </Button>
+                  {districtOptions.map((district) => (
+                    <Button
+                      key={district}
+                      type="button"
+                      variant={districtFilter === district ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDistrictFilter(district)}
+                      className={`rounded-full ${filterChipClass(districtFilter === district)}`}
+                    >
+                      {district}
+                    </Button>
+                  ))}
                 </div>
               </div>
 
               <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Bộ tag theo nhóm</p>
-                <select
-                  value={selectedTagGroup}
-                  onChange={(e) => {
-                    setSelectedTagGroup(e.target.value);
-                    setSelectedTagValues([]);
-                  }}
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
-                >
-                  <option value="all">Không lọc theo tag</option>
-                  {tagGroupOptions.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
-                    </option>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Đánh giá</p>
+                <div className="flex flex-wrap gap-2">
+                  {minRatingOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={minRatingFilter === option.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setMinRatingFilter(option.value)}
+                      className={`rounded-full ${filterChipClass(minRatingFilter === option.value)}`}
+                    >
+                      {option.label}
+                    </Button>
                   ))}
-                </select>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedTagGroup !== 'all' && availableTagValues.length === 0 ? (
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Mức giá</p>
+                <div className="flex flex-wrap gap-2">
+                  {priceFilterOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={priceFilter === option.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setPriceFilter(option.value)}
+                      className={`rounded-full ${filterChipClass(priceFilter === option.value)}`}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Bộ tag theo nhóm</p>
+                <div className="flex flex-wrap gap-2">
+                  {tagGroupOptions.map((group) => (
+                    <Button
+                      key={group}
+                      type="button"
+                      variant={selectedTagGroup === group ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTagGroup(group);
+                        setSelectedTagValues([]);
+                      }}
+                      className={`rounded-full ${filterChipClass(selectedTagGroup === group)}`}
+                    >
+                      {tagGroupLabel(group)}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableTagValues.length === 0 ? (
                     <span className="w-full rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
                       Nhóm tag này chưa có dữ liệu khả dụng.
                     </span>
@@ -1576,7 +1650,7 @@ export default function Discovery() {
                           : 'border-slate-200'
                         }`}
                     >
-                      {item.label}
+                      {tagValueLabel(item.label)}
                       <span className="ml-1.5 text-[10px] opacity-75">{item.count}</span>
                     </Button>
                   ))}
@@ -1609,14 +1683,19 @@ export default function Discovery() {
           <div className="px-[var(--vj-inset)] py-3 bg-slate-100 border-b border-slate-200">
             <p className="text-sm text-slate-600 flex items-center justify-between gap-2">
               <span>
-                <span className="font-bold text-[var(--vj-primary)]">{filteredLocations.length}</span> địa điểm được tìm thấy
+                <span className="font-bold text-[var(--vj-primary)]">{visibleResultCount}</span> địa điểm được tìm thấy
               </span>
               {(recoLoading && isAuthenticated) || catalogLoading ? (
                 <span className="ml-2 text-xs font-medium text-slate-500">Đồng bộ dữ liệu…</span>
+              ) : loadingMoreCatalog ? (
+                <span className="ml-2 text-xs font-medium text-slate-500">Đang tải thêm…</span>
               ) : null}
             </p>
             {!catalogLoading && filteredLocations.length > 0 && (
               <p className="mt-1 text-xs text-slate-500">
+                Hiển thị {filteredLocations.length}
+                {catalogTotal > filteredLocations.length ? ` / ${visibleResultCount}` : ''}
+                {' · '}
                 {gpsStatus === 'granted' ? 'Gợi ý gần bạn' : 'Gợi ý gần trung tâm'}: {Math.min(MAX_NEARBY_RECOMMENDATIONS, filteredLocations.length)} địa điểm
               </p>
             )}
@@ -1635,7 +1714,7 @@ export default function Discovery() {
                 </p>
               </div>
             ) : null}
-            {filteredLocations.slice(0, displayLimit).map((location, index) => (
+            {filteredLocations.map((location, index) => (
               <div
                 key={location.id}
                 className="vj-animate-in"
