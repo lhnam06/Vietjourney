@@ -15,10 +15,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class DatabaseWarmupRunner implements ApplicationRunner {
 
-    EntityManager entityManager;
+    private final EntityManager entityManager;
 
     @Qualifier("placeJdbcTemplate")
-    ObjectProvider<JdbcTemplate> placeJdbcTemplateProvider;
+    private final ObjectProvider<JdbcTemplate> placeJdbcTemplateProvider;
 
     @Override
     public void run(ApplicationArguments args) {
