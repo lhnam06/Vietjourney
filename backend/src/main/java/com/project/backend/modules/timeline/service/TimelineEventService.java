@@ -28,6 +28,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import com.project.backend.modules.timeline.messaging.TimelineEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +40,8 @@ public class TimelineEventService {
     TimelineSecurityService timelineSecurityService;
     TimelineService timelineService;
     PlaceLookupService placeLookupService;
-    com.project.backend.modules.timeline.messaging.TimelineEventPublisher timelineEventPublisher;
+    TimelineEventPublisher timelineEventPublisher;
+
 
     @Transactional(readOnly = true)
     @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
@@ -70,10 +73,13 @@ public class TimelineEventService {
         event = timelineEventRepository.save(event);
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), event.getId(), request.getOrderIndex());
+
+        // Gộp cả 2 Event: Notification (GitHub) và Websocket (Local)
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_ADDED);
         TimelineEventResponse response = timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_EVENT_NOT_EXIST)));
         timelineEventPublisher.publishEvent(timelineId, "EVENT_ADDED", response);
+
         return response;
     }
 
@@ -137,9 +143,12 @@ public class TimelineEventService {
         TimelineEvent event = getEventOrThrow(timelineId, eventId);
 
         normalizeDay(timelineId, event.getStartTime().toLocalDate(), eventId, request.getOrderIndex());
+
+        // Gộp cả 2 Event: Notification (GitHub) và Websocket (Local)
         timelineService.publishTimelineChangedEvent(event.getTimeline(), TimelineChangeType.EVENT_REORDERED);
         TimelineEventResponse response = timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
         timelineEventPublisher.publishEvent(timelineId, "EVENT_REORDERED", response);
+
         return response;
     }
 
@@ -154,8 +163,10 @@ public class TimelineEventService {
         Timeline timeline = event.getTimeline();
         timelineEventRepository.delete(event);
         normalizeDay(timelineId, eventDay, null, null);
+
+        // Gộp cả 2 Event: Notification (GitHub) và Websocket (Local)
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_DELETED);
-        timelineEventPublisher.publishEvent(timelineId, "EVENT_DELETED", java.util.Map.of("eventId", eventId));
+        timelineEventPublisher.publishEvent(timelineId, "EVENT_DELETED", Map.of("eventId", eventId));
     }
 
     private TimelineEvent getEventOrThrow(String timelineId, String eventId) {
@@ -187,10 +198,10 @@ public class TimelineEventService {
             String placeName = placeLookupService.findPlace(conflict.getCategory(), conflict.getExternalPlaceId())
                     .map(PlaceSummary::getName)
                     .orElse("Địa điểm hiện tại");
-            
+
             String conflictTime = conflict.getStartTime().toLocalTime().toString().substring(0, 5);
             String errorMsg = String.format("Đề xuất bị xung đột với hoạt động '%s' lúc %s", placeName, conflictTime);
-            
+
             throw new AppException(ErrorCode.TIMELINE_EVENT_OVERLAP, errorMsg);
         }
     }
