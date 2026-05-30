@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { buildWsUrl } from '../lib/wsConfig';
 
 type SocketCallback = (message: any) => void;
+
 export function useTimelineSocket(tripId: string, token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<any>(null);
@@ -15,7 +16,7 @@ export function useTimelineSocket(tripId: string, token: string | null) {
     if (!wsUrl) return;
 
     const socket = new WebSocket(wsUrl);
-    
+
     socket.onopen = () => {
       console.log('Connected to timeline workspace');
       setIsConnected(true);
