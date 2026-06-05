@@ -1,6 +1,12 @@
 const DEFAULT_BASE = 'http://localhost:8082';
 
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || DEFAULT_BASE;
+const envApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, '');
+
+/** In dev, route /api through Vite proxy to avoid browser CORS against Render. */
+export const API_BASE = import.meta.env.DEV ? '' : envApiBase || DEFAULT_BASE;
+
+/** Upstream API used by the Vite dev proxy (see vite.config.ts). */
+export const configuredApiTarget = envApiBase || DEFAULT_BASE;
 
 export type ApiEnvelope<T> = {
   code: number;
@@ -33,7 +39,7 @@ export async function requestJson<T>(
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers, signal });
+  const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store', ...rest, headers, signal });
   const text = await res.text();
   let data: ApiEnvelope<unknown> | null = null;
   try {

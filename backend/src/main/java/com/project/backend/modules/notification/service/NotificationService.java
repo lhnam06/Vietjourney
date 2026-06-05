@@ -160,7 +160,7 @@ public class NotificationService {
 
         NotificationResponse response = toResponse(notification);
         if (Boolean.TRUE.equals(command.getRealtimeEligible()) && realtimeEnabled) {
-            notificationRealtimeGateway.publishToUser(user.getId(), response);
+            notificationRealtimeGateway.publishToUser(user.getUsername(), response);
         }
     }
 

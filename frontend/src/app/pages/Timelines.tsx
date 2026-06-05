@@ -10,6 +10,7 @@ import { getStoredToken } from '../lib/authApi';
 import { ApiError } from '../lib/api';
 import { toast } from 'sonner';
 import { deleteTimelineItem, loadTripData, setLastTripId, upsertTimelineItem } from '../lib/tripStorage';
+import { cacheGet, cacheSet, cacheIsStale, cacheClear } from '../lib/apiCache';
 import {
   getMyTimelines,
   joinTimelineByCode,
@@ -31,8 +32,10 @@ export default function Timelines() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>([]);
-  const [timelinesLoading, setTimelinesLoading] = useState(false);
+  const TIMELINES_CACHE = 'profile:my-timelines';
+  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>(() => cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []);
+  // Only block the UI with a spinner when the list is genuinely empty (no cache).
+  const [timelinesLoading, setTimelinesLoading] = useState(() => !cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE)?.length);
   const [timelinesError, setTimelinesError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -69,25 +72,34 @@ export default function Timelines() {
       return;
     }
 
+    const hasCachedData = (cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []).length > 0;
+
+    // If cache is fresh (not a manual reload), skip the network call entirely.
+    if (reloadKey === 0 && !cacheIsStale(TIMELINES_CACHE) && hasCachedData) {
+      setTimelinesLoading(false);
+      return;
+    }
+
     let cancelled = false;
-    setTimelinesLoading(true);
+    // Only show the blocking spinner when there's nothing to show yet.
+    if (!hasCachedData) setTimelinesLoading(true);
     setTimelinesError(null);
 
     void (async () => {
       try {
         const rows = await getMyTimelines(token);
         if (!cancelled) {
-          setTimelines(rows ?? []);
-          // Auto-select first owned timeline if none selected
-          const owned = (rows ?? []).filter(t => t.ownerUsername === user?.username);
+          const list = rows ?? [];
+          cacheSet(TIMELINES_CACHE, list, { persistent: true });
+          setTimelines(list);
+          const owned = list.filter(t => t.ownerUsername === user?.username);
           if (owned.length > 0 && !selectedTimelineId) {
             setSelectedTimelineId(owned[0].id);
-            setLastTripId(owned[0].id); // Update lastTripId for navigation
+            setLastTripId(owned[0].id);
           }
         }
       } catch (e) {
-        if (!cancelled) {
-          setTimelines([]);
+        if (!cancelled && !hasCachedData) {
           setTimelinesError(
             e instanceof ApiError ? e.message : 'Khong tai duoc danh sach timeline.'
           );
@@ -130,9 +142,15 @@ export default function Timelines() {
     try {
       const result = await joinTimelineByCode(joinCode.trim(), token);
       setJoinCode('');
+      cacheClear(TIMELINES_CACHE);
       setReloadKey((n) => n + 1);
-      setLastTripId(result.timelineId); // Update lastTripId for navigation
-      navigate(`/timetable/${result.timelineId}`);
+      setLastTripId(result.timelineId);
+      try {
+        window.localStorage.setItem('vj:discovery:current-trip-id', JSON.stringify(result.timelineId));
+      } catch {
+        // ignore
+      }
+      navigate('/');
     } catch (e) {
       setJoinError(e instanceof ApiError ? e.message : 'Khong the tham gia timeline.');
     } finally {
@@ -221,6 +239,7 @@ export default function Timelines() {
       setNewDescription('');
       setNewStartDate('');
       setNewEndDate('');
+      cacheClear(TIMELINES_CACHE);
       setReloadKey((n) => n + 1);
       toast.success('Đã tạo timeline thành công!');
     } catch (e) {
@@ -232,7 +251,7 @@ export default function Timelines() {
 
   if (!authLoading && !isAuthenticated) {
     return (
-      <div className="h-full bg-slate-50 p-6">
+      <div className="h-full bg-slate-50 p-[var(--vj-inset)]">
         <Card className="max-w-xl mx-auto p-6">
           <h1 className="text-xl font-bold text-[#0A4A6E]">Timeline</h1>
           <p className="mt-2 text-sm text-slate-600">
@@ -248,7 +267,7 @@ export default function Timelines() {
 
   return (
     <div className="h-full bg-slate-50 overflow-auto">
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
+      <div className="max-w-[var(--vj-content-max)] mx-auto px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] space-y-[var(--vj-stack-gap)]">
         <Card className="p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-3">
             <KeyRound className="w-5 h-5 text-[#FF6B35]" />
@@ -487,8 +506,20 @@ export default function Timelines() {
                         {timeline.startDate} {"->"} {timeline.endDate} · role: {myRole}
                       </p>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/timetable/${timeline.id}`}>Mo timetable</Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setLastTripId(timeline.id);
+                        try {
+                          window.localStorage.setItem('vj:discovery:current-trip-id', JSON.stringify(timeline.id));
+                        } catch {
+                          // ignore
+                        }
+                        navigate('/');
+                      }}
+                    >
+                      Mở lịch trình
                     </Button>
                   </div>
                 </div>

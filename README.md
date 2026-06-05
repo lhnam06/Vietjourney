@@ -1,83 +1,172 @@
-# Vietjourney 🌏✈️
+# Vietjourney - Collaborative Travel Planning Platform
 
-Vietjourney is a real-time collaborative travel planning platform focused on Vietnam: discovery, collaborative trip workspaces, and budget tooling. This repository splits a **Vite + React** client from a **Spring Boot** API and a **Go** WebSocket proxy for high-performance real-time synchronization.
+## 1. Overview
 
-## 🏗 Repository Layout
+A modern web platform for planning trips in Vietnam with real-time collaboration:
 
-| Path | Role |
-|------|------|
-| `frontend/` | SPA: discovery, workspace, budget, profile, auth UI (React + Vite) |
-| `backend/` | REST API: authentication, users, roles, permissions, timeline management (Java 17, Spring Boot 3.2) |
-| `websocket-proxy/` | High-performance Go proxy for real-time timeline synchronization |
-| `tests/unit/` | Consolidated JavaScript unit tests and debug scripts |
-| `guidelines/` | Design and implementation notes |
+- Place discovery with filters (food, drink, activities) backed by a PostgreSQL place catalog
+- Personalized recommendations from user interaction signals
+- Collaborative trip workspaces with proposal-based timeline editing
+- Budget tracking and split-expense views
+- Real-time sync via WebSocket for multi-user itinerary updates
 
----
+The system is built for Vietnam-focused travel data: districts, tags, maps, itineraries, and group planning workflows.
 
-## 🚀 Quick Start
+## 2. Key Features
 
-For detailed instructions, please refer to the [STARTUP_GUIDE.md](./STARTUP_GUIDE.md).
+**Discovery & Search**
+- Browse and filter places by category, district, rating, price, and tag groups
+- Drag-and-drop places into a multi-day timetable preview
+- Personalized recommendations when signed in
 
-### Prerequisites
-- **Node.js** (v18+)
-- **Java 17** (JDK)
-- **Go** (v1.20+)
-- **Redis** (For real-time sync)
-- **PostgreSQL**
+**My Trip & Workspace**
+- Create and manage trip timelines
+- Collaborative workspace with real-time updates
+- Proposal / ghost UI for pending changes from other members
+- Route map with road-following polylines and GPS locate control
 
-### 1. Backend
+**Budget**
+- Track trip expenses and split costs among participants
+
+**Authentication & Notifications**
+- JWT-based sign-in and profile management
+- In-app notifications with real-time delivery
+
+## 3. System Architecture
+
+The system follows a modular architecture consisting of:
+
+- **Frontend** (`frontend/`)
+  - React SPA built with Vite and TypeScript
+  - Discovery, workspace, budget, profile, and auth pages
+  - Leaflet maps, drag-and-drop timetable, and WebSocket client hooks
+
+- **Backend** (`backend/`)
+  - Spring Boot REST API on port `8082`
+  - Authentication, timelines, places filter, recommendations, notifications
+  - PostgreSQL via JPA/Flyway; optional separate place-data source
+
+- **WebSocket Proxy** (`websocket-proxy/`)
+  - Go service for real-time timeline and notification fan-out
+  - Uses Redis pub/sub between backend events and connected clients
+
+- **Data stores**
+  - **PostgreSQL** — users, timelines, notifications, app metadata
+  - **Place catalog** — `places_food`, `places_drink`, `places_activity` (Supabase or local Postgres)
+  - **Redis** — message bus for the WebSocket proxy
+
+## 4. Tech Stack
+
+- **Languages:** Java, TypeScript, Go
+
+- **Frontend:** React 18, Vite, React Router, Tailwind CSS v4, Radix UI, React Leaflet, React DnD
+- **Backend:** Spring Boot 3.2, Spring Security (JWT HS256), Spring Data JPA, Flyway, PostgreSQL
+- **Real-time:** Go WebSocket proxy, Redis
+- **Maps & routing:** Leaflet, OpenStreetMap tiles, OSRM (public demo router for road polylines)
+
+## 6. How to Run
+
+### 6.1. Requirements
+
+- **Java:** 17 (JDK)
+- **Node.js:** 18 or higher
+- **npm**
+- **Go:** 1.20 or higher (for WebSocket proxy)
+- **PostgreSQL** (local or Supabase)
+- **Redis** (required for real-time sync)
+- (Optional) **Docker & Docker Compose**
+
+### 6.2. Option 1: Run with Docker (Recommended for backend stack)
+
+This starts PostgreSQL, Redis, the Spring Boot API, and the WebSocket proxy.
+
+#### Step 1: Navigate to the project directory
+
 ```bash
-cd backend
-./mvnw spring-boot:run
+cd Vietjourney
 ```
-*API serves on `http://localhost:8082`*
 
-### 2. WebSocket Proxy
+#### Step 2: Configure environment variables
+
+Create `backend/.env` (and update `docker-compose.yml` or service env vars) with your database credentials, JWT secret, and place DB settings.  
+For local frontend API access, set `frontend/.env`:
+
+```env
+VITE_API_BASE_URL=http://localhost:8082
+```
+
+#### Step 3: Build and start services
+
 ```bash
-cd websocket-proxy
-go run .
+docker compose up --build
 ```
 
-### 3. Frontend
+#### Step 4: Start the frontend (separate terminal)
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-*UI serves on `http://localhost:5173`*
+
+#### Step 5: Access the application
+
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:8082
+- **WebSocket proxy:** http://localhost:8081
+
+### 6.3. Option 2: Run Locally (Manual Setup)
+
+See [STARTUP_GUIDE.md](./STARTUP_GUIDE.md) for step-by-step details.
+
+#### 6.3.1. Run Backend
+
+```bash
+cd backend
+./mvnw clean install
+./mvnw spring-boot:run
+```
+
+Backend runs at **http://localhost:8082**.
+
+#### 6.3.2. Run WebSocket Proxy
+
+Ensure Redis is running, then:
+
+```bash
+cd websocket-proxy
+go mod download
+go run .
+```
+
+#### 6.3.3. Run Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs at **http://localhost:5173**.  
+The Vite dev server proxies `/api` and `/ws` to the backend when configured via `frontend/.env`.
 
 ---
 
-## ✨ Key Features
-
-- **Discovery** — Interactive map + cards with advanced filters (category, tags, rating).
-- **Collaborative Workspace** — Real-time timeline synchronization using a proposal-based system.
-- **Ghost UI** — Visualize pending changes from collaborators before they are approved.
-- **Conflict Detection** — Smart overlap prevention with detailed feedback (e.g., "Conflicts with 'Lunch' at 12:00").
-- **Budget Tooling** — Track spend and splits across your travel narrative.
-
-## 🛠 Tech Stack
-
-**Frontend:** React 18, TypeScript, Vite, React DnD, React Leaflet / Google Maps, Tailwind CSS v4, Radix UI, Sonner (Toasts).
-
-**Backend:** Spring Boot 3.2, Spring Security (JWT), Spring Data JPA, PostgreSQL, Redis (Messaging), WebSocket.
-
-**Proxy:** Go (Golang) for decoupled, efficient WebSocket message routing.
-
----
-
-## 🗺 Routes (SPA)
+## Application Routes
 
 | Path | Purpose |
 |------|---------|
-| `/` | Discovery & Search |
-| `/workspace/:tripId` | Real-time Trip Workspace |
-| `/timetable/:tripId` | Multi-day schedule view |
-| `/budget/:tripId` | Expense tracking |
-| `/profile` | User management |
-| `/auth` | Secure login / signup |
+| `/` | Discovery — search and filter places |
+| `/mytrip` | My Trip — create and open timelines |
+| `/workspace/:tripId` | Collaborative workspace and route map |
+| `/budget/:tripId` | Budget and expense splits |
+| `/profile` | User profile and preferences |
+| `/timelines` | Timeline list |
+| `/notifications` | Notifications |
+| `/auth` | Login and registration |
 
----
+## Credits
 
-## 📜 Credits
-For third-party and asset credits, see `ATTRIBUTIONS.md`.
+For third-party libraries and asset credits, see [ATTRIBUTIONS.md](./ATTRIBUTIONS.md).
+
+For recommendation design notes, see [backend/docs/recommendation-mechanism.md](./backend/docs/recommendation-mechanism.md).

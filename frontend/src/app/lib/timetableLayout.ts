@@ -1,4 +1,4 @@
-import type { TimelineItem } from '../data/mockData';
+import type { TimelineItem } from '../types/domain';
 
 export const TIMETABLE_DAY_START_HOUR = 6;
 export const TIMETABLE_DAY_END_HOUR = 23;
@@ -23,6 +23,30 @@ export function eachTripDay(startIso: string, endIso: string): string[] {
     out.push(d.toISOString().slice(0, 10));
   }
   return out;
+}
+
+/**
+ * Split trip days into calendar-week pages (Mon–Sun boundary at end of Sunday).
+ * e.g. Fri–Wed trip → [Fri,Sat,Sun] then [Mon,Tue,Wed].
+ */
+export function chunkTripDatesByCalendarWeek(dates: string[]): string[][] {
+  if (!dates.length) return [];
+  const chunks: string[][] = [];
+  let current: string[] = [];
+
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i]!;
+    current.push(date);
+    const isSunday = new Date(`${date}T12:00:00Z`).getUTCDay() === 0;
+    const isLastDay = i === dates.length - 1;
+    if (isSunday || isLastDay) {
+      chunks.push(current);
+      current = [];
+    }
+  }
+
+  if (current.length) chunks.push(current);
+  return chunks;
 }
 
 function parseIsoDate(s: string): Date | null {

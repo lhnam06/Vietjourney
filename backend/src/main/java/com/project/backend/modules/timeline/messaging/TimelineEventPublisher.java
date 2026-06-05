@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,14 +20,16 @@ public class TimelineEventPublisher {
     public void publishEvent(String timelineId, String type, Object data) {
         String channel = "timeline:" + timelineId;
         Map<String, Object> message = Map.of(
-            "type", type,
-            "data", data,
-            "timestamp", System.currentTimeMillis()
+                "type", type,
+                "data", data,
+                "timestamp", System.currentTimeMillis()
         );
-        
+
         log.info("Publishing event to {}: {}", channel, type);
         try {
             redisTemplate.convertAndSend(channel, message);
+        } catch (RedisConnectionFailureException exception) {
+            log.warn("Redis is unavailable, skipped timeline event publish for channel {}", channel);
         } catch (Exception e) {
             log.error("Failed to publish event to Redis: {}", e.getMessage());
             // Don't rethrow - Redis failures shouldn't break the main flow

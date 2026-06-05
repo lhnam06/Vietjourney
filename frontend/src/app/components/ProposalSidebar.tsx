@@ -62,8 +62,8 @@ export default function ProposalSidebar({
     : proposals.filter(p => p.authorUsername === currentUsername);
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 border-l w-80">
-      <div className="p-4 border-b bg-white">
+    <div className="flex flex-col h-full bg-slate-50 border-l w-full overflow-hidden">
+      <div className="p-4 border-b bg-white shrink-0">
         <h3 className="font-semibold text-lg flex items-center gap-2">
           {isOwner ? 'Quản lý đề xuất' : 'Đề xuất của tôi'}
           {displayedProposals.length > 0 && (
@@ -77,13 +77,14 @@ export default function ProposalSidebar({
         </p>
       </div>
 
-      <ScrollArea className="flex-1">
-        {displayedProposals.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            <p>{isOwner ? 'Không có đề xuất mới' : 'Bạn chưa có đề xuất nào'}</p>
-          </div>
-        ) : (
-          <div className="p-4 space-y-4">
+      <div className="flex-1 min-h-0">
+        <ScrollArea className="h-full">
+          {displayedProposals.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <p>{isOwner ? 'Không có đề xuất mới' : 'Bạn chưa có đề xuất nào'}</p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-4">
             {displayedProposals.map((prop) => {
               const isStale = prop.baseVersion < currentVersion;
               return (
@@ -151,6 +152,7 @@ export default function ProposalSidebar({
           </div>
         )}
       </ScrollArea>
+      </div>
     </div>
   );
 }

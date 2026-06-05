@@ -9,29 +9,60 @@ import { Slider } from '../components/ui/slider';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
-import { mockUsers } from '../data/mockData';
+import { DEFAULT_USER_PREFERENCES } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 import { getStoredToken } from '../lib/authApi';
 import { ApiError } from '../lib/api';
 import { getMyRecommendationProfile, type UserRecommendationProfile } from '../lib/recommendationApi';
 import { getMyTimelines, type ApiTimelineDetail } from '../lib/timelineApi';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { cacheGet, cacheSet, cacheIsStale } from '../lib/apiCache';
 
 function sortByScore<T extends { score: number }>(rows: T[]) {
   return [...rows].sort((a, b) => b.score - a.score);
 }
 
+/** Friendly Vietnamese labels for the raw backend tag-group keys. */
+const TAG_GROUP_LABELS: Record<string, string> = {
+  purpose: 'Mục đích',
+  amenity: 'Tiện ích',
+  service_style: 'Phong cách phục vụ',
+  sub_category: 'Phân loại',
+  vibe: 'Không khí',
+  cuisine: 'Ẩm thực',
+  price_level: 'Mức giá',
+};
+
+/** Convert a snake_case / variable-style token into human-readable words. */
+function humanizeToken(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word))
+    .join(' ');
+}
+
+function tagGroupLabel(group: string): string {
+  const key = (group || '').trim().toLowerCase();
+  return TAG_GROUP_LABELS[key] ?? humanizeToken(group);
+}
+
 export default function Profile() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const currentUser = mockUsers[0];
 
-  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>([]);
-  const [timelinesLoading, setTimelinesLoading] = useState(false);
+  const TIMELINES_CACHE = 'profile:my-timelines';
+  const [timelines, setTimelines] = useState<ApiTimelineDetail[]>(() => cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []);
+  const [timelinesLoading, setTimelinesLoading] = useState(() => !cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE)?.length);
   const [timelinesError, setTimelinesError] = useState<string | null>(null);
 
-  const [pace, setPace] = useState(currentUser.preferences.pace);
-  const [budgetLevel, setBudgetLevel] = useState(currentUser.preferences.budgetLevel);
-  const [favoriteCategories, setFavoriteCategories] = useState(
-    currentUser.preferences.favoriteCategories
+  const [pace, setPace] = useLocalStorageState<number>('vj:profile:pace', DEFAULT_USER_PREFERENCES.pace);
+  const [budgetLevel, setBudgetLevel] = useLocalStorageState<number>('vj:profile:budget-level', DEFAULT_USER_PREFERENCES.budgetLevel);
+  const [favoriteCategories, setFavoriteCategories] = useLocalStorageState<string[]>(
+    'vj:profile:favorite-categories',
+    DEFAULT_USER_PREFERENCES.favoriteCategories
   );
 
   const [recoProfile, setRecoProfile] = useState<UserRecommendationProfile | null>(null);
@@ -44,7 +75,7 @@ export default function Profile() {
       ? user.displayName
       : isAuthenticated && user?.username
         ? user.username
-        : currentUser.name;
+        : 'Khách';
 
   useEffect(() => {
     if (!isAuthenticated || authLoading) {
@@ -92,16 +123,24 @@ export default function Profile() {
     const token = getStoredToken();
     if (!token) return;
 
+    // Skip fetch if cache is fresh
+    if (!cacheIsStale(TIMELINES_CACHE) && cacheGet(TIMELINES_CACHE)) return;
+
+    const hasCachedData = (cacheGet<ApiTimelineDetail[]>(TIMELINES_CACHE) ?? []).length > 0;
     let cancelled = false;
-    setTimelinesLoading(true);
+    if (!hasCachedData) setTimelinesLoading(true);
     setTimelinesError(null);
 
     void (async () => {
       try {
         const data = await getMyTimelines(token);
-        if (!cancelled) setTimelines(data ?? []);
-      } catch (e) {
         if (!cancelled) {
+          const rows = data ?? [];
+          cacheSet(TIMELINES_CACHE, rows, { persistent: true });
+          setTimelines(rows);
+        }
+      } catch (e) {
+        if (!cancelled && !hasCachedData) {
           setTimelinesError(e instanceof ApiError ? e.message : 'Không tải được danh sách chuyến đi.');
         }
       } finally {
@@ -141,17 +180,16 @@ export default function Profile() {
   const budgetLabels = ['Tiết Kiệm', 'Trung Bình', 'Cao Cấp'];
 
   return (
-    <div className="h-screen bg-slate-50">
+    <div className="h-full bg-slate-50">
       <ScrollArea className="h-full">
-        <div className="max-w-5xl mx-auto p-6 space-y-6">
+        <div className="max-w-[var(--vj-content-max)] mx-auto px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)] space-y-[var(--vj-stack-gap)]">
           {/* Profile Header */}
           <Card className="overflow-hidden shadow-lg">
             <div className="h-32 bg-gradient-to-r from-[#0A4A6E] via-[#0d5d8a] to-[#0A4A6E]" />
-            <div className="px-6 pb-6">
+            <div className="px-[var(--vj-inset)] pb-[var(--vj-inset)]">
               <div className="flex items-end justify-between -mt-16 mb-4">
                 <div className="relative">
                   <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-[#FF6B35]/20">
-                    <AvatarImage src={currentUser.avatar} />
                     <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <Button
@@ -172,7 +210,7 @@ export default function Profile() {
                 <p className="text-slate-600">
                   {isAuthenticated && user
                     ? `@${user.username}`
-                    : currentUser.email}
+                    : 'Đăng nhập để xem hồ sơ của bạn'}
                 </p>
               </div>
 
@@ -262,18 +300,17 @@ export default function Profile() {
             {isAuthenticated && !recoProfileLoading && !recoProfileError && sortedReco && !recoIsEmpty && (
               <div className="space-y-8">
                 <section>
-                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Tags</h3>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Sở thích nổi bật</h3>
                   <div className="flex flex-wrap gap-2">
                     {sortedReco.tags.map((t) => (
                       <Badge
                         key={`${t.tagGroup}:${t.tagValue}`}
                         variant="secondary"
-                        className="bg-[#0A4A6E]/10 text-[#0A4A6E] hover:bg-[#0A4A6E]/15 gap-1.5 px-3 py-1"
+                        className="rounded-full bg-[#0A4A6E]/10 px-3 py-1.5 text-[#0A4A6E] hover:bg-[#0A4A6E]/15"
                       >
-                        <span className="font-semibold capitalize">
-                          {t.tagGroup}: {t.tagValue}
-                        </span>
-                        <span className="tabular-nums text-slate-600">{t.score.toFixed(1)}</span>
+                        <span className="text-xs font-medium text-[#0A4A6E]/60">{tagGroupLabel(t.tagGroup)}</span>
+                        <span className="mx-1.5 text-[#0A4A6E]/30">·</span>
+                        <span className="font-semibold">{humanizeToken(t.tagValue)}</span>
                       </Badge>
                     ))}
                   </div>
@@ -285,10 +322,9 @@ export default function Profile() {
                       <Badge
                         key={d.value}
                         variant="outline"
-                        className="border-[#FF6B35]/40 text-slate-800 gap-1.5 px-3 py-1"
+                        className="rounded-full border-[#FF6B35]/40 px-3 py-1.5 font-medium text-slate-800"
                       >
-                        <span>{d.value}</span>
-                        <span className="tabular-nums text-slate-500">{d.score.toFixed(1)}</span>
+                        {humanizeToken(d.value)}
                       </Badge>
                     ))}
                   </div>
@@ -297,9 +333,8 @@ export default function Profile() {
                   <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Loại địa điểm</h3>
                   <div className="flex flex-wrap gap-2">
                     {sortedReco.categories.map((c) => (
-                      <Badge key={c.value} className="bg-[#FF6B35] hover:bg-[#ff7d4d] text-white gap-1.5 px-3 py-1">
-                        <span>{c.value}</span>
-                        <span className="tabular-nums opacity-90">{c.score.toFixed(1)}</span>
+                      <Badge key={c.value} className="rounded-full bg-[#FF6B35] px-3 py-1.5 font-semibold text-white hover:bg-[#ff7d4d]">
+                        {humanizeToken(c.value)}
                       </Badge>
                     ))}
                   </div>

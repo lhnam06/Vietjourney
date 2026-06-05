@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { buildWsUrl } from '../lib/wsConfig';
 
 type SocketCallback = (message: any) => void;
+
 export function useTimelineSocket(tripId: string, token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<any>(null);
@@ -9,11 +12,11 @@ export function useTimelineSocket(tripId: string, token: string | null) {
   useEffect(() => {
     if (!tripId || !token) return;
 
-    // Use environment variable or default to 8081 for the Go Proxy
-    const wsUrl = `ws://localhost:8081/ws/timeline/${tripId}?token=${token}`;
-    
+    const wsUrl = buildWsUrl(`/ws/timeline/${encodeURIComponent(tripId)}`, { token });
+    if (!wsUrl) return;
+
     const socket = new WebSocket(wsUrl);
-    
+
     socket.onopen = () => {
       console.log('Connected to timeline workspace');
       setIsConnected(true);

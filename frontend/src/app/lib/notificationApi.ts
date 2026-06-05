@@ -29,24 +29,22 @@ export async function getNotificationsRequest(
   if (params.page !== undefined) query.append('page', params.page.toString());
   if (params.size !== undefined) query.append('size', params.size.toString());
 
-  const response = await requestJson<{ 
-    result: { 
-      content: NotificationResponse[]; 
-      totalElements: number 
-    } 
+  const response = await requestJson<{
+    content: NotificationResponse[];
+    totalElements: number;
   }>(`/api/v1/notifications?${query.toString()}`, {
     method: 'GET',
     accessToken,
   });
-  return response.result;
+  return response;
 }
 
 export async function getUnreadCountRequest(accessToken: string): Promise<number> {
-  const response = await requestJson<{ result: UnreadCountResponse }>('/api/v1/notifications/unread-count', {
+  const response = await requestJson<{ unreadCount: number }>('/api/v1/notifications/unread-count', {
     method: 'GET',
     accessToken,
   });
-  return response.result.unreadCount;
+  return response?.unreadCount ?? 0;
 }
 
 export async function markAsReadRequest(notificationId: string, accessToken: string): Promise<void> {

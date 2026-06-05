@@ -5,21 +5,20 @@ import {
   Calendar, 
   Users, 
   Check, 
-  Trash2, 
   ArrowRight,
   Info,
   Clock,
-  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
   getNotificationsRequest, 
   markAsReadRequest, 
   markAllAsReadRequest,
+  getUnreadCountRequest,
   type NotificationResponse 
 } from '../lib/notificationApi';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { Skeleton } from '../components/ui/skeleton';
@@ -27,18 +26,27 @@ import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
 export default function Notifications() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
   const fetchNotifications = async () => {
-    if (!user?.token) return;
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
     try {
-      const data = await getNotificationsRequest(user.token, { size: 50 });
-      setNotifications(data.content);
-      setTotal(data.totalElements);
+      const data = await getNotificationsRequest(token, { size: 50 });
+      if (data && Array.isArray(data.content)) {
+        setNotifications(data.content);
+      } else {
+        console.warn('[Notifications] Unexpected response format:', data);
+        setNotifications([]);
+      }
+      const unread = await getUnreadCountRequest(token);
+      setTotal(typeof unread === 'number' ? unread : 0);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
       toast.error('Không thể tải thông báo');
@@ -49,23 +57,33 @@ export default function Notifications() {
 
   useEffect(() => {
     fetchNotifications();
-  }, [user?.token]);
+  }, [token]);
 
   const handleMarkAsRead = async (id: string) => {
-    if (!user?.token) return;
+    if (!token) return;
     try {
-      await markAsReadRequest(id, user.token);
+      await markAsReadRequest(id, token);
+      const wasUnread = notifications.some((n) => n.id === id && n.status === 'UNREAD');
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: 'READ' as const } : n));
+      if (wasUnread) {
+        setTotal((prev) => {
+          const next = Math.max(0, prev - 1);
+          window.dispatchEvent(new CustomEvent('vj:notifications-unread', { detail: next }));
+          return next;
+        });
+      }
     } catch (error) {
       console.error('Failed to mark as read:', error);
     }
   };
 
   const handleMarkAllRead = async () => {
-    if (!user?.token || notifications.length === 0) return;
+    if (!token || notifications.length === 0) return;
     try {
-      await markAllAsReadRequest(user.token);
+      await markAllAsReadRequest(token);
       setNotifications(prev => prev.map(n => ({ ...n, status: 'READ' as const })));
+      setTotal(0);
+      window.dispatchEvent(new CustomEvent('vj:notifications-unread', { detail: 0 }));
       toast.success('Đã đánh dấu tất cả là đã đọc');
     } catch (error) {
       toast.error('Thao tác thất bại');
@@ -104,11 +122,14 @@ export default function Notifications() {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
+    <div className="min-h-full bg-slate-50">
+      <div className="mx-auto max-w-[var(--vj-content-max)] px-[var(--vj-page-pad-x)] py-[var(--vj-page-pad-y)]">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-[#0b5d55]">Thông báo</h1>
-          <p className="text-muted-foreground mt-1">Cập nhật mới nhất về các chuyến đi của bạn</p>
+          <p className="text-muted-foreground mt-1">
+            {total > 0 ? `${total} thông báo chưa đọc` : 'Cập nhật mới nhất về các chuyến đi của bạn'}
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleMarkAllRead} disabled={notifications.length === 0}>
           <Check className="w-4 h-4 mr-2" />
@@ -139,7 +160,7 @@ export default function Notifications() {
           {notifications.map((n) => (
             <Card 
               key={n.id} 
-              className={`transition-all border-slate-200 hover:border-[#0b5d55]/30 cursor-pointer overflow-hidden ${n.status === 'UNREAD' ? 'bg-[#0b5d55]/5 border-l-4 border-l-[#0b5d55]' : ''}`}
+              className={`cursor-pointer overflow-hidden bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#0b5d55]/40 hover:shadow-md ${n.status === 'UNREAD' ? 'border-slate-200 border-l-4 border-l-[#0b5d55] bg-[color-mix(in_oklab,#0b5d55_6%,white)]' : 'border-slate-200'}`}
               onClick={() => handleAction(n)}
             >
               <div className="p-4 flex gap-4">
@@ -180,6 +201,7 @@ export default function Notifications() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { CalendarClock, StickyNote, Wallet } from 'lucide-react';
-import type { Location, TimelineItem, Transaction, Trip, User } from '../data/mockData';
+import { useEffect, useMemo, useState } from 'react';
+import { CalendarClock, Clock3, StickyNote, Wallet } from 'lucide-react';
+import type { Location, TimelineItem, Transaction, Trip, User } from '../types/domain';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -16,9 +16,22 @@ type Props = {
   users: User[];
   onCreate: (item: TimelineItem, tx?: Transaction) => void;
   defaultDate?: string;
+  defaultStartTime?: string;
+  defaultEndTime?: string;
 };
 
 const toISODate = (d: Date) => d.toISOString().slice(0, 10);
+
+const timeToMinutes = (value: string) => {
+  const [hh, mm] = value.split(':').map(Number);
+  return (hh || 0) * 60 + (mm || 0);
+};
+
+const minutesToTime = (minutes: number) => {
+  const hh = Math.floor(minutes / 60);
+  const mm = minutes % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+};
 
 export default function AddToItineraryDialog({
   open,
@@ -29,21 +42,38 @@ export default function AddToItineraryDialog({
   users,
   onCreate,
   defaultDate,
+  defaultStartTime,
+  defaultEndTime,
 }: Props) {
   const today = useMemo(() => toISODate(new Date()), []);
   const [date, setDate] = useState(defaultDate ?? today);
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('10:00');
+  const [startTime, setStartTime] = useState(defaultStartTime ?? '09:00');
+  const [endTime, setEndTime] = useState(defaultEndTime ?? '10:00');
   const [notes, setNotes] = useState('');
   const [companion, setCompanion] = useState('');
   const [amount, setAmount] = useState<string>('');
 
-  const canSubmit = !!location && date && startTime && endTime;
+  useEffect(() => {
+    if (!open) return;
+    setDate(defaultDate ?? today);
+    setStartTime(defaultStartTime ?? '09:00');
+    setEndTime(defaultEndTime ?? '10:00');
+  }, [defaultDate, defaultEndTime, defaultStartTime, open, today]);
+
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  const canSubmit = !!location && date && startTime && endTime && endMinutes > startMinutes;
 
   const reset = () => {
     setNotes('');
     setCompanion('');
     setAmount('');
+  };
+
+  const applyDuration = (minutes: number) => {
+    if (!startTime) return;
+    const next = Math.min(timeToMinutes(startTime) + minutes, 23 * 60 + 45);
+    setEndTime(minutesToTime(next));
   };
 
   return (
@@ -54,9 +84,9 @@ export default function AddToItineraryDialog({
         if (!next) reset();
       }}
     >
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Thêm vào lịch trình</DialogTitle>
+          <DialogTitle>Lên lịch hoạt động</DialogTitle>
           <DialogDescription>
             {location ? (
               <>
@@ -69,6 +99,23 @@ export default function AddToItineraryDialog({
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {location ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+            <div className="flex gap-3">
+              <img
+                src={location.image}
+                alt={location.name}
+                className="h-16 w-16 rounded-xl object-cover"
+                loading="lazy"
+              />
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 truncate">{location.name}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600 line-clamp-2">{location.description}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -87,6 +134,22 @@ export default function AddToItineraryDialog({
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
               <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[60, 90, 120, 180].map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => applyDuration(minutes)}
+                  className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-[var(--vj-accent)] hover:text-[var(--vj-primary)]"
+                >
+                  <Clock3 className="mr-1 inline h-3 w-3" />
+                  {minutes / 60}h
+                </button>
+              ))}
+            </div>
+            {endMinutes <= startMinutes ? (
+              <p className="text-xs font-semibold text-red-600">Giờ kết thúc phải sau giờ bắt đầu.</p>
+            ) : null}
           </div>
 
           <div className="space-y-2 sm:col-span-2">
