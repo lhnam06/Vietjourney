@@ -2,8 +2,7 @@ package com.project.backend.modules.search;
 
 import com.project.backend.modules.place.dto.response.PlaceResponse;
 import com.project.backend.modules.place.mapper.PlaceMapper;
-import com.project.backend.modules.search.repository.HybridSearchRepository;
-import com.project.backend.modules.search.service.OpenAiEmbeddingClient;
+import com.project.backend.modules.search.repository.LexicalSearchRepository;
 import com.project.backend.modules.search.service.SearchSynonymService;
 import jakarta.persistence.Tuple;
 import org.junit.jupiter.api.Test;
@@ -20,7 +19,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -32,25 +30,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
-class HybridSearchIntegrationTests {
+class LexicalSearchIntegrationTests {
     @Autowired
     MockMvc mockMvc;
 
     @MockBean
-    HybridSearchRepository hybridSearchRepository;
+    LexicalSearchRepository lexicalSearchRepository;
 
     @MockBean
     SearchSynonymService searchSynonymService;
 
     @MockBean
-    OpenAiEmbeddingClient openAiEmbeddingClient;
-
-    @MockBean
     PlaceMapper placeMapper;
 
     @Test
-    void hybridSearchShouldRejectInvalidCategory() throws Exception {
-        mockMvc.perform(get("/api/v1/search/hybrid")
+    void lexicalSearchShouldRejectInvalidCategory() throws Exception {
+        mockMvc.perform(get("/api/v1/search/lexical")
                         .param("q", "coffee")
                         .param("category", "hotel"))
                 .andExpect(status().isBadRequest())
@@ -58,7 +53,7 @@ class HybridSearchIntegrationTests {
     }
 
     @Test
-    void hybridSearchShouldReturnPagedResults() throws Exception {
+    void lexicalSearchShouldReturnPagedResults() throws Exception {
         Tuple tuple = mock(Tuple.class);
         PlaceResponse placeResponse = PlaceResponse.builder()
                 .id("place-1")
@@ -69,14 +64,13 @@ class HybridSearchIntegrationTests {
                 .build();
 
         when(searchSynonymService.expand(any())).thenReturn(List.of("coffee", "cafe"));
-        when(openAiEmbeddingClient.isConfigured()).thenReturn(false);
-        when(hybridSearchRepository.search(any(), any(), anyList(), any(), anyInt(), anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+        when(lexicalSearchRepository.search(any(), any(), anyList(), anyDouble()))
                 .thenReturn(List.of(tuple));
-        when(hybridSearchRepository.count(any(), any(), anyList(), any(), anyInt(), anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+        when(lexicalSearchRepository.count(any(), any(), anyList(), anyDouble()))
                 .thenReturn(1L);
         when(placeMapper.toResponse(tuple)).thenReturn(placeResponse);
 
-        mockMvc.perform(get("/api/v1/search/hybrid")
+        mockMvc.perform(get("/api/v1/search/lexical")
                         .param("q", "coffee")
                         .param("category", "food")
                         .param("page", "-2")
@@ -89,12 +83,26 @@ class HybridSearchIntegrationTests {
                 .andExpect(jsonPath("$.result.size").value(10))
                 .andExpect(jsonPath("$.result.totalPages").value(1));
 
-        ArgumentCaptor<com.project.backend.modules.search.dto.request.HybridSearchRequest> captor =
-                ArgumentCaptor.forClass(com.project.backend.modules.search.dto.request.HybridSearchRequest.class);
-        verify(hybridSearchRepository).search(captor.capture(), any(), anyList(), any(), anyInt(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+        ArgumentCaptor<com.project.backend.modules.search.dto.request.LexicalSearchRequest> captor =
+                ArgumentCaptor.forClass(com.project.backend.modules.search.dto.request.LexicalSearchRequest.class);
+        verify(lexicalSearchRepository).search(captor.capture(), any(), anyList(), anyDouble());
 
         assertThat(captor.getValue().getCategory()).isEqualTo("food");
         assertThat(captor.getValue().getPage()).isEqualTo(0);
         assertThat(captor.getValue().getSize()).isEqualTo(10);
+    }
+
+    @Test
+    void legacyHybridEndpointShouldUseLexicalSearch() throws Exception {
+        when(searchSynonymService.expand(any())).thenReturn(List.of("coffee", "cafe"));
+        when(lexicalSearchRepository.search(any(), any(), anyList(), anyDouble()))
+                .thenReturn(List.of());
+        when(lexicalSearchRepository.count(any(), any(), anyList(), anyDouble()))
+                .thenReturn(0L);
+
+        mockMvc.perform(get("/api/v1/search/hybrid")
+                        .param("q", "cf"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.total").value(0));
     }
 }

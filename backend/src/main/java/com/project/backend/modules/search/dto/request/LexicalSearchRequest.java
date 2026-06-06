@@ -12,7 +12,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class HybridSearchRequest {
+public class LexicalSearchRequest {
     String query;
     String category;
     String district;
