@@ -1,0 +1,16 @@
+=dev : The term '=dev' is not recognized as the name of a cmdlet, function, script file, or operable program. Check 
+the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ ='dev'; ='false'; .\\mvnw.cmd spring-boot:run
++ ~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=dev:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=false : The term '=false' is not recognized as the name of a cmdlet, function, script file, or operable program. 
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:9
++ ='dev'; ='false'; .\\mvnw.cmd spring-boot:run
++         ~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=false:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

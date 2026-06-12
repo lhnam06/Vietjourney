@@ -1,0 +1,29 @@
+
+> @vietjourney/frontend@0.0.1 dev
+> vite --host 127.0.0.1 --port 5173 --strictPort
+
+[2m00:27:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because lockfile has changed
+
+  [32m[1mVITE[22m v6.4.3[39m  [2mready in [0m[1m1416[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m00:49:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Explore.tsx, /src/styles/index.css, /src/app/components/ListPanel.tsx[22m
+[2m00:53:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Explore.tsx, /src/styles/index.css[22m
+[2m00:54:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/ListPanel.tsx, /src/styles/index.css[22m
+[2m00:54:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Popups.tsx, /src/styles/index.css[22m
+[2m00:56:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Popups.tsx, /src/styles/index.css[22m
+[2m01:04:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Explore.tsx, /src/styles/index.css, /src/app/components/ListPanel.tsx, /src/app/components/Popups.tsx[22m
+[2m01:05:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Popups.tsx, /src/styles/index.css[22m
+[2m01:05:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Popups.tsx, /src/styles/index.css[22m
+[2m01:06:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Popups.tsx, /src/styles/index.css[22m
+[2m01:06:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Explore.tsx, /src/styles/index.css[22m
+[2m01:15:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:16:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:29:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:30:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:34:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:35:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:37:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:43:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:44:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
+[2m01:45:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/components/Sidebar.tsx, /src/styles/index.css[22m
