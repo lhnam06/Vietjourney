@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
+  Bookmark,
+  CalendarDays,
   Eye,
   EyeOff,
   Lock,
   Mail,
-  Map,
   Navigation,
-  ShieldCheck,
-  Star,
   UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
-import logoUrl from "../../../photos/Vietjourney_logo.png";
 import {
   login,
   register,
@@ -29,31 +27,25 @@ interface AuthPageProps {
   onAuthenticated: () => void;
 }
 
-const bayImage =
-  "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1600&q=85";
+const heroImage =
+  "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1600&q=88";
 
 const authCopy = {
   login: {
-    title: "Đăng nhập",
-    subtitle: "Dùng tài khoản VietJourney của bạn để tiếp tục.",
-    sideTitle: "Chào mừng trở lại",
-    sideText: "Đăng nhập để tiếp tục lên kế hoạch và khám phá những hành trình tuyệt vời.",
+    title: "Chào mừng trở lại!",
+    subtitle: "Đăng nhập để tiếp tục hành trình của bạn",
     submit: "Đăng nhập",
     loading: "Đang đăng nhập...",
     switchText: "Chưa có tài khoản?",
     switchAction: "Đăng ký ngay",
-    divider: "hoặc",
   },
   signup: {
     title: "Tạo tài khoản",
-    subtitle: "Một tài khoản để lưu chuyến đi và cá nhân hóa gợi ý địa điểm.",
-    sideTitle: "Bắt đầu hành trình của bạn",
-    sideText: "Tạo tài khoản để lưu chuyến đi, cộng tác với bạn bè và khám phá địa điểm mới.",
+    subtitle: "Lưu chuyến đi và nhận gợi ý địa điểm phù hợp với bạn",
     submit: "Tạo tài khoản",
     loading: "Đang tạo tài khoản...",
     switchText: "Đã có tài khoản?",
     switchAction: "Đăng nhập",
-    divider: "hoặc đăng ký với",
   },
 } satisfies Record<AuthMode, Record<string, string>>;
 
@@ -68,101 +60,104 @@ export function AuthPage({ initialMode = "login", onAuthenticated }: AuthPagePro
   }
 
   return (
-    <main className="relative min-h-dvh overflow-x-hidden bg-[#f5faff] text-foreground">
-      <div
-        className="absolute inset-y-0 right-0 hidden w-[46%] bg-cover bg-center lg:block"
-        style={{ backgroundImage: `url(${bayImage})` }}
-        aria-hidden="true"
-      />
-      <div className="absolute inset-y-0 right-0 hidden w-[52%] bg-[linear-gradient(90deg,#f5faff_0%,rgba(245,250,255,0.82)_18%,rgba(245,250,255,0.08)_58%)] lg:block" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_26%_8%,rgba(84,78,226,0.14),transparent_26%),radial-gradient(circle_at_72%_18%,rgba(125,190,255,0.22),transparent_30%)]" />
-      <div className="absolute bottom-0 left-0 hidden h-56 w-[42%] rounded-tr-[70%] bg-[linear-gradient(180deg,rgba(221,234,255,0.18),rgba(185,207,255,0.42))] lg:block" />
+    <main className="grid min-h-dvh bg-white text-slate-950 lg:grid-cols-[minmax(520px,0.93fr)_minmax(560px,1.07fr)]">
+      <HeroPanel />
 
-      <section className="relative z-10 mx-auto grid min-h-dvh w-full max-w-[1520px] items-center gap-7 px-5 py-5 sm:px-8 lg:grid-cols-[360px_minmax(540px,660px)_1fr] lg:px-10 xl:grid-cols-[390px_minmax(580px,680px)_1fr]">
-        <aside className="auth-side-in hidden lg:block">
-          <Navigation className="mb-12 ml-36 size-11 rotate-[24deg] text-primary/70 drop-shadow-[0_12px_18px_rgba(84,78,226,0.28)]" />
-          <div key={`side-${mode}`} className="auth-copy-in">
-            <h1 className="max-w-[330px] text-[2.35rem] font-bold leading-tight text-slate-950">
-              {copy.sideTitle}
-            </h1>
-            <p className="mt-5 max-w-[320px] text-base leading-8 text-slate-600">
-              {copy.sideText}
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-7">
-            <AuthFeature
-              icon={Map}
-              iconClassName="bg-indigo-50 text-primary"
-              title="Lên kế hoạch dễ dàng"
-              text="Tạo timeline và sắp xếp hành trình khoa học."
-            />
-            <AuthFeature
-              icon={Users}
-              iconClassName="bg-emerald-50 text-emerald-600"
-              title="Cộng tác cùng bạn bè"
-              text="Chia sẻ kế hoạch và cùng nhau trải nghiệm."
-            />
-            <AuthFeature
-              icon={Star}
-              iconClassName="bg-orange-50 text-orange-500"
-              title="Khám phá địa điểm"
-              text="Tìm kiếm và lưu lại những địa điểm độc đáo."
-            />
-          </div>
-        </aside>
-
-        <div className="mx-auto w-full">
-          <div className="auth-card-scroll rounded-[30px] bg-white/95 px-5 py-6 shadow-[0_26px_80px_rgba(38,55,91,0.15)] ring-1 ring-white/80 backdrop-blur-xl sm:px-8 sm:py-7 lg:max-h-[calc(100dvh-48px)] lg:overflow-y-auto lg:px-10">
-            <div className="flex items-start justify-between gap-4">
-              <img src={logoUrl} alt="VietJourney" className="h-16 w-auto object-contain sm:h-[74px]" />
-              <div className="relative grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
-                <span
-                  className={cn(
-                    "absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm transition-transform duration-300 ease-out",
-                    mode === "signup" ? "translate-x-[calc(100%+4px)]" : "translate-x-0",
-                  )}
-                  aria-hidden="true"
-                />
-                <ModeButton active={mode === "login"} onClick={() => switchMode("login")}>
-                  Đăng nhập
-                </ModeButton>
-                <ModeButton active={mode === "signup"} onClick={() => switchMode("signup")}>
-                  Đăng ký
-                </ModeButton>
-              </div>
-            </div>
-
-            <div key={`heading-${mode}`} className="auth-panel-in mt-6 text-center">
-              <h2 className="text-4xl font-bold leading-tight text-slate-950 sm:text-[2.65rem]">
+      <section className="relative flex min-h-dvh items-center justify-center overflow-hidden px-5 py-6 sm:px-8 lg:px-12 xl:px-20">
+        <div className="auth-card-scroll w-full max-w-[540px] lg:max-h-[calc(100dvh-48px)] lg:overflow-y-auto lg:px-1">
+          <div key={`auth-${mode}`} className="auth-panel-in">
+            <header className="text-center">
+              <h1 className="text-[2rem] font-bold leading-tight tracking-[-0.01em] text-slate-950 sm:text-[2.45rem]">
                 {copy.title}
-              </h2>
-              <p className="mx-auto mt-3 max-w-[520px] text-base leading-7 text-slate-600">
-                {copy.subtitle}
-              </p>
-            </div>
+              </h1>
+              <p className="mt-3 text-base leading-7 text-slate-600">{copy.subtitle}</p>
+            </header>
 
             <AuthForm mode={mode} onAuthenticated={onAuthenticated} />
 
-            <SocialDivider label={copy.divider} />
-            <SocialButtons />
-
-            <p className="mt-5 text-center text-sm text-slate-500">
+            <p className="mt-6 text-center text-sm text-slate-500">
               {copy.switchText}{" "}
               <button
                 type="button"
                 onClick={() => switchMode(mode === "login" ? "signup" : "login")}
-                className="font-semibold text-primary transition-colors hover:text-primary/80"
+                className="font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               >
                 {copy.switchAction}
               </button>
             </p>
-          </div>
 
-          <SecurityNote />
+            <p className="mx-auto mt-5 max-w-[360px] text-center text-xs leading-5 text-slate-500">
+              <button type="button" className="font-medium text-primary hover:text-primary/80">
+                Điều khoản
+              </button>{" "}
+              và{" "}
+              <button type="button" className="font-medium text-primary hover:text-primary/80">
+                Chính sách bảo mật
+              </button>
+            </p>
+          </div>
         </div>
       </section>
     </main>
+  );
+}
+
+function HeroPanel() {
+  return (
+    <aside className="relative hidden min-h-dvh overflow-hidden lg:block">
+      <img
+        src={heroImage}
+        alt="Người du lịch đứng trên núi nhìn xuống thung lũng"
+        className="absolute inset-0 size-full object-cover"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(15,23,42,0.16)_45%,rgba(15,23,42,0.5))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.36),rgba(255,255,255,0.02)_46%,rgba(0,0,0,0.08))]" />
+
+      <div className="relative z-10 flex min-h-dvh flex-col px-16 py-12 xl:px-20">
+        <BrandMark />
+
+        <div className="mt-24 max-w-[560px]">
+          <h2 className="text-[3.05rem] font-bold leading-[1.02] tracking-[-0.02em] text-slate-950 drop-shadow-[0_2px_18px_rgba(255,255,255,0.3)] xl:text-[3.4rem]">
+            Lên kế hoạch
+          </h2>
+          <p className="mt-3 font-['Segoe_Script','Brush_Script_MT',cursive] text-[2.35rem] leading-tight text-primary drop-shadow-[0_8px_22px_rgba(84,78,226,0.32)] xl:text-[2.65rem]">
+            Dễ hơn mỗi ngày
+          </p>
+        </div>
+
+        <div className="mt-auto w-full max-w-[475px] rounded-2xl border border-white/70 bg-white/[0.035] p-6 text-white shadow-[0_28px_90px_rgba(15,23,42,0.18)] backdrop-blur-[2px]">
+          <HeroFeature
+            icon={Bookmark}
+            title="Lưu địa điểm yêu thích"
+            text="Lưu lại những nơi bạn muốn đến."
+          />
+          <HeroFeature
+            icon={CalendarDays}
+            title="Lên lịch trình thông minh"
+            text="Sắp xếp hành trình tối ưu theo thời gian của bạn."
+          />
+          <HeroFeature
+            icon={Users}
+            title="Cùng nhau khám phá"
+            text="Chia sẻ chuyến đi và đồng hành cùng bạn bè."
+          />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function BrandMark() {
+  return (
+    <div className="flex items-center gap-4">
+      <span className="flex size-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_18px_42px_rgba(84,78,226,0.35)]">
+        <Navigation className="size-8 -translate-x-0.5 rotate-[18deg]" />
+      </span>
+      <span>
+        <span className="block text-2xl font-bold leading-tight text-slate-950">VietJourney</span>
+        <span className="block text-sm font-medium text-slate-600">Travel planner for Vietnam</span>
+      </span>
+    </div>
   );
 }
 
@@ -287,7 +282,7 @@ function AuthForm({
   }
 
   return (
-    <form onSubmit={submit} className="mt-7 space-y-4">
+    <form onSubmit={submit} className="mt-8 space-y-5">
       {error ? <AuthError message={error} /> : null}
 
       <div key={`fields-${mode}`} className="auth-panel-in grid gap-4">
@@ -303,15 +298,15 @@ function AuthForm({
         ) : null}
 
         <AuthInput
-          label={mode === "login" ? "Tên đăng nhập" : "Email hoặc tên đăng nhập"}
-          icon={mode === "login" ? UserRound : Mail}
+          label={mode === "login" ? "Email hoặc số điện thoại" : "Email hoặc tên đăng nhập"}
+          icon={Mail}
           value={mode === "login" ? loginForm.username : signupForm.username}
           onChange={(username) =>
             mode === "login"
               ? setLoginForm({ ...loginForm, username })
               : setSignupForm({ ...signupForm, username })
           }
-          placeholder={mode === "login" ? "Email hoặc tên đăng nhập" : "Từ 5-30 ký tự, không khoảng trắng"}
+          placeholder={mode === "login" ? "Nhập email hoặc số điện thoại" : "Từ 5-30 ký tự, không khoảng trắng"}
           autoComplete="username"
         />
 
@@ -360,7 +355,7 @@ function AuthForm({
                 />
               }
             />
-            <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
+            <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-600">
               <input
                 type="checkbox"
                 checked={accepted}
@@ -368,16 +363,15 @@ function AuthForm({
                 className="mt-1 size-4 shrink-0 accent-primary"
               />
               <span>
-                Tôi đồng ý với <span className="text-primary">Điều khoản sử dụng</span> và{" "}
-                <span className="text-primary">Chính sách bảo mật</span>.
+                Tôi đồng ý với <span className="text-primary">điều khoản</span>.
               </span>
             </label>
           </>
         ) : (
-          <div className="-mt-1 flex justify-end">
+          <div className="-mt-3 flex justify-end">
             <button
               type="button"
-              className="text-sm font-semibold text-orange-500 transition-colors hover:text-orange-600"
+              className="text-sm font-semibold text-primary transition-colors hover:text-primary/80"
             >
               Quên mật khẩu?
             </button>
@@ -388,7 +382,7 @@ function AuthForm({
       <button
         type="submit"
         disabled={submitting}
-        className="flex h-[52px] w-full items-center justify-center rounded-xl bg-primary text-base font-semibold text-primary-foreground shadow-[0_15px_34px_rgba(84,78,226,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(84,78,226,0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-65"
+        className="flex h-[52px] w-full items-center justify-center rounded-lg bg-primary text-base font-semibold text-primary-foreground shadow-[0_15px_28px_rgba(84,78,226,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(84,78,226,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-65"
       >
         {submitting ? copy.loading : copy.submit}
       </button>
@@ -396,48 +390,23 @@ function AuthForm({
   );
 }
 
-function ModeButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "relative z-10 h-9 min-w-[92px] rounded-xl px-4 text-sm font-semibold transition-colors duration-200",
-        active ? "text-slate-950" : "text-slate-500 hover:text-slate-900",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function AuthFeature({
+function HeroFeature({
   icon: Icon,
-  iconClassName,
   title,
   text,
 }: {
   icon: LucideIcon;
-  iconClassName: string;
   title: string;
   text: string;
 }) {
   return (
-    <div className="flex items-center gap-5">
-      <span className={cn("flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-sm", iconClassName)}>
-        <Icon className="size-7" />
+    <div className="flex items-center gap-5 py-3">
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-white/65 bg-white/[0.04] text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+        <Icon className="size-6" />
       </span>
       <span>
-        <span className="block text-base font-bold text-slate-950">{title}</span>
-        <span className="mt-1 block max-w-[250px] text-sm leading-6 text-slate-600">{text}</span>
+        <span className="block text-sm font-bold">{title}</span>
+        <span className="mt-1 block text-sm leading-6 text-white/82">{text}</span>
       </span>
     </div>
   );
@@ -467,7 +436,7 @@ function AuthInput({
   return (
     <label className="block">
       <span className="text-sm font-bold text-slate-950">{label}</span>
-      <span className="mt-2 flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-slate-500 shadow-[0_1px_0_rgba(15,23,42,0.02)] transition focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
+      <span className="mt-2.5 flex h-[54px] items-center gap-4 rounded-lg border border-slate-300 bg-white px-4 text-slate-500 transition focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
         <Icon className="size-5 shrink-0" />
         <input
           type={type}
@@ -475,11 +444,11 @@ function AuthInput({
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 sm:text-base"
         />
         {endAdornment}
       </span>
-      {helper ? <span className="mt-1.5 block text-xs text-slate-500">{helper}</span> : null}
+      {helper ? <span className="mt-2 block text-xs text-slate-500">{helper}</span> : null}
     </label>
   );
 }
@@ -502,7 +471,7 @@ function PasswordStrength({ score }: { score: number }) {
   const color = ["bg-slate-200", "bg-red-400", "bg-amber-400", "bg-emerald-400", "bg-emerald-500"][score];
 
   return (
-    <div className="-mt-1">
+    <div className="-mt-2">
       <div className="grid grid-cols-4 gap-1">
         {Array.from({ length: 4 }).map((_, index) => (
           <span
@@ -538,52 +507,4 @@ function translateAuthError(message: string) {
   };
 
   return dictionary[message] || message;
-}
-
-function SocialDivider({ label }: { label: string }) {
-  return (
-    <div className="mt-5 flex items-center gap-4 text-sm text-slate-500">
-      <span className="h-px flex-1 bg-slate-200" />
-      {label}
-      <span className="h-px flex-1 bg-slate-200" />
-    </div>
-  );
-}
-
-function SocialButtons() {
-  return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-      <button
-        type="button"
-        disabled
-        title="Backend hiện tại chưa có OAuth Google"
-        className="flex h-11 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-950 opacity-75"
-      >
-        <span className="text-lg font-bold text-red-500">G</span>
-        Tiếp tục với Google
-      </button>
-      <button
-        type="button"
-        disabled
-        title="Backend hiện tại chưa có OAuth Facebook"
-        className="flex h-11 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-950 opacity-75"
-      >
-        <span className="flex size-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
-          f
-        </span>
-        Tiếp tục với Facebook
-      </button>
-    </div>
-  );
-}
-
-function SecurityNote() {
-  return (
-    <div className="mx-auto mt-5 flex max-w-[430px] items-center justify-center gap-3 text-center text-xs leading-relaxed text-slate-500">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.22)]">
-        <ShieldCheck className="size-5" />
-      </span>
-      <span>Thông tin của bạn được bảo mật tuyệt đối và chỉ sử dụng cho mục đích cá nhân.</span>
-    </div>
-  );
 }
