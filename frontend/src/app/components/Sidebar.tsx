@@ -20,6 +20,7 @@ import { cn } from "../lib/utils";
 const navItems = [
   { icon: Compass, label: "Khám phá", view: "explore" as const },
   { icon: Map, label: "Chuyến đi của tôi", view: "trips" as const },
+  { icon: UserRound, label: "Hồ sơ", view: "profile" as const },
   { icon: Clock, label: "Timeline" },
   { icon: ListChecks, label: "Quản lý Timeline" },
   { icon: Users, label: "Cộng đồng" },
@@ -311,7 +312,10 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
             <AccountMenuButton
               icon={UserRound}
               label="Hồ sơ"
-              onClick={() => setIsAccountMenuOpen(false)}
+              onClick={() => {
+                onNavigate("profile");
+                closeMenu();
+              }}
             />
             <AccountMenuButton
               icon={Settings}
