@@ -2825,3 +2825,234 @@ FROM places_activity
 2026-06-13T01:07:02.345+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Using 'application/json', given [*/*] and supported [application/json, application/*+json]
 2026-06-13T01:07:02.346+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Writing [ApiResponse(code=1000, message=null, result=PageResponse(data=[PlaceResponse(id=11, name=Buffet chay (truncated)...]
 2026-06-13T01:07:02.348+07:00 DEBUG 27080 --- [0.0-8082-exec-9] o.s.web.servlet.DispatcherServlet        : Completed 200 OK
+2026-06-13T02:12:05.884+07:00 DEBUG 27080 --- [0.0-8082-exec-6] o.s.web.servlet.DispatcherServlet        : POST "/api/v1/places/filter", parameters={}
+2026-06-13T02:12:05.888+07:00 DEBUG 27080 --- [0.0-8082-exec-6] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.project.backend.modules.place.controller.PlaceController#filterPlaces(PlaceFilterRequest)
+2026-06-13T02:12:05.900+07:00 DEBUG 27080 --- [0.0-8082-exec-6] m.m.a.RequestResponseBodyMethodProcessor : Read "application/json;charset=UTF-8" to [PlaceFilterRequest(category=null, district=null, tags=null, minPrice=null, maxPrice=null, minRating= (truncated)...]
+2026-06-13T02:12:05.908+07:00 DEBUG 27080 --- [0.0-8082-exec-6] org.hibernate.SQL                        : SELECT p.id, p.name, p.address, p.category, p.district, p.rating, p.latitude, p.longitude, p.images, p.tags, p.price_range, COUNT(*) OVER() AS total_count FROM (SELECT
+  id,
+  name,
+  address,
+  'FOOD' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_food
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'DRINK' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_drink
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'ACTIVITY' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_activity
+) p WHERE 1=1  ORDER BY p.rating DESC NULLS LAST LIMIT ? OFFSET ?
+2026-06-13T02:12:07.451+07:00 DEBUG 27080 --- [0.0-8082-exec-6] m.m.a.RequestResponseBodyMethodProcessor : Using 'application/json', given [*/*] and supported [application/json, application/*+json]
+2026-06-13T02:12:07.455+07:00 DEBUG 27080 --- [0.0-8082-exec-6] m.m.a.RequestResponseBodyMethodProcessor : Writing [ApiResponse(code=1000, message=null, result=PageResponse(data=[PlaceResponse(id=808, name=Bếp Chay D (truncated)...]
+2026-06-13T02:12:07.459+07:00 DEBUG 27080 --- [0.0-8082-exec-6] o.s.web.servlet.DispatcherServlet        : Completed 200 OK
+2026-06-13T02:12:26.381+07:00 DEBUG 27080 --- [.0-8082-exec-10] o.s.web.servlet.DispatcherServlet        : POST "/api/v1/places/filter", parameters={}
+2026-06-13T02:12:26.382+07:00 DEBUG 27080 --- [.0-8082-exec-10] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.project.backend.modules.place.controller.PlaceController#filterPlaces(PlaceFilterRequest)
+2026-06-13T02:12:26.385+07:00 DEBUG 27080 --- [.0-8082-exec-10] m.m.a.RequestResponseBodyMethodProcessor : Read "application/json;charset=UTF-8" to [PlaceFilterRequest(category=null, district=null, tags=null, minPrice=null, maxPrice=null, minRating= (truncated)...]
+2026-06-13T02:12:26.388+07:00 DEBUG 27080 --- [.0-8082-exec-10] org.hibernate.SQL                        : SELECT p.id, p.name, p.address, p.category, p.district, p.rating, p.latitude, p.longitude, p.images, p.tags, p.price_range, COUNT(*) OVER() AS total_count FROM (SELECT
+  id,
+  name,
+  address,
+  'FOOD' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_food
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'DRINK' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_drink
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'ACTIVITY' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_activity
+) p WHERE 1=1  ORDER BY p.rating DESC NULLS LAST LIMIT ? OFFSET ?
+2026-06-13T02:12:26.843+07:00 DEBUG 27080 --- [.0-8082-exec-10] m.m.a.RequestResponseBodyMethodProcessor : Using 'application/json', given [*/*] and supported [application/json, application/*+json]
+2026-06-13T02:12:26.848+07:00 DEBUG 27080 --- [.0-8082-exec-10] m.m.a.RequestResponseBodyMethodProcessor : Writing [ApiResponse(code=1000, message=null, result=PageResponse(data=[PlaceResponse(id=808, name=Bếp Chay D (truncated)...]
+2026-06-13T02:12:26.854+07:00 DEBUG 27080 --- [.0-8082-exec-10] o.s.web.servlet.DispatcherServlet        : Completed 200 OK
+2026-06-13T02:12:38.471+07:00 DEBUG 27080 --- [0.0-8082-exec-3] o.s.web.servlet.DispatcherServlet        : POST "/api/v1/places/filter", parameters={}
+2026-06-13T02:12:38.472+07:00 DEBUG 27080 --- [0.0-8082-exec-3] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.project.backend.modules.place.controller.PlaceController#filterPlaces(PlaceFilterRequest)
+2026-06-13T02:12:38.474+07:00 DEBUG 27080 --- [0.0-8082-exec-3] m.m.a.RequestResponseBodyMethodProcessor : Read "application/json;charset=UTF-8" to [PlaceFilterRequest(category=null, district=null, tags=null, minPrice=null, maxPrice=null, minRating= (truncated)...]
+2026-06-13T02:12:38.475+07:00 DEBUG 27080 --- [0.0-8082-exec-3] org.hibernate.SQL                        : SELECT p.id, p.name, p.address, p.category, p.district, p.rating, p.latitude, p.longitude, p.images, p.tags, p.price_range, COUNT(*) OVER() AS total_count FROM (SELECT
+  id,
+  name,
+  address,
+  'FOOD' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_food
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'DRINK' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_drink
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'ACTIVITY' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_activity
+) p WHERE 1=1  ORDER BY p.rating DESC NULLS LAST LIMIT ? OFFSET ?
+2026-06-13T02:12:38.920+07:00 DEBUG 27080 --- [0.0-8082-exec-3] m.m.a.RequestResponseBodyMethodProcessor : Using 'application/json', given [*/*] and supported [application/json, application/*+json]
+2026-06-13T02:12:38.924+07:00 DEBUG 27080 --- [0.0-8082-exec-3] m.m.a.RequestResponseBodyMethodProcessor : Writing [ApiResponse(code=1000, message=null, result=PageResponse(data=[PlaceResponse(id=808, name=Bếp Chay D (truncated)...]
+2026-06-13T02:12:38.927+07:00 DEBUG 27080 --- [0.0-8082-exec-3] o.s.web.servlet.DispatcherServlet        : Completed 200 OK
+2026-06-13T02:12:40.456+07:00 DEBUG 27080 --- [0.0-8082-exec-9] o.s.web.servlet.DispatcherServlet        : POST "/api/v1/places/filter", parameters={}
+2026-06-13T02:12:40.458+07:00 DEBUG 27080 --- [0.0-8082-exec-9] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.project.backend.modules.place.controller.PlaceController#filterPlaces(PlaceFilterRequest)
+2026-06-13T02:12:40.461+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Read "application/json;charset=UTF-8" to [PlaceFilterRequest(category=null, district=null, tags=null, minPrice=null, maxPrice=null, minRating= (truncated)...]
+2026-06-13T02:12:40.462+07:00 DEBUG 27080 --- [0.0-8082-exec-9] org.hibernate.SQL                        : SELECT p.id, p.name, p.address, p.category, p.district, p.rating, p.latitude, p.longitude, p.images, p.tags, p.price_range, COUNT(*) OVER() AS total_count FROM (SELECT
+  id,
+  name,
+  address,
+  'FOOD' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_food
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'DRINK' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_drink
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'ACTIVITY' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_activity
+) p WHERE 1=1  ORDER BY p.rating DESC NULLS LAST LIMIT ? OFFSET ?
+2026-06-13T02:12:40.904+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Using 'application/json', given [*/*] and supported [application/json, application/*+json]
+2026-06-13T02:12:40.908+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Writing [ApiResponse(code=1000, message=null, result=PageResponse(data=[PlaceResponse(id=808, name=Bếp Chay D (truncated)...]
+2026-06-13T02:12:40.911+07:00 DEBUG 27080 --- [0.0-8082-exec-9] o.s.web.servlet.DispatcherServlet        : Completed 200 OK
+2026-06-13T02:14:37.190+07:00 DEBUG 27080 --- [0.0-8082-exec-9] o.s.web.servlet.DispatcherServlet        : POST "/api/v1/places/filter", parameters={}
+2026-06-13T02:14:37.192+07:00 DEBUG 27080 --- [0.0-8082-exec-9] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.project.backend.modules.place.controller.PlaceController#filterPlaces(PlaceFilterRequest)
+2026-06-13T02:14:37.193+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Read "application/json;charset=UTF-8" to [PlaceFilterRequest(category=null, district=null, tags=null, minPrice=null, maxPrice=null, minRating= (truncated)...]
+2026-06-13T02:14:37.194+07:00 DEBUG 27080 --- [0.0-8082-exec-9] org.hibernate.SQL                        : SELECT p.id, p.name, p.address, p.category, p.district, p.rating, p.latitude, p.longitude, p.images, p.tags, p.price_range, COUNT(*) OVER() AS total_count FROM (SELECT
+  id,
+  name,
+  address,
+  'FOOD' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_food
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'DRINK' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_drink
+ UNION ALL SELECT
+  id,
+  name,
+  address,
+  'ACTIVITY' AS category,
+  district,
+  rating,
+  latitude,
+  longitude,
+  CAST(urls AS text) AS images,
+  CAST(tags AS text) AS tags,
+  CAST(price_range AS text) AS price_range
+FROM places_activity
+) p WHERE 1=1  ORDER BY p.rating DESC NULLS LAST LIMIT ? OFFSET ?
+2026-06-13T02:14:37.638+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Using 'application/json', given [*/*] and supported [application/json, application/*+json]
+2026-06-13T02:14:37.642+07:00 DEBUG 27080 --- [0.0-8082-exec-9] m.m.a.RequestResponseBodyMethodProcessor : Writing [ApiResponse(code=1000, message=null, result=PageResponse(data=[PlaceResponse(id=808, name=Bếp Chay D (truncated)...]
+2026-06-13T02:14:37.649+07:00 DEBUG 27080 --- [0.0-8082-exec-9] o.s.web.servlet.DispatcherServlet        : Completed 200 OK
+2026-06-13T09:48:07.802+07:00  WARN 27080 --- [l-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=7h17m6s168ms971µs800ns).
