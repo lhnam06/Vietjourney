@@ -1,4 +1,5 @@
 export type PlaceCategory = "FOOD" | "DRINK" | "ACTIVITY" | string;
+export type PlaceCategoryFilter = "FOOD" | "DRINK" | "ACTIVITY";
 
 export interface Place {
   id: string;
@@ -40,6 +41,11 @@ export interface PlaceFilterRequest {
   size?: number;
 }
 
+export interface DistrictSummary {
+  name: string;
+  count: number;
+}
+
 export async function fetchPlaces(
   request: PlaceFilterRequest = {},
   signal?: AbortSignal,
@@ -65,6 +71,27 @@ export async function fetchPlaces(
   return payload.result;
 }
 
+export async function fetchDistricts(
+  request: PlaceFilterRequest = {},
+  signal?: AbortSignal,
+) {
+  const response = await fetch("/api/v1/places/districts", {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Không tải được danh sách khu vực (${response.status})`);
+  }
+
+  const payload = (await response.json()) as ApiResponse<DistrictSummary[]>;
+  return payload.result;
+}
+
 export function categoryLabel(category?: PlaceCategory | null) {
   switch (category) {
     case "FOOD":
@@ -78,36 +105,93 @@ export function categoryLabel(category?: PlaceCategory | null) {
   }
 }
 
-const tagGroupLabels: Record<string, string> = {
-  sub_category: "Loại món / hoạt động",
-  purpose: "Mục đích",
-  service_style: "Phong cách phục vụ",
-  vibe: "Không khí",
-  amenity: "Tiện ích",
+const tagGroupLabels: Record<PlaceCategoryFilter, Record<string, string>> = {
+  FOOD: {
+    sub_category: "Nhóm món ăn",
+    purpose: "Phù hợp cho",
+    service_style: "Kiểu phục vụ",
+    amenity: "Tiện ích",
+  },
+  DRINK: {
+    sub_category: "Nhóm đồ uống",
+    purpose: "Phù hợp cho",
+    vibe: "Không khí",
+    amenity: "Tiện ích",
+  },
+  ACTIVITY: {
+    sub_category: "Nhóm trải nghiệm",
+    purpose: "Phù hợp cho",
+    amenity: "Tiện ích",
+  },
 };
 
 const tagLabels: Record<string, string> = {
+  "24/7": "Mở cửa 24/7",
+  ac: "Máy lạnh",
+  alcoholic: "Đồ có cồn",
   buffet: "Buffet",
   canteen: "Căn tin",
   casual_dining: "Ăn uống thoải mái",
   celebration: "Tiệc / kỷ niệm",
+  checkin_photography: "Check-in / chụp ảnh",
+  cinema_show: "Phim / biểu diễn",
+  coffee: "Cà phê",
+  cultural_space: "Không gian văn hóa",
   dating: "Hẹn hò",
+  dessert: "Tráng miệng",
   family: "Gia đình",
   fast_food: "Đồ ăn nhanh",
   group_gathering: "Tụ họp nhóm",
   healthy: "Lành mạnh",
   hotpot: "Lẩu",
+  juice_smoothie: "Nước ép / sinh tố",
+  luxury: "Cao cấp",
   main_course: "Món chính",
+  outdoor: "Ngoài trời",
+  parking: "Bãi đỗ xe",
+  pet: "Thú cưng",
+  photography: "Chụp ảnh",
   private_room: "Phòng riêng",
+  quiet: "Yên tĩnh",
+  relax: "Thư giãn",
   restroom: "Nhà vệ sinh",
+  shopping: "Mua sắm",
+  sports_fitness: "Thể thao / fitness",
   street_food: "Ẩm thực đường phố",
   takeaway: "Mang đi",
+  tea_milktea: "Trà / trà sữa",
+  traditional: "Truyền thống",
   vegetarian: "Món chay",
+  vibrant: "Sôi động",
+  view: "Có view đẹp",
   wifi: "Wifi",
+  work_study: "Làm việc / học tập",
+  workshop: "Workshop",
 };
 
-export function tagGroupLabel(group: string) {
-  return tagGroupLabels[group] || humanizeTag(group);
+export const tagOptionsByCategory: Record<PlaceCategoryFilter, { group: string; values: string[] }[]> = {
+  FOOD: [
+    { group: "sub_category", values: ["healthy", "main_course", "hotpot", "vegetarian", "buffet", "fast_food"] },
+    { group: "purpose", values: ["celebration", "dating", "family", "checkin_photography", "group_gathering"] },
+    { group: "service_style", values: ["street_food", "takeaway", "casual_dining", "canteen"] },
+    { group: "amenity", values: ["restroom", "ac", "wifi", "private_room"] },
+  ],
+  DRINK: [
+    { group: "sub_category", values: ["coffee", "tea_milktea", "juice_smoothie", "alcoholic", "dessert"] },
+    { group: "purpose", values: ["work_study", "dating", "family", "checkin_photography", "group_gathering"] },
+    { group: "vibe", values: ["quiet", "vibrant", "outdoor", "view", "traditional", "luxury"] },
+    { group: "amenity", values: ["24/7", "ac", "wifi", "private_room", "pet"] },
+  ],
+  ACTIVITY: [
+    { group: "sub_category", values: ["workshop", "sports_fitness", "cultural_space", "outdoor", "cinema_show", "shopping"] },
+    { group: "purpose", values: ["dating", "relax", "photography", "group_gathering"] },
+    { group: "amenity", values: ["parking", "restroom", "wifi"] },
+  ],
+};
+
+export function tagGroupLabel(group: string, category?: PlaceCategoryFilter | string) {
+  const normalizedCategory = normalizeCategory(category);
+  return tagGroupLabels[normalizedCategory]?.[group] || humanizeTag(group);
 }
 
 export function tagLabel(tag: string) {
@@ -131,6 +215,16 @@ export function categoryFilter(category: string) {
     default:
       return undefined;
   }
+}
+
+export function normalizeCategory(category?: string | null): PlaceCategoryFilter {
+  if (category === "DRINK") return "DRINK";
+  if (category === "ACTIVITY") return "ACTIVITY";
+  return "FOOD";
+}
+
+export function tagOptionsForCategory(category?: string | null) {
+  return tagOptionsByCategory[normalizeCategory(category)];
 }
 
 export function formatPrice(place: Place) {

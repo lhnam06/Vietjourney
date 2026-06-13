@@ -35,7 +35,8 @@ public class SecurityConfig {
             "/api/v1/auth/introspect",
             "/api/v1/auth/logout",
             "/api/v1/auth/refresh",
-            "/api/v1/places/filter"
+            "/api/v1/places/filter",
+            "/api/v1/places/districts"
     };
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
