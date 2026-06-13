@@ -32,8 +32,8 @@ import {
 import { cn } from "../lib/utils";
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
-const hours = Array.from({ length: 16 }, (_, index) => 6 + index);
-const hourHeight = 46;
+const hours = Array.from({ length: 24 }, (_, index) => index);
+const hourHeight = 42;
 const dayColumnWidth = "minmax(128px,1fr)";
 
 type DragPayload =
@@ -223,7 +223,7 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
     if (!payload) return;
 
     const start = toDateTimeInput(day, hour, 0);
-    const end = toDateTimeInput(day, hour + 1, 0);
+    const end = hour === 23 ? toDateTimeInput(day, 23, 59) : toDateTimeInput(day, hour + 1, 0);
     if (!isWithinTimeline(new Date(start), new Date(end), timelineStart, timelineEnd)) {
       setError("Khung giờ nằm ngoài thời gian của chuyến đi.");
       return;
@@ -308,9 +308,9 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
 
   return (
-    <main className="min-w-0 flex-1 overflow-hidden bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] p-4 lg:p-5">
-      <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] p-4 lg:p-5">
+      <div className="grid min-h-full gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+        <aside className="flex max-h-[calc(100vh-40px)] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-5">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -368,7 +368,7 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
           </button>
         </aside>
 
-        <section className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <section className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-sm">
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold text-foreground">Lên lịch trình cho chuyến đi</h2>
@@ -416,7 +416,7 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
           ) : null}
 
           <div
-            className="relative mt-5 min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-white"
+            className="relative mt-5 overflow-x-auto overflow-y-visible rounded-2xl border border-border bg-white"
             onDragOver={handleCalendarDragOver}
             onDragLeave={handleDragLeave}
           >
@@ -453,7 +453,7 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
                     className="sticky left-0 z-10 border-b border-r border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground"
                     style={{ height: hourHeight }}
                   >
-                    {String(hour).padStart(2, "0")}:00
+                    {hour === 23 ? "23:00 - 23:59" : `${String(hour).padStart(2, "0")}:00`}
                   </div>
                   {weekDays.map((day) => (
                     <div
@@ -561,7 +561,7 @@ function TimelineCard({
 }) {
   const start = new Date(event.startTime);
   const end = resizing || new Date(event.endTime);
-  const top = ((start.getHours() - 6) * 60 + start.getMinutes()) * (hourHeight / 60);
+  const top = (start.getHours() * 60 + start.getMinutes()) * (hourHeight / 60);
   const height = Math.max(34, differenceMinutes(end, start) * (hourHeight / 60));
   const width = `calc((100% - 0px) / 7 - 10px)`;
   const left = `calc(${dayIndex} * (100% / 7) + 5px)`;
