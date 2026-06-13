@@ -3,13 +3,14 @@ import { AuthPage } from "./components/AuthPage";
 import { Explore } from "./components/Explore";
 import { ListPanel } from "./components/ListPanel";
 import { MyTrips } from "./components/MyTrips";
+import { Profile } from "./components/Profile";
 import { Sidebar } from "./components/Sidebar";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { clearAuthToken, getAuthToken } from "./lib/authApi";
 import type { Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
 
-export type AppView = "explore" | "trips" | "timeline-editor";
+export type AppView = "explore" | "trips" | "profile" | "timeline-editor";
 
 export interface PlaceList {
   id: string;
@@ -197,6 +198,12 @@ export default function App() {
         />
       ) : view === "trips" ? (
         <MyTrips onExplore={() => setView("explore")} onEditTimeline={openTimelineEditor} />
+      ) : view === "profile" ? (
+        <Profile
+          savedPlaces={savedPlaces}
+          onExplore={() => setView("explore")}
+          onEditTimeline={openTimelineEditor}
+        />
       ) : (
         <>
           <Explore savedPlaceIds={savedPlaceIds} onAddPlace={addPlace} />
