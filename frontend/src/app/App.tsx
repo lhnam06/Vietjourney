@@ -4,14 +4,17 @@ import { Explore } from "./components/Explore";
 import { ListPanel } from "./components/ListPanel";
 import { MyTrips } from "./components/MyTrips";
 import { Sidebar } from "./components/Sidebar";
+import { TimelineEditor } from "./components/TimelineEditor";
 import { clearAuthToken, getAuthToken } from "./lib/authApi";
+import type { Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
 
-export type AppView = "explore" | "trips";
+export type AppView = "explore" | "trips" | "timeline-editor";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
   const [view, setView] = useState<AppView>("trips");
+  const [editingTimeline, setEditingTimeline] = useState<Timeline | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const savedPlaceIds = useMemo(
     () => new Set(savedPlaces.map((place) => place.id)),
@@ -37,8 +40,14 @@ export default function App() {
   function logout() {
     clearAuthToken();
     setSavedPlaces([]);
+    setEditingTimeline(null);
     setView("trips");
     setIsAuthenticated(false);
+  }
+
+  function openTimelineEditor(timeline: Timeline) {
+    setEditingTimeline(timeline);
+    setView("timeline-editor");
   }
 
   if (!isAuthenticated) {
@@ -48,8 +57,16 @@ export default function App() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       <Sidebar activeView={view} onNavigate={setView} onLogout={logout} />
-      {view === "trips" ? (
-        <MyTrips onExplore={() => setView("explore")} />
+      {view === "timeline-editor" && editingTimeline ? (
+        <TimelineEditor
+          timeline={editingTimeline}
+          onBack={() => {
+            setEditingTimeline(null);
+            setView("trips");
+          }}
+        />
+      ) : view === "trips" ? (
+        <MyTrips onExplore={() => setView("explore")} onEditTimeline={openTimelineEditor} />
       ) : (
         <>
           <Explore savedPlaceIds={savedPlaceIds} onAddPlace={addPlace} />

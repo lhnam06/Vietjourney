@@ -56,6 +56,7 @@ type StartMethod = "ai" | "explore" | "blank";
 
 interface MyTripsProps {
   onExplore?: () => void;
+  onEditTimeline?: (timeline: Timeline) => void;
 }
 
 const today = new Date();
@@ -175,7 +176,7 @@ function makeEventWindow(startDate: string, index: number) {
   };
 }
 
-export function MyTrips({ onExplore }: MyTripsProps) {
+export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -317,15 +318,24 @@ export function MyTrips({ onExplore }: MyTripsProps) {
                       </h2>
                       <TripMenuButton
                         timeline={recentTimeline}
-                        isOpen={openMenuId === recentTimeline.id}
+                        isOpen={openMenuId === `recent:${recentTimeline.id}`}
                         onToggle={() =>
-                          setOpenMenuId(openMenuId === recentTimeline.id ? null : recentTimeline.id)
+                          setOpenMenuId(
+                            openMenuId === `recent:${recentTimeline.id}` ? null : `recent:${recentTimeline.id}`,
+                          )
                         }
                         onEdit={() => openEdit(recentTimeline)}
+                        onEditTimeline={() => {
+                          setOpenMenuId(null);
+                          onEditTimeline?.(recentTimeline);
+                        }}
                         onInvite={() => openInvite(recentTimeline)}
                       />
                     </div>
-                    <FeaturedTrip timeline={recentTimeline} />
+                    <FeaturedTrip
+                      timeline={recentTimeline}
+                      onEditTimeline={() => onEditTimeline?.(recentTimeline)}
+                    />
                   </section>
                 ) : (
                   <EmptyTripState onCreate={() => setModal("create")} />
@@ -379,11 +389,15 @@ export function MyTrips({ onExplore }: MyTripsProps) {
                         key={timeline.id}
                         timeline={timeline}
                         listMode={viewMode === "list"}
-                        menuOpen={openMenuId === timeline.id}
+                        menuOpen={openMenuId === `card:${timeline.id}`}
                         onToggleMenu={() =>
-                          setOpenMenuId(openMenuId === timeline.id ? null : timeline.id)
+                          setOpenMenuId(openMenuId === `card:${timeline.id}` ? null : `card:${timeline.id}`)
                         }
                         onEdit={() => openEdit(timeline)}
+                        onEditTimeline={() => {
+                          setOpenMenuId(null);
+                          onEditTimeline?.(timeline);
+                        }}
                         onInvite={() => openInvite(timeline)}
                       />
                     ))}
@@ -508,7 +522,13 @@ function QuickAction({
   );
 }
 
-function FeaturedTrip({ timeline }: { timeline: Timeline }) {
+function FeaturedTrip({
+  timeline,
+  onEditTimeline,
+}: {
+  timeline: Timeline;
+  onEditTimeline: () => void;
+}) {
   const status = timelineStatus(timeline);
   const progress = progressForTimeline(timeline);
 
@@ -554,8 +574,12 @@ function FeaturedTrip({ timeline }: { timeline: Timeline }) {
           <span className="text-sm font-medium text-muted-foreground">{progress}%</span>
         </div>
         <div className="mt-6 flex flex-wrap gap-2">
-          <button className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
-            Tiếp tục Timeline
+          <button
+            type="button"
+            onClick={onEditTimeline}
+            className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+          >
+            Chỉnh sửa Timeline
           </button>
           <button className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground">
             Xem bản đồ
@@ -575,6 +599,7 @@ function TripCard({
   menuOpen,
   onToggleMenu,
   onEdit,
+  onEditTimeline,
   onInvite,
 }: {
   timeline: Timeline;
@@ -582,6 +607,7 @@ function TripCard({
   menuOpen: boolean;
   onToggleMenu: () => void;
   onEdit: () => void;
+  onEditTimeline: () => void;
   onInvite: () => void;
 }) {
   const status = timelineStatus(timeline);
@@ -603,15 +629,16 @@ function TripCard({
         <span className={cn("absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold", status.className)}>
           {status.label}
         </span>
-        <TripMenuButton
-          timeline={timeline}
-          isOpen={menuOpen}
-          onToggle={onToggleMenu}
-          onEdit={onEdit}
-          onInvite={onInvite}
-          compact
-        />
       </div>
+      <TripMenuButton
+        timeline={timeline}
+        isOpen={menuOpen}
+        onToggle={onToggleMenu}
+        onEdit={onEdit}
+        onEditTimeline={onEditTimeline}
+        onInvite={onInvite}
+        compact
+      />
       <div className="p-4">
         <h3 className="font-bold text-foreground">{timeline.title}</h3>
         <p className="mt-2 text-sm text-muted-foreground">{formatDateRange(timeline)}</p>
@@ -635,8 +662,12 @@ function TripCard({
           </div>
           <span className="text-sm font-semibold text-muted-foreground">{progress}%</span>
         </div>
-        <button className="mt-4 w-full rounded-xl border border-primary/40 px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-accent">
-          {progress === 100 ? "Xem Timeline" : "Tiếp tục"}
+        <button
+          type="button"
+          onClick={onEditTimeline}
+          className="mt-4 w-full rounded-xl border border-primary/40 px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-accent"
+        >
+          Chỉnh sửa Timeline
         </button>
       </div>
     </article>
@@ -648,6 +679,7 @@ function TripMenuButton({
   isOpen,
   onToggle,
   onEdit,
+  onEditTimeline,
   onInvite,
   compact,
 }: {
@@ -655,6 +687,7 @@ function TripMenuButton({
   isOpen: boolean;
   onToggle: () => void;
   onEdit: () => void;
+  onEditTimeline: () => void;
   onInvite: () => void;
   compact?: boolean;
 }) {
@@ -671,7 +704,7 @@ function TripMenuButton({
       {isOpen ? (
         <div className="absolute right-0 top-11 z-50 w-72 rounded-2xl border border-border bg-card p-2 shadow-xl">
           <MenuItem icon={Edit3} label="Chỉnh sửa chuyến đi" onClick={onEdit} />
-          <MenuItem icon={CalendarDays} label="Chỉnh sửa Timeline" />
+          <MenuItem icon={CalendarDays} label="Chỉnh sửa Timeline" onClick={onEditTimeline} />
           <MenuItem icon={Map} label="Xem bản đồ" />
           <div className="my-2 border-t border-border" />
           <MenuItem icon={Users} label="Thành viên" />
