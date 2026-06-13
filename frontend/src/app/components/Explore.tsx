@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Filter,
@@ -14,16 +14,20 @@ import {
   categoryFilter,
   categoryLabel,
   compactPrice,
+  fetchDistricts,
   fetchPlaces,
   formatPrice,
+  normalizeCategory,
   placeImage,
+  tagOptionsForCategory,
+  type DistrictSummary,
   type Place,
+  type PlaceFilterRequest,
 } from "../lib/placesApi";
 import { cn } from "../lib/utils";
 import {
   ActiveFiltersModal,
   AreaModal,
-  CategoryModal,
   FilterModal,
   PlaceDetailModal,
   SortModal,
@@ -36,18 +40,19 @@ import {
 
 const defaultFilters: PlaceFilters = {
   district: "",
-  category: "ALL",
+  category: "FOOD",
   price: "all",
   rating: "all",
   tags: {},
 };
 
 const categories = [
-  { value: "ALL", label: "Tất cả" },
   { value: "FOOD", label: "Ẩm thực" },
   { value: "DRINK", label: "Đồ uống" },
   { value: "ACTIVITY", label: "Trải nghiệm" },
 ];
+
+const PAGE_SIZE = 80;
 
 const categoryStyles: Record<string, string> = {
   FOOD: "bg-orange-100 text-orange-700",
@@ -87,11 +92,45 @@ function minRating(rating: PlaceFilters["rating"]) {
 function activeFilterCount(filters: PlaceFilters) {
   return [
     filters.district,
-    filters.category !== "ALL" ? filters.category : "",
     filters.price !== "all" ? filters.price : "",
     filters.rating !== "all" ? filters.rating : "",
     ...Object.values(filters.tags).flat(),
   ].filter(Boolean).length;
+}
+
+function buildPlaceRequest(filters: PlaceFilters, page = 0): PlaceFilterRequest {
+  return {
+    category: categoryFilter(normalizeCategory(filters.category)),
+    district: filters.district || undefined,
+    tags: Object.keys(filters.tags).length ? filters.tags : undefined,
+    minRating: minRating(filters.rating),
+    ...priceRange(filters.price),
+    page,
+    size: PAGE_SIZE,
+  };
+}
+
+function buildDistrictRequest(filters: PlaceFilters): PlaceFilterRequest {
+  return {
+    category: categoryFilter(normalizeCategory(filters.category)),
+    tags: Object.keys(filters.tags).length ? filters.tags : undefined,
+    minRating: minRating(filters.rating),
+    ...priceRange(filters.price),
+  };
+}
+
+function mergePlaces(existing: Place[], incoming: Place[]) {
+  const seen = new Set(existing.map((place) => place.id));
+  const next = [...existing];
+
+  incoming.forEach((place) => {
+    if (!seen.has(place.id)) {
+      seen.add(place.id);
+      next.push(place);
+    }
+  });
+
+  return next;
 }
 
 function sortPlaces(places: Place[], sort: SortOption) {
@@ -245,11 +284,17 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOption>("best");
   const [places, setPlaces] = useState<Place[]>([]);
+  const [districts, setDistricts] = useState<DistrictSummary[]>([]);
   const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRootRef = useRef<HTMLElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -257,22 +302,18 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
     async function loadPlaces() {
       setLoading(true);
       setError(null);
+      setPlaces([]);
+      setTotal(0);
+      setCurrentPage(0);
+      setHasMore(false);
 
       try {
-        const page = await fetchPlaces(
-          {
-            category: categoryFilter(filters.category),
-            district: filters.district || undefined,
-            tags: Object.keys(filters.tags).length ? filters.tags : undefined,
-            minRating: minRating(filters.rating),
-            ...priceRange(filters.price),
-            size: 80,
-          },
-          controller.signal,
-        );
+        const page = await fetchPlaces(buildPlaceRequest(filters, 0), controller.signal);
 
         setPlaces(page.data);
         setTotal(page.total);
+        setCurrentPage(page.page);
+        setHasMore(page.page + 1 < page.totalPages);
       } catch (loadError) {
         if (controller.signal.aborted) return;
         setError(loadError instanceof Error ? loadError.message : "Không tải được địa điểm");
@@ -290,44 +331,48 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
     return () => controller.abort();
   }, [filters]);
 
-  const districts = useMemo(() => {
-    const districtMap = new Map<string, { name: string; count: number; image?: string }>();
+  useEffect(() => {
+    const controller = new AbortController();
 
-    places.forEach((place) => {
-      if (!place.district) return;
-      const current = districtMap.get(place.district);
-      districtMap.set(place.district, {
-        name: place.district,
-        count: (current?.count || 0) + 1,
-        image: current?.image || placeImage(place),
-      });
-    });
-
-    return [...districtMap.values()].sort((first, second) => second.count - first.count);
-  }, [places]);
-
-  const tagOptions = useMemo<TagOptionGroup[]>(() => {
-    const tagMap = new Map<string, Set<string>>();
-
-    places.forEach((place) => {
-      Object.entries(place.tags || {}).forEach(([group, values]) => {
-        if (!tagMap.has(group)) {
-          tagMap.set(group, new Set());
+    async function loadDistricts() {
+      try {
+        const nextDistricts = await fetchDistricts(buildDistrictRequest(filters), controller.signal);
+        setDistricts(nextDistricts);
+      } catch {
+        if (!controller.signal.aborted) {
+          setDistricts([]);
         }
+      }
+    }
 
-        values.forEach((value) => {
-          if (value) {
-            tagMap.get(group)?.add(value);
-          }
-        });
-      });
-    });
+    loadDistricts();
 
-    return [...tagMap.entries()].map(([group, values]) => ({
-      group,
-      values: [...values].sort((first, second) => first.localeCompare(second)),
-    }));
-  }, [places]);
+    return () => controller.abort();
+  }, [filters.category, filters.price, filters.rating, filters.tags]);
+
+  const tagOptions = useMemo<TagOptionGroup[]>(
+    () => tagOptionsForCategory(filters.category),
+    [filters.category],
+  );
+
+  const loadMorePlaces = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return;
+
+    const nextPage = currentPage + 1;
+    setLoadingMore(true);
+
+    try {
+      const page = await fetchPlaces(buildPlaceRequest(filters, nextPage));
+      setPlaces((currentPlaces) => mergePlaces(currentPlaces, page.data));
+      setTotal(page.total);
+      setCurrentPage(page.page);
+      setHasMore(page.page + 1 < page.totalPages);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Không tải thêm được địa điểm");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [currentPage, filters, hasMore, loading, loadingMore]);
 
   const filteredPlaces = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -351,6 +396,27 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
     return sortPlaces(searchedPlaces, sort);
   }, [places, query, sort]);
 
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || loading || loadingMore || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadMorePlaces();
+        }
+      },
+      {
+        root: scrollRootRef.current,
+        rootMargin: "640px 0px",
+        threshold: 0.01,
+      },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [filteredPlaces.length, hasMore, loadMorePlaces, loading, loadingMore]);
+
   const suggestions = filteredPlaces.slice(0, 3);
   const filterCount = activeFilterCount(filters);
 
@@ -365,7 +431,7 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
 
   return (
     <>
-      <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+      <main ref={scrollRootRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
         <div className="mx-auto max-w-3xl">
           <header className="flex items-start justify-between gap-4">
             <div>
@@ -407,7 +473,7 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
             {categories.map((category) => (
               <button
                 key={category.value}
-                onClick={() => setFilters({ ...filters, category: category.value })}
+                onClick={() => setFilters({ ...filters, category: category.value, tags: {} })}
                 className={cn(
                   "rounded-full px-4 py-2 text-sm font-medium transition-colors",
                   filters.category === category.value
@@ -438,13 +504,6 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
               <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                 {filterCount}
               </span>
-            </button>
-            <button
-              onClick={() => setModal("category")}
-              className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
-            >
-              {filters.category === "ALL" ? "Loại hình" : categoryLabel(filters.category)}
-              <ChevronDown className="size-4 text-muted-foreground" />
             </button>
             {filterCount > 0 ? (
               <button
@@ -521,6 +580,22 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
                 Không tìm thấy địa điểm phù hợp.
               </div>
             ) : null}
+            <div ref={loadMoreRef} className="h-8" />
+            {loadingMore ? (
+              <div className="mt-2 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-28 animate-pulse rounded-2xl border border-border bg-card"
+                  />
+                ))}
+              </div>
+            ) : null}
+            {!loading && !hasMore && filteredPlaces.length > 0 ? (
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                Đã hiển thị tất cả địa điểm phù hợp.
+              </p>
+            ) : null}
           </section>
         </div>
       </main>
@@ -557,13 +632,6 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
           filters={filters}
           resultCount={filteredPlaces.length}
           onClear={clearFilters}
-          onClose={() => setModal(null)}
-        />
-      ) : null}
-      {modal === "category" ? (
-        <CategoryModal
-          value={filters.category}
-          onChange={(category) => setFilters({ ...filters, category })}
           onClose={() => setModal(null)}
         />
       ) : null}

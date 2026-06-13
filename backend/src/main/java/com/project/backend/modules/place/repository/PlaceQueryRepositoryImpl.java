@@ -86,6 +86,28 @@ public class PlaceQueryRepositoryImpl implements PlaceQueryRepository {
         return ((Number) query.getSingleResult()).longValue();
     }
 
+    @Override
+    public List<Tuple> findDistrictsByFilter(PlaceFilterRequest req) {
+        WhereClause whereClause = buildWhere(withoutDistrict(req));
+
+        String sql = new StringBuilder()
+                .append("SELECT p.district AS name, COUNT(*) AS count ")
+                .append("FROM (")
+                .append(buildUnionParts(req.getCategory()))
+                .append(") p")
+                .append(whereClause.sql())
+                .append(" AND p.district IS NOT NULL AND BTRIM(p.district) <> '' ")
+                .append(" GROUP BY p.district")
+                .append(" ORDER BY count DESC, p.district ASC")
+                .append(" LIMIT 500")
+                .toString();
+
+        Query query = em.createNativeQuery(sql, Tuple.class);
+        whereClause.params().forEach(query::setParameter);
+
+        return query.getResultList();
+    }
+
     private WhereClause buildWhere(PlaceFilterRequest req) {
         StringBuilder sql = new StringBuilder(" WHERE 1=1 ");
         Map<String, Object> params = new LinkedHashMap<>();
@@ -166,6 +188,18 @@ public class PlaceQueryRepositoryImpl implements PlaceQueryRepository {
 
     private boolean hasValue(String s) {
         return s != null && !s.isBlank();
+    }
+
+    private PlaceFilterRequest withoutDistrict(PlaceFilterRequest req) {
+        return PlaceFilterRequest.builder()
+                .category(req.getCategory())
+                .tags(req.getTags())
+                .minPrice(req.getMinPrice())
+                .maxPrice(req.getMaxPrice())
+                .minRating(req.getMinRating())
+                .page(req.getPage())
+                .size(req.getSize())
+                .build();
     }
 
     private record WhereClause(String sql, Map<String, Object> params) {

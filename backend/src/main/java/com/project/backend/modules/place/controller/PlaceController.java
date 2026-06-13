@@ -2,11 +2,14 @@ package com.project.backend.modules.place.controller;
 
 import com.project.backend.common.dto.ApiResponse;
 import com.project.backend.modules.place.dto.request.PlaceFilterRequest;
+import com.project.backend.modules.place.dto.response.DistrictSummaryResponse;
 import com.project.backend.modules.place.dto.response.PageResponse;
 import com.project.backend.modules.place.dto.response.PlaceResponse;
 import com.project.backend.modules.place.service.PlaceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/places")
@@ -21,6 +24,15 @@ public class PlaceController {
 
         return ApiResponse.<PageResponse<PlaceResponse>>builder()
                 .result(placeService.filterPlaces(request))
+                .build();
+    }
+
+    @PostMapping("/districts")
+    public ApiResponse<List<DistrictSummaryResponse>> findDistricts(
+            @RequestBody PlaceFilterRequest request) {
+
+        return ApiResponse.<List<DistrictSummaryResponse>>builder()
+                .result(placeService.findDistricts(request))
                 .build();
     }
 }
