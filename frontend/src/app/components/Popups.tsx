@@ -4,6 +4,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  Coffee,
   Heart,
   ListFilter,
   MapPin,
@@ -77,16 +78,13 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: "newest", label: "Mới nhất" },
 ];
 
-const colors = [
-  "#4f46e5",
-  "#ef4444",
-  "#f97316",
-  "#f59e0b",
-  "#a3e635",
-  "#10b981",
-  "#06b6d4",
-  "#3b82f6",
-  "#94a3b8",
+const listIconOptions = [
+  { value: "bookmark", icon: Bookmark },
+  { value: "heart", icon: Heart },
+  { value: "camera", icon: Camera },
+  { value: "coffee", icon: Coffee },
+  { value: "map-pin", icon: MapPin },
+  { value: "star", icon: Star },
 ];
 
 function ModalFrame({
@@ -462,10 +460,6 @@ export function PlaceDetailModal({
         </section>
       </div>
       <footer className="flex gap-3 border-t border-slate-100 px-5 py-4">
-        <button className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold hover:bg-slate-50">
-          Lưu vào danh sách
-          <Bookmark className="size-4" />
-        </button>
         <button
           disabled={isSaved}
           onClick={() => onAddPlace(place)}
@@ -483,10 +477,11 @@ export function NewListModal({
   onCreate,
   onClose,
 }: {
-  onCreate: (name: string) => void;
+  onCreate: (name: string, icon?: string) => void;
   onClose: () => void;
 }) {
   const [listName, setListName] = useState("");
+  const [selectedIcon, setSelectedIcon] = useState("bookmark");
 
   return (
     <ModalFrame title="Tạo danh sách mới" onClose={onClose} className="max-w-md">
@@ -510,29 +505,17 @@ export function NewListModal({
         <section>
           <h3 className="text-sm font-semibold">Chọn biểu tượng</h3>
           <div className="mt-3 grid grid-cols-6 gap-3">
-            {[Bookmark, Heart, Camera, Coffee, MapPin, Star].map((Icon, index) => (
+            {listIconOptions.map(({ value, icon: Icon }) => (
               <button
-                key={index}
+                key={value}
+                type="button"
+                onClick={() => setSelectedIcon(value)}
                 className={cn(
                   "flex size-12 items-center justify-center rounded-xl border text-slate-700",
-                  index === 0 ? "border-primary bg-primary/5 text-primary" : "border-slate-200",
+                  selectedIcon === value ? "border-primary bg-primary/5 text-primary" : "border-slate-200",
                 )}
               >
                 <Icon className="size-5" />
-              </button>
-            ))}
-          </div>
-        </section>
-        <section>
-          <h3 className="text-sm font-semibold">Chọn màu</h3>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {colors.map((color, index) => (
-              <button
-                key={color}
-                className="flex size-7 items-center justify-center rounded-full"
-                style={{ backgroundColor: color }}
-              >
-                {index === 0 ? <Check className="size-4 text-white" /> : null}
               </button>
             ))}
           </div>
@@ -541,7 +524,7 @@ export function NewListModal({
       <FooterActions
         confirmLabel="Tạo mới"
         onCancel={onClose}
-        onConfirm={() => onCreate(listName.trim() || "Danh sách mới")}
+        onConfirm={() => onCreate(listName.trim() || "Danh sách mới", selectedIcon)}
       />
     </ModalFrame>
   );
