@@ -10,17 +10,23 @@ import {
   Users,
   X,
 } from "lucide-react";
+import type { AppView } from "../App";
 import { cn } from "../lib/utils";
 
 const navItems = [
-  { icon: Compass, label: "Khám phá", active: true },
-  { icon: Map, label: "Chuyến đi của tôi" },
+  { icon: Compass, label: "Khám phá", view: "explore" as const },
+  { icon: Map, label: "Chuyến đi của tôi", view: "trips" as const },
   { icon: Clock, label: "Timeline" },
   { icon: ListChecks, label: "Quản lý Timeline" },
   { icon: Users, label: "Cộng đồng" },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  activeView: AppView;
+  onNavigate: (view: AppView) => void;
+}
+
+export function Sidebar({ activeView, onNavigate }: SidebarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -138,11 +144,18 @@ export function Sidebar() {
             isMenuOpen ? "mt-8 gap-2" : "mt-12 gap-7",
           )}
         >
-          {navItems.map(({ icon: Icon, label, active }) => (
+          {navItems.map(({ icon: Icon, label, view }) => {
+            const active = view === activeView;
+            return (
             <button
               key={label}
               type="button"
-              onClick={closeMenu}
+              onClick={() => {
+                if (view) {
+                  onNavigate(view);
+                }
+                closeMenu();
+              }}
               className={cn(
                 "group relative flex h-12 items-center rounded-[18px] text-sm font-medium transition-all duration-[250ms] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
                 isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
@@ -171,7 +184,8 @@ export function Sidebar() {
                 {label}
               </span>
             </button>
-          ))}
+            );
+          })}
         </nav>
 
         <div
@@ -233,6 +247,10 @@ export function Sidebar() {
           </p>
           <button
             type="button"
+            onClick={() => {
+              onNavigate("trips");
+              closeMenu();
+            }}
             className="mt-4 w-full rounded-[16px] bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_oklch(0.515_0.22_277_/_0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:translate-y-0"
           >
             Tạo ngay
