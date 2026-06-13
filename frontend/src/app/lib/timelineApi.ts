@@ -88,6 +88,21 @@ export interface TimelineEventInput {
   status?: TimelineEventStatus;
 }
 
+export interface MoveTimelineEventInput {
+  startTime: string;
+  endTime: string;
+  orderIndex?: number;
+}
+
+export interface ResizeTimelineEventInput {
+  startTime: string;
+  endTime: string;
+}
+
+export interface ReorderTimelineEventInput {
+  orderIndex: number;
+}
+
 export interface NotificationItem {
   id: string;
   category: string;
@@ -232,6 +247,59 @@ export function createTimelineEvent(timelineId: string, input: TimelineEventInpu
   return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function fetchTimelineEvents(
+  timelineId: string,
+  rangeStart: string,
+  rangeEnd: string,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({ rangeStart, rangeEnd });
+  return apiFetch<TimelineEvent[]>(
+    `/api/v1/timelines/${timelineId}/events?${params.toString()}`,
+    {},
+    signal,
+  );
+}
+
+export function moveTimelineEvent(
+  timelineId: string,
+  eventId: string,
+  input: MoveTimelineEventInput,
+) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/move`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function resizeTimelineEvent(
+  timelineId: string,
+  eventId: string,
+  input: ResizeTimelineEventInput,
+) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/resize`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function reorderTimelineEvent(
+  timelineId: string,
+  eventId: string,
+  input: ReorderTimelineEventInput,
+) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteTimelineEvent(timelineId: string, eventId: string) {
+  return apiFetch<void>(`/api/v1/timelines/${timelineId}/events/${eventId}`, {
+    method: "DELETE",
   });
 }
 
