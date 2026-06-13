@@ -4,7 +4,7 @@ import { Explore } from "./components/Explore";
 import { ListPanel } from "./components/ListPanel";
 import { MyTrips } from "./components/MyTrips";
 import { Sidebar } from "./components/Sidebar";
-import { getAuthToken } from "./lib/authApi";
+import { clearAuthToken, getAuthToken } from "./lib/authApi";
 import type { Place } from "./lib/placesApi";
 
 export type AppView = "explore" | "trips";
@@ -34,13 +34,20 @@ export default function App() {
     );
   }
 
+  function logout() {
+    clearAuthToken();
+    setSavedPlaces([]);
+    setView("trips");
+    setIsAuthenticated(false);
+  }
+
   if (!isAuthenticated) {
     return <AuthPage onAuthenticated={() => setIsAuthenticated(true)} />;
   }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <Sidebar activeView={view} onNavigate={setView} />
+      <Sidebar activeView={view} onNavigate={setView} onLogout={logout} />
       {view === "trips" ? (
         <MyTrips onExplore={() => setView("explore")} />
       ) : (
