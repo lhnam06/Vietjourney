@@ -4,11 +4,15 @@ import {
   Clock,
   Compass,
   ListChecks,
+  LogOut,
   Map,
   Navigation,
+  Settings,
   Sparkles,
+  UserRound,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import type { AppView } from "../App";
 import { cn } from "../lib/utils";
@@ -24,10 +28,12 @@ const navItems = [
 interface SidebarProps {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
+  onLogout: () => void;
 }
 
-export function Sidebar({ activeView, onNavigate }: SidebarProps) {
+export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearCloseTimer() {
@@ -44,12 +50,14 @@ export function Sidebar({ activeView, onNavigate }: SidebarProps) {
 
   function closeMenu() {
     clearCloseTimer();
+    setIsAccountMenuOpen(false);
     setIsMenuOpen(false);
   }
 
   function scheduleCloseMenu() {
     clearCloseTimer();
     closeTimerRef.current = setTimeout(() => {
+      setIsAccountMenuOpen(false);
       setIsMenuOpen(false);
       closeTimerRef.current = null;
     }, 160);
@@ -146,44 +154,45 @@ export function Sidebar({ activeView, onNavigate }: SidebarProps) {
         >
           {navItems.map(({ icon: Icon, label, view }) => {
             const active = view === activeView;
+
             return (
-            <button
-              key={label}
-              type="button"
-              onClick={() => {
-                if (view) {
-                  onNavigate(view);
-                }
-                closeMenu();
-              }}
-              className={cn(
-                "group relative flex h-12 items-center rounded-[18px] text-sm font-medium transition-all duration-[250ms] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
-                isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
-                active
-                  ? "bg-accent text-primary"
-                  : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-              )}
-            >
-              {active ? (
-                <span
-                  className={cn(
-                    "absolute rounded-r-full bg-primary transition-all duration-300",
-                    isMenuOpen ? "left-0 h-8 w-1" : "hidden",
-                  )}
-                />
-              ) : null}
-              <Icon className="size-5 shrink-0 transition-transform duration-200 group-hover:scale-105" />
-              <span
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  if (view) {
+                    onNavigate(view);
+                  }
+                  closeMenu();
+                }}
                 className={cn(
-                  "overflow-hidden truncate whitespace-nowrap text-left transition-all duration-200",
-                  isMenuOpen
-                    ? "max-w-56 translate-x-0 opacity-100 delay-100"
-                    : "pointer-events-none w-0 max-w-0 -translate-x-2 opacity-0",
+                  "group relative flex h-12 items-center rounded-[18px] text-sm font-medium transition-all duration-[250ms] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
+                  isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
+                  active
+                    ? "bg-accent text-primary"
+                    : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                 )}
               >
-                {label}
-              </span>
-            </button>
+                {active ? (
+                  <span
+                    className={cn(
+                      "absolute rounded-r-full bg-primary transition-all duration-300",
+                      isMenuOpen ? "left-0 h-8 w-1" : "hidden",
+                    )}
+                  />
+                ) : null}
+                <Icon className="size-5 shrink-0 transition-transform duration-200 group-hover:scale-105" />
+                <span
+                  className={cn(
+                    "overflow-hidden truncate whitespace-nowrap text-left transition-all duration-200",
+                    isMenuOpen
+                      ? "max-w-56 translate-x-0 opacity-100 delay-100"
+                      : "pointer-events-none w-0 max-w-0 -translate-x-2 opacity-0",
+                  )}
+                >
+                  {label}
+                </span>
+              </button>
             );
           })}
         </nav>
@@ -257,15 +266,99 @@ export function Sidebar({ activeView, onNavigate }: SidebarProps) {
           </button>
         </div>
 
-        <img
-          src="/avatar.png"
-          alt="Ảnh đại diện"
-          className={cn(
-            "mt-4 size-10 shrink-0 rounded-full object-cover ring-2 ring-card shadow-sm transition-all duration-300",
-            isMenuOpen ? "self-start" : "self-center",
-          )}
-        />
+        <div className={cn("relative mt-4", isMenuOpen ? "w-full" : "self-center")}>
+          <button
+            type="button"
+            aria-label="Menu người dùng"
+            aria-expanded={isAccountMenuOpen}
+            aria-controls="account-menu"
+            onClick={() => {
+              openMenu();
+              setIsAccountMenuOpen((current) => !current);
+            }}
+            className={cn(
+              "group flex h-12 items-center rounded-[18px] text-sm font-semibold text-foreground transition-all duration-[250ms] ease-out hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
+              isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
+            )}
+          >
+            <img
+              src="/avatar.png"
+              alt="Ảnh đại diện"
+              className="size-10 shrink-0 rounded-full object-cover ring-2 ring-card shadow-sm transition-transform duration-200 group-hover:scale-105"
+            />
+            <span
+              className={cn(
+                "min-w-0 overflow-hidden truncate whitespace-nowrap text-left transition-all duration-200",
+                isMenuOpen
+                  ? "max-w-44 translate-x-0 opacity-100 delay-100"
+                  : "pointer-events-none w-0 max-w-0 -translate-x-2 opacity-0",
+              )}
+            >
+              Huỳnh Vĩnh An
+            </span>
+          </button>
+
+          <div
+            id="account-menu"
+            className={cn(
+              "fixed z-50 w-56 overflow-hidden rounded-[18px] border border-border/80 bg-card/98 p-1.5 shadow-[0_20px_60px_oklch(0.22_0.02_270_/_0.18)] backdrop-blur-xl transition-all duration-200",
+              isMenuOpen ? "bottom-[78px] left-5" : "bottom-[78px] left-[76px]",
+              isAccountMenuOpen
+                ? "translate-y-0 opacity-100"
+                : "pointer-events-none translate-y-2 opacity-0",
+            )}
+          >
+            <AccountMenuButton
+              icon={UserRound}
+              label="Hồ sơ"
+              onClick={() => setIsAccountMenuOpen(false)}
+            />
+            <AccountMenuButton
+              icon={Settings}
+              label="Cài đặt"
+              onClick={() => setIsAccountMenuOpen(false)}
+            />
+            <div className="my-1 h-px bg-border/70" />
+            <AccountMenuButton
+              icon={LogOut}
+              label="Đăng xuất"
+              danger
+              onClick={() => {
+                closeMenu();
+                onLogout();
+              }}
+            />
+          </div>
+        </div>
       </aside>
     </div>
+  );
+}
+
+function AccountMenuButton({
+  icon: Icon,
+  label,
+  danger = false,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-10 w-full items-center gap-3 rounded-[12px] px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 active:scale-[0.99]",
+        danger
+          ? "text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/30"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-primary/30",
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
