@@ -261,7 +261,7 @@ export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
 
   return (
     <>
-      <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] px-5 py-6 lg:px-8">
+      <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] px-5 pb-6 pt-10 lg:px-8">
         <div className="mx-auto grid max-w-[1480px] gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
           <section className="min-w-0">
             <header className="flex flex-wrap items-start justify-between gap-4">
@@ -345,18 +345,18 @@ export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-lg font-bold text-foreground">Tất cả chuyến đi</h2>
                     <div className="flex items-center gap-2">
-                      <button className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
+                      <button className="flex items-center gap-2 rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.98_0.018_277),white)] px-4 py-2.5 text-sm font-medium text-primary shadow-sm">
                         Sắp xếp: Mới nhất
                         <ChevronDown className="size-4" />
                       </button>
-                      <div className="flex rounded-xl border border-border bg-card p-1 shadow-sm">
+                      <div className="flex rounded-xl border border-primary/20 bg-primary/10 p-1 shadow-sm">
                         <button
                           type="button"
                           aria-label="Xem dạng lưới"
                           onClick={() => setViewMode("grid")}
                           className={cn(
                             "flex size-9 items-center justify-center rounded-lg",
-                            viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+                            viewMode === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-primary/65 hover:bg-white/70",
                           )}
                         >
                           <Grid2X2 className="size-4" />
@@ -367,7 +367,7 @@ export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
                           onClick={() => setViewMode("list")}
                           className={cn(
                             "flex size-9 items-center justify-center rounded-lg",
-                            viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+                            viewMode === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-primary/65 hover:bg-white/70",
                           )}
                         >
                           <List className="size-4" />

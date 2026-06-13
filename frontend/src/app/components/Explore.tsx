@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
   ChevronDown,
   Filter,
@@ -19,6 +19,7 @@ import {
   formatPrice,
   normalizeCategory,
   placeImage,
+  tagLabel,
   tagOptionsForCategory,
   type DistrictSummary,
   type Place,
@@ -37,6 +38,10 @@ import {
   type SortOption,
   type TagOptionGroup,
 } from "./Popups";
+import {
+  fetchRecommendedPlaces,
+  recordPlaceInteraction,
+} from "../lib/recommendationApi";
 
 const defaultFilters: PlaceFilters = {
   district: "",
@@ -161,16 +166,29 @@ function Rating({ rating }: { rating?: number | null }) {
   );
 }
 
-function CategoryBadge({ category }: { category?: string | null }) {
+function placeSubCategory(place: Place) {
+  return place.tags?.sub_category?.find(Boolean);
+}
+
+function CategoryBadges({ place }: { place: Place }) {
+  const subCategory = placeSubCategory(place);
+
   return (
-    <span
-      className={cn(
-        "mt-2 inline-block rounded-md px-2 py-0.5 text-xs font-medium",
-        categoryStyles[category || ""] || "bg-sky-100 text-sky-700",
-      )}
-    >
-      {categoryLabel(category)}
-    </span>
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      <span
+        className={cn(
+          "inline-block rounded-md px-2 py-0.5 text-xs font-medium",
+          categoryStyles[place.category || ""] || "bg-sky-100 text-sky-700",
+        )}
+      >
+        {categoryLabel(place.category)}
+      </span>
+      {subCategory ? (
+        <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+          {tagLabel(subCategory)}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -179,16 +197,20 @@ function SuggestionCard({
   isSaved,
   onAddPlace,
   onOpenPlace,
+  onDragStart,
 }: {
   place: Place;
   isSaved: boolean;
   onAddPlace: (place: Place) => void;
   onOpenPlace: (place: Place) => void;
+  onDragStart: (event: DragEvent, place: Place) => void;
 }) {
   return (
     <article
+      draggable
       onClick={() => onOpenPlace(place)}
-      className="overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-md"
+      onDragStart={(event) => onDragStart(event, place)}
+      className="cursor-grab overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-md active:cursor-grabbing"
     >
       <div className="relative h-32">
         <img
@@ -226,16 +248,20 @@ function PlaceRow({
   isSaved,
   onAddPlace,
   onOpenPlace,
+  onDragStart,
 }: {
   place: Place;
   isSaved: boolean;
   onAddPlace: (place: Place) => void;
   onOpenPlace: (place: Place) => void;
+  onDragStart: (event: DragEvent, place: Place) => void;
 }) {
   return (
     <article
+      draggable
       onClick={() => onOpenPlace(place)}
-      className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3 transition-shadow hover:shadow-md"
+      onDragStart={(event) => onDragStart(event, place)}
+      className="flex cursor-grab items-start gap-3 rounded-2xl border border-border bg-card p-3 transition-shadow hover:shadow-md active:cursor-grabbing"
     >
       <button
         aria-label="Kéo để sắp xếp"
@@ -251,7 +277,7 @@ function PlaceRow({
       <img
         src={placeImage(place)}
         alt={place.name}
-        className="size-16 shrink-0 rounded-xl object-cover"
+        className="h-24 w-32 shrink-0 rounded-xl object-cover"
       />
       <div className="min-w-0 flex-1">
         <h3 className="truncate font-semibold text-foreground">{place.name}</h3>
@@ -262,7 +288,7 @@ function PlaceRow({
         <p className="mt-0.5 truncate text-sm text-muted-foreground">
           {place.district || place.address || "Chưa có địa chỉ"}
         </p>
-        <CategoryBadge category={place.category} />
+        <CategoryBadges place={place} />
       </div>
       <button
         aria-label={`Thêm ${place.name}`}
@@ -284,6 +310,7 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOption>("best");
   const [places, setPlaces] = useState<Place[]>([]);
+  const [recommendedPlaces, setRecommendedPlaces] = useState<Place[]>([]);
   const [districts, setDistricts] = useState<DistrictSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
@@ -295,6 +322,7 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
   const [error, setError] = useState<string | null>(null);
   const scrollRootRef = useRef<HTMLElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const viewedSuggestionIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -330,6 +358,25 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
 
     return () => controller.abort();
   }, [filters]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadRecommendations() {
+      try {
+        const nextRecommendations = await fetchRecommendedPlaces(24, controller.signal);
+        setRecommendedPlaces(nextRecommendations);
+      } catch {
+        if (!controller.signal.aborted) {
+          setRecommendedPlaces([]);
+        }
+      }
+    }
+
+    loadRecommendations();
+
+    return () => controller.abort();
+  }, [filters.category]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -417,12 +464,40 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
     return () => observer.disconnect();
   }, [filteredPlaces.length, hasMore, loadMorePlaces, loading, loadingMore]);
 
-  const suggestions = filteredPlaces.slice(0, 3);
+  const suggestions = useMemo(() => {
+    const category = normalizeCategory(filters.category);
+    const recommendedForCategory = recommendedPlaces.filter(
+      (place) => normalizeCategory(place.category) === category,
+    );
+
+    return mergePlaces(recommendedForCategory, filteredPlaces).slice(0, 3);
+  }, [filteredPlaces, filters.category, recommendedPlaces]);
   const filterCount = activeFilterCount(filters);
 
+  useEffect(() => {
+    suggestions.forEach((place) => {
+      const key = `${place.category || "place"}:${place.id}`;
+      if (viewedSuggestionIdsRef.current.has(key)) return;
+
+      viewedSuggestionIdsRef.current.add(key);
+      void recordPlaceInteraction({ place, eventType: "VIEWPORT" }).catch(() => undefined);
+    });
+  }, [suggestions]);
+
   function openPlace(place: Place) {
+    void recordPlaceInteraction({ place, eventType: "CLICK" }).catch(() => undefined);
     setSelectedPlace(place);
     setModal("place");
+  }
+
+  function addPlace(place: Place) {
+    void recordPlaceInteraction({ place, eventType: "ADD_TO_TIMELINE" }).catch(() => undefined);
+    onAddPlace(place);
+  }
+
+  function handlePlaceDragStart(event: DragEvent, place: Place) {
+    event.dataTransfer.setData("application/json", JSON.stringify({ kind: "discovery-place", place }));
+    event.dataTransfer.effectAllowed = "copy";
   }
 
   function clearFilters() {
@@ -431,8 +506,8 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
 
   return (
     <>
-      <main ref={scrollRootRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
-        <div className="mx-auto max-w-3xl">
+      <main ref={scrollRootRef} className="flex-1 overflow-y-auto px-4 pb-6 pt-10 sm:px-5 lg:px-8">
+        <div className="mx-auto max-w-5xl">
           <header className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-balance text-3xl font-bold text-foreground">
@@ -539,8 +614,9 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
                       key={place.id}
                       place={place}
                       isSaved={savedPlaceIds.has(place.id)}
-                      onAddPlace={onAddPlace}
+                      onAddPlace={addPlace}
                       onOpenPlace={openPlace}
+                      onDragStart={handlePlaceDragStart}
                     />
                   ))}
             </div>
@@ -570,8 +646,9 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
                       key={place.id}
                       place={place}
                       isSaved={savedPlaceIds.has(place.id)}
-                      onAddPlace={onAddPlace}
+                      onAddPlace={addPlace}
                       onOpenPlace={openPlace}
+                      onDragStart={handlePlaceDragStart}
                     />
                   ))}
             </div>
@@ -623,7 +700,7 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
         <PlaceDetailModal
           place={selectedPlace}
           isSaved={savedPlaceIds.has(selectedPlace.id)}
-          onAddPlace={onAddPlace}
+          onAddPlace={addPlace}
           onClose={() => setModal(null)}
         />
       ) : null}
