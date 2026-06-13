@@ -5,7 +5,6 @@ import {
   Eye,
   EyeOff,
   Lock,
-  Mail,
   Navigation,
   UserRound,
   Users,
@@ -298,15 +297,15 @@ function AuthForm({
         ) : null}
 
         <AuthInput
-          label={mode === "login" ? "Email hoặc số điện thoại" : "Email hoặc tên đăng nhập"}
-          icon={Mail}
+          label="Tên đăng nhập"
+          icon={UserRound}
           value={mode === "login" ? loginForm.username : signupForm.username}
           onChange={(username) =>
             mode === "login"
               ? setLoginForm({ ...loginForm, username })
               : setSignupForm({ ...signupForm, username })
           }
-          placeholder={mode === "login" ? "Nhập email hoặc số điện thoại" : "Từ 5-30 ký tự, không khoảng trắng"}
+          placeholder={mode === "login" ? "Nhập tên đăng nhập" : "Từ 5-30 ký tự, không khoảng trắng"}
           autoComplete="username"
         />
 

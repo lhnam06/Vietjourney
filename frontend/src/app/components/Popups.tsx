@@ -4,19 +4,13 @@ import {
   Camera,
   Check,
   ChevronRight,
-  Coffee,
-  Grid2X2,
   Heart,
-  Hotel,
   ListFilter,
   MapPin,
   Search,
-  ShoppingBag,
   SlidersHorizontal,
   Sparkles,
   Star,
-  Trophy,
-  Utensils,
   X,
 } from "lucide-react";
 import {
@@ -37,7 +31,6 @@ export type ModalType =
   | "place"
   | "new-list"
   | "active-filters"
-  | "category"
   | "sort"
   | "tips"
   | null;
@@ -73,17 +66,6 @@ const ratingOptions: { value: RatingFilter; label: string }[] = [
   { value: "4", label: "4.0+" },
   { value: "4.5", label: "4.5+" },
   { value: "5", label: "5.0" },
-];
-
-const categoryOptions = [
-  { value: "ALL", label: "Tất cả", icon: Grid2X2 },
-  { value: "FOOD", label: "Ăn uống", icon: Utensils },
-  { value: "DRINK", label: "Café", icon: Coffee },
-  { value: "ACTIVITY", label: "Trải nghiệm", icon: Trophy },
-  { value: "VISIT", label: "Tham quan", icon: Hotel, disabled: true },
-  { value: "SHOPPING", label: "Mua sắm", icon: ShoppingBag, disabled: true },
-  { value: "ENTERTAINMENT", label: "Giải trí", icon: Sparkles, disabled: true },
-  { value: "STAY", label: "Lưu trú", icon: Hotel, disabled: true },
 ];
 
 const sortOptions: { value: SortOption; label: string }[] = [
@@ -208,18 +190,26 @@ export function AreaModal({
   onReset: () => void;
   onClose: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleDistricts = normalizedQuery
+    ? districts.filter((district) => district.name.toLowerCase().includes(normalizedQuery))
+    : districts;
+
   return (
     <ModalFrame title="Chọn khu vực" onClose={onClose} className="max-w-md">
       <div className="px-5 pb-4">
         <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-500">
           <Search className="size-4" />
           <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="Tìm khu vực, quận, thành phố..."
             className="min-w-0 flex-1 bg-transparent text-sm outline-none"
           />
         </div>
         <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto pr-1">
-          {districts.map((district) => (
+          {visibleDistricts.map((district) => (
             <button
               key={district.name}
               onClick={() => onSelect(district.name)}
@@ -248,6 +238,11 @@ export function AreaModal({
               ) : null}
             </button>
           ))}
+          {visibleDistricts.length === 0 ? (
+            <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              Không tìm thấy khu vực phù hợp.
+            </p>
+          ) : null}
         </div>
       </div>
       <footer className="flex gap-3 border-t border-slate-100 px-5 py-4">
@@ -343,7 +338,7 @@ export function FilterModal({
               {tagOptions.map((optionGroup) => (
                 <div key={optionGroup.group}>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {tagGroupLabel(optionGroup.group)}
+                    {tagGroupLabel(optionGroup.group, filters.category)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {optionGroup.values.map((value) => (
@@ -565,7 +560,6 @@ export function ActiveFiltersModal({
 }) {
   const active = [
     filters.district,
-    filters.category !== "ALL" ? categoryLabel(filters.category) : "",
     priceOptions.find((option) => option.value === filters.price)?.label !== "Tất cả"
       ? priceOptions.find((option) => option.value === filters.price)?.label
       : "",
@@ -573,7 +567,7 @@ export function ActiveFiltersModal({
       ? ratingOptions.find((option) => option.value === filters.rating)?.label
       : "",
     ...Object.entries(filters.tags).flatMap(([group, values]) =>
-      values.map((value) => `${tagGroupLabel(group)}: ${tagLabel(value)}`),
+      values.map((value) => `${tagGroupLabel(group, filters.category)}: ${tagLabel(value)}`),
     ),
   ].filter(Boolean);
 
@@ -606,40 +600,6 @@ export function ActiveFiltersModal({
           Xem kết quả
         </button>
       </div>
-    </ModalFrame>
-  );
-}
-
-export function CategoryModal({
-  value,
-  onChange,
-  onClose,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <ModalFrame title="Chọn loại hình" onClose={onClose} className="max-w-lg">
-      <div className="grid grid-cols-4 gap-4 px-5 pb-8">
-        {categoryOptions.map(({ value: optionValue, label, icon: Icon, disabled }) => (
-          <button
-            key={optionValue}
-            disabled={disabled}
-            onClick={() => onChange(optionValue)}
-            className={cn(
-              "flex h-20 flex-col items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45",
-              value === optionValue
-                ? "border-primary bg-primary/5 text-primary"
-                : "border-slate-200 bg-slate-50 hover:bg-white",
-            )}
-          >
-            <Icon className="size-5" />
-            {label}
-          </button>
-        ))}
-      </div>
-      <FooterActions confirmLabel="Xác nhận" onCancel={onClose} onConfirm={onClose} />
     </ModalFrame>
   );
 }

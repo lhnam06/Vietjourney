@@ -9,4 +9,6 @@ public interface PlaceQueryRepository {
     List<Tuple> findByFilter(PlaceFilterRequest req);
 
     long countByFilter(PlaceFilterRequest req);
+
+    List<Tuple> findDistrictsByFilter(PlaceFilterRequest req);
 }
