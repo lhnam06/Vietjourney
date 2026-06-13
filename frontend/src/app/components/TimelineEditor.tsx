@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent
 import {
   ArrowLeft,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   GripVertical,
@@ -11,11 +12,11 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import type { PlaceList } from "../App";
 import {
   categoryFilter,
   categoryLabel,
   compactPrice,
-  fetchPlaces,
   placeImage,
   type Place,
 } from "../lib/placesApi";
@@ -30,6 +31,8 @@ import {
   type TimelineEventCategory,
 } from "../lib/timelineApi";
 import { cn } from "../lib/utils";
+import { NewListModal } from "./Popups";
+import { listIcon } from "./ListPanel";
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const hours = Array.from({ length: 24 }, (_, index) => index);
@@ -49,19 +52,33 @@ interface ResizeState {
 
 interface TimelineEditorProps {
   timeline: Timeline;
+  placeLists: PlaceList[];
+  activeListId: string;
+  onSelectList: (listId: string) => void;
+  onCreateList: (name: string, icon?: string) => void;
   onBack: () => void;
 }
 
-export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
+export function TimelineEditor({
+  timeline,
+  placeLists,
+  activeListId,
+  onSelectList,
+  onCreateList,
+  onBack,
+}: TimelineEditorProps) {
   const [events, setEvents] = useState<TimelineEvent[]>(timeline.events);
-  const [places, setPlaces] = useState<Place[]>([]);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(timeline.startDate)));
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [edgeHint, setEdgeHint] = useState<"previous" | "next" | null>(null);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
+  const [isNewListOpen, setIsNewListOpen] = useState(false);
+  const [isListMenuOpen, setIsListMenuOpen] = useState(false);
   const edgeSwitchRef = useRef<number | null>(null);
+  const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
+  const ActiveListIcon = listIcon(activeList?.icon);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
@@ -75,26 +92,11 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
     () => new Map(events.map((event) => [event.id, event])),
     [events],
   );
+  const savedPlaceCards = activeList?.places || [];
   const placeById = useMemo(
-    () => new Map(places.map((place) => [place.id, place])),
-    [places],
+    () => new Map(savedPlaceCards.map((place) => [place.id, place])),
+    [savedPlaceCards],
   );
-  const savedPlaceCards = useMemo(() => {
-    const eventPlaces = events
-      .map((event) => event.place)
-      .filter((place): place is NonNullable<TimelineEvent["place"]> => Boolean(place))
-      .map((place) => ({
-        id: place.id,
-        name: place.name,
-        category: undefined,
-        rating: place.rating,
-        district: place.district,
-        images: place.imageUrl ? [place.imageUrl] : null,
-      })) satisfies Place[];
-
-    const merged = [...eventPlaces, ...places];
-    return Array.from(new Map(merged.map((place) => [place.id, place])).values()).slice(0, 10);
-  }, [events, places]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -103,18 +105,8 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
       setLoading(true);
       setError(null);
       try {
-        const [nextEvents, foodPlaces, activityPlaces, drinkPlaces] = await Promise.all([
-          fetchTimelineEvents(timeline.id, rangeStart, rangeEnd, controller.signal),
-          fetchPlaces({ category: "food", size: 8 }, controller.signal),
-          fetchPlaces({ category: "activity", size: 8 }, controller.signal),
-          fetchPlaces({ category: "drink", size: 8 }, controller.signal),
-        ]);
+        const nextEvents = await fetchTimelineEvents(timeline.id, rangeStart, rangeEnd, controller.signal);
         setEvents(nextEvents);
-        setPlaces([
-          ...foodPlaces.data,
-          ...activityPlaces.data,
-          ...drinkPlaces.data,
-        ]);
       } catch (loadError) {
         if (!controller.signal.aborted) {
           setError(loadError instanceof Error ? loadError.message : "Không tải được timeline.");
@@ -232,7 +224,7 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
     try {
       setError(null);
       if (payload.kind === "place") {
-        const place = placeById.get(payload.placeId) || savedPlaceCards.find((item) => item.id === payload.placeId);
+        const place = placeById.get(payload.placeId);
         if (!place) return;
         const created = await createTimelineEvent(timeline.id, {
           externalPlaceId: place.id,
@@ -308,8 +300,8 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] p-4 lg:p-5">
-      <div className="grid min-h-full gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] px-4 pb-5 pt-10 lg:px-5">
+      <div className="grid min-h-full gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="flex max-h-[calc(100vh-40px)] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-5">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -320,7 +312,11 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
               <ArrowLeft className="size-4" />
               Chuyến đi của tôi
             </button>
-            <button className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <button
+              type="button"
+              onClick={() => setIsNewListOpen(true)}
+              className="flex items-center gap-2 text-sm font-semibold text-primary"
+            >
               <Plus className="size-4" />
               Tạo mới
             </button>
@@ -334,14 +330,61 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
             </p>
           </div>
 
-          <div className="mt-5 flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-primary/25 bg-accent/25 p-5 text-center">
-            <span className="flex size-12 items-center justify-center rounded-xl border border-primary/25 bg-card text-primary">
-              <GripVertical className="size-6" />
+          <div className="relative mt-5">
+            <button
+              type="button"
+              onClick={() => setIsListMenuOpen((open) => !open)}
+              className="flex h-12 w-full items-center justify-between rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.98_0.018_277),white)] px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <ActiveListIcon className="size-4" />
+                </span>
+                <span className="truncate">{activeList?.name || "Danh sách"}</span>
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            </button>
+            {isListMenuOpen ? (
+              <div className="absolute left-0 right-0 top-14 z-30 max-h-64 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                {placeLists.map((list) => (
+                  <button
+                    key={list.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectList(list.id);
+                      setIsListMenuOpen(false);
+                    }}
+                    className={cn(
+                      "flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-medium transition-colors",
+                      list.id === activeList?.id
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground hover:bg-accent",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {(() => {
+                        const Icon = listIcon(list.icon);
+                        return <Icon className="size-4 shrink-0" />;
+                      })()}
+                      <span className="truncate">{list.name}</span>
+                    </span>
+                    <span className="ml-3 text-xs opacity-75">{list.places.length}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-primary/25 bg-accent/25 p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-card text-primary">
+              <GripVertical className="size-5" />
             </span>
-            <h2 className="mt-4 font-bold text-foreground">Kéo địa điểm vào lịch</h2>
-            <p className="mt-2 max-w-64 text-sm leading-6 text-muted-foreground">
-              Kéo card bên dưới vào ngày và khung giờ bạn muốn.
-            </p>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-foreground">Kéo địa điểm vào lịch</h2>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Kéo card trong danh sách vào ngày và khung giờ bạn muốn.
+              </p>
+            </div>
           </div>
 
           <div className="mt-5 flex items-center justify-between">
@@ -357,15 +400,12 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
                 onDragStart={(event) => handleDragStart(event, { kind: "place", placeId: place.id })}
               />
             ))}
+            {!savedPlaceCards.length ? (
+              <div className="rounded-xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
+                Danh sách này chưa có địa điểm. Quay lại Khám phá để thêm địa điểm hoặc chọn danh sách khác.
+              </div>
+            ) : null}
           </div>
-
-          <button
-            type="button"
-            className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl bg-primary px-4 py-4 text-sm font-semibold text-primary-foreground shadow-[0_16px_32px_oklch(0.515_0.22_277_/_0.22)] transition hover:-translate-y-0.5"
-          >
-            <CalendarDays className="size-5" />
-            Tạo lịch từ danh sách
-          </button>
         </aside>
 
         <section className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -507,6 +547,15 @@ export function TimelineEditor({ timeline, onBack }: TimelineEditorProps) {
           </div>
         </section>
       </div>
+      {isNewListOpen ? (
+        <NewListModal
+          onCreate={(name, icon) => {
+            onCreateList(name, icon);
+            setIsNewListOpen(false);
+          }}
+          onClose={() => setIsNewListOpen(false)}
+        />
+      ) : null}
     </main>
   );
 }
