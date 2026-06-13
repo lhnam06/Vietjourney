@@ -36,8 +36,11 @@ import { listIcon } from "./ListPanel";
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const hours = Array.from({ length: 24 }, (_, index) => index);
-const hourHeight = 42;
-const dayColumnWidth = "minmax(128px,1fr)";
+const hourHeight = 54;
+const calendarHeaderHeight = 88;
+const timeColumnWidth = 86;
+const dayColumnWidth = "minmax(156px,1fr)";
+const eventCardInset = 8;
 
 type DragPayload =
   | { kind: "place"; placeId: string }
@@ -211,6 +214,9 @@ export function TimelineEditor({
   async function handleDrop(event: DragEvent, day: Date, hour: number) {
     event.preventDefault();
     setEdgeHint(null);
+    if (!isTimelineDay(day, timelineStart, timelineEnd)) {
+      return;
+    }
     const payload = parseDragPayload(event);
     if (!payload) return;
 
@@ -297,6 +303,10 @@ export function TimelineEditor({
       .sort((first, second) => first.orderIndex - second.orderIndex);
   }
 
+  function canDropOnDay(day: Date) {
+    return isTimelineDay(day, timelineStart, timelineEnd);
+  }
+
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
 
   return (
@@ -307,7 +317,7 @@ export function TimelineEditor({
             <button
               type="button"
               onClick={onBack}
-              className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+              className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/15"
             >
               <ArrowLeft className="size-4" />
               Chuyến đi của tôi
@@ -315,7 +325,7 @@ export function TimelineEditor({
             <button
               type="button"
               onClick={() => setIsNewListOpen(true)}
-              className="flex items-center gap-2 text-sm font-semibold text-primary"
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_10px_24px_oklch(0.515_0.22_277_/_0.22)] transition hover:-translate-y-0.5 hover:opacity-95"
             >
               <Plus className="size-4" />
               Tạo mới
@@ -426,26 +436,26 @@ export function TimelineEditor({
               <button
                 type="button"
                 onClick={() => changeWeek(-1)}
-                className="flex size-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground hover:text-foreground"
+                className="flex size-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm transition hover:bg-primary/15"
               >
                 <ChevronLeft className="size-5" />
               </button>
               <button
                 type="button"
                 onClick={() => changeWeek(1)}
-                className="flex size-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground hover:text-foreground"
+                className="flex size-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm transition hover:bg-primary/15"
               >
                 <ChevronRight className="size-5" />
               </button>
-              <div className="flex h-11 items-center gap-3 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground">
+              <div className="flex h-11 items-center gap-3 rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.98_0.018_277),white)] px-4 text-sm font-semibold text-foreground shadow-sm">
                 <CalendarDays className="size-4 text-primary" />
                 {weekRangeText}
               </div>
             </div>
 
-            <div className="flex rounded-xl border border-border bg-background p-1">
-              <button className="rounded-lg px-5 py-2 text-sm font-medium text-muted-foreground">Ngày</button>
-              <button className="rounded-lg bg-card px-5 py-2 text-sm font-semibold text-primary shadow-sm">Tuần</button>
+            <div className="flex rounded-xl border border-primary/20 bg-primary/10 p-1 shadow-sm">
+              <button className="rounded-lg px-5 py-2 text-sm font-medium text-primary/65 hover:bg-white/70">Ngày</button>
+              <button className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm">Tuần</button>
             </div>
           </div>
 
@@ -472,20 +482,36 @@ export function TimelineEditor({
             ) : null}
 
             <div
-              className="min-w-[980px] grid"
+              className="min-w-[1180px] grid"
               style={{
-                gridTemplateColumns: `68px repeat(7, ${dayColumnWidth})`,
+                gridTemplateColumns: `${timeColumnWidth}px repeat(7, ${dayColumnWidth})`,
               }}
             >
-              <div className="sticky left-0 top-0 z-20 border-b border-r border-border bg-card px-4 py-4 text-sm font-semibold text-primary">
+              <div
+                className="sticky left-0 top-0 z-20 flex items-center border-b border-r border-border bg-card px-5 text-sm font-semibold text-primary"
+                style={{ height: calendarHeaderHeight }}
+              >
                 Giờ
               </div>
-              {weekDays.map((day, index) => (
-                <div key={day.toISOString()} className="sticky top-0 z-10 border-b border-r border-border bg-card px-4 py-3 text-center">
-                  <p className="font-semibold text-foreground">{dayLabels[index]}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{formatShortDate(day)}</p>
-                </div>
-              ))}
+              {weekDays.map((day, index) => {
+                const available = canDropOnDay(day);
+
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-r border-border px-4 text-center",
+                      available ? "bg-card" : "bg-slate-100 text-muted-foreground",
+                    )}
+                    style={{ height: calendarHeaderHeight }}
+                  >
+                    <p className={cn("font-semibold", available ? "text-foreground" : "text-muted-foreground")}>
+                      {dayLabels[index]}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">{formatShortDate(day)}</p>
+                  </div>
+                );
+              })}
 
               {hours.map((hour) => (
                 <div key={`row-${hour}`} className="contents">
@@ -495,19 +521,31 @@ export function TimelineEditor({
                   >
                     {hour === 23 ? "23:00 - 23:59" : `${String(hour).padStart(2, "0")}:00`}
                   </div>
-                  {weekDays.map((day) => (
-                    <div
-                      key={`${day.toISOString()}-${hour}`}
-                      className="relative border-b border-r border-dashed border-border/75 bg-white transition hover:bg-accent/20"
-                      style={{ height: hourHeight }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => handleDrop(event, day, hour)}
-                    />
-                  ))}
+                  {weekDays.map((day) => {
+                    const available = canDropOnDay(day);
+
+                    return (
+                      <div
+                        key={`${day.toISOString()}-${hour}`}
+                        className={cn(
+                          "relative border-b border-r border-dashed border-border/75 transition",
+                          available
+                            ? "bg-white hover:bg-accent/20"
+                            : "cursor-not-allowed bg-slate-100/80",
+                        )}
+                        style={{ height: hourHeight }}
+                        onDragOver={available ? (event) => event.preventDefault() : undefined}
+                        onDrop={available ? (event) => handleDrop(event, day, hour) : undefined}
+                      />
+                    );
+                  })}
                 </div>
               ))}
 
-              <div className="pointer-events-none absolute left-[68px] right-0 top-[73px]">
+              <div
+                className="pointer-events-none absolute right-0"
+                style={{ left: timeColumnWidth, top: calendarHeaderHeight }}
+              >
                 {weekDays.map((day, dayIndex) =>
                   dayEvents(day).map((event) => (
                     <TimelineCard
@@ -611,29 +649,29 @@ function TimelineCard({
   const start = new Date(event.startTime);
   const end = resizing || new Date(event.endTime);
   const top = (start.getHours() * 60 + start.getMinutes()) * (hourHeight / 60);
-  const height = Math.max(34, differenceMinutes(end, start) * (hourHeight / 60));
-  const width = `calc((100% - 0px) / 7 - 10px)`;
-  const left = `calc(${dayIndex} * (100% / 7) + 5px)`;
+  const height = Math.max(52, differenceMinutes(end, start) * (hourHeight / 60));
+  const width = `calc((100% / 7) - ${eventCardInset * 2}px)`;
+  const left = `calc(${dayIndex} * (100% / 7) + ${eventCardInset}px)`;
 
   return (
     <article
       draggable={!resizing}
       onDragStart={onDragStart}
       className={cn(
-        "pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-lg border border-primary/20 bg-accent/90 p-2 text-xs shadow-sm transition hover:z-30 hover:shadow-md active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.985_0.016_277),white)] p-2 text-xs shadow-sm transition hover:z-30 hover:shadow-md active:cursor-grabbing",
         saving ? "opacity-60" : "",
       )}
       style={{ left, top, width, height }}
     >
-      <div className="flex h-full min-h-0 gap-2">
+      <div className="flex h-full min-h-0 gap-2.5">
         <img
           src={event.place?.imageUrl || `https://picsum.photos/seed/${event.externalPlaceId}/96/96`}
           alt={event.place?.name || "Địa điểm"}
-          className="size-9 shrink-0 rounded-md object-cover"
+          className="h-full min-h-9 max-h-16 w-16 shrink-0 rounded-lg object-cover"
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-1">
-            <h3 className="line-clamp-2 flex-1 font-bold leading-snug text-foreground">
+          <div className="flex items-start gap-1.5">
+            <h3 className="line-clamp-2 flex-1 font-bold leading-tight text-foreground">
               {event.place?.name || "Địa điểm"}
             </h3>
             <button
@@ -644,7 +682,7 @@ function TimelineCard({
               <Trash2 className="size-3.5" />
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-[11px] font-medium text-muted-foreground">
             {formatTime(start)} - {formatTime(end)}
           </p>
         </div>
@@ -707,6 +745,11 @@ function differenceMinutes(end: Date, start: Date) {
 
 function sameDate(first: Date, second: Date) {
   return dateOnly(first).getTime() === dateOnly(second).getTime();
+}
+
+function isTimelineDay(day: Date, timelineStart: Date, timelineEnd: Date) {
+  const currentDay = dateOnly(day).getTime();
+  return currentDay >= timelineStart.getTime() && currentDay <= timelineEnd.getTime();
 }
 
 function toDateTimeInput(date: Date, hour?: number, minute = 0) {
