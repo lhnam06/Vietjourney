@@ -104,16 +104,16 @@ function ModalFrame({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "max-h-[92vh] w-full overflow-hidden rounded-2xl border border-white/70 bg-white text-slate-950 shadow-2xl shadow-slate-950/25",
+          "max-h-[92vh] w-full overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/25",
           className || "max-w-md",
         )}
       >
         <header className="flex items-center justify-between px-5 py-5">
-          <h2 className="text-lg font-bold">{title}</h2>
+          <h2 className="text-lg font-bold text-foreground">{title}</h2>
           <button
             aria-label="Đóng"
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950"
+            className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="size-5" />
           </button>
@@ -134,10 +134,10 @@ function FooterActions({
   onConfirm: () => void;
 }) {
   return (
-    <footer className="flex gap-3 border-t border-slate-100 px-5 py-4">
+    <footer className="flex gap-3 border-t border-border px-5 py-4">
       <button
         onClick={onCancel}
-        className="h-11 flex-1 rounded-lg border border-slate-200 bg-white text-sm font-semibold transition-colors hover:bg-slate-50"
+        className="h-11 flex-1 rounded-lg border border-border bg-background text-sm font-semibold text-foreground transition-colors hover:bg-accent"
       >
         Hủy
       </button>
@@ -167,7 +167,7 @@ function Chip({
         "rounded-full px-4 py-2 text-sm font-semibold transition-colors",
         active
           ? "bg-primary text-primary-foreground"
-          : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+          : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
       {children}
@@ -197,7 +197,7 @@ export function AreaModal({
   return (
     <ModalFrame title="Chọn khu vực" onClose={onClose} className="max-w-md">
       <div className="px-5 pb-4">
-        <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-500">
+        <div className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 text-muted-foreground">
           <Search className="size-4" />
           <input
             value={query}
@@ -215,7 +215,7 @@ export function AreaModal({
                 "flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors",
                 selectedDistrict === district.name
                   ? "border-primary bg-primary/5"
-                  : "border-transparent hover:bg-slate-50",
+                  : "border-transparent hover:bg-accent",
               )}
             >
               <img
@@ -225,7 +225,7 @@ export function AreaModal({
               />
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">{district.name}</span>
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-muted-foreground">
                   {district.count.toLocaleString("vi-VN")} địa điểm
                 </span>
               </span>
@@ -237,16 +237,16 @@ export function AreaModal({
             </button>
           ))}
           {visibleDistricts.length === 0 ? (
-            <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
               Không tìm thấy khu vực phù hợp.
             </p>
           ) : null}
         </div>
       </div>
-      <footer className="flex gap-3 border-t border-slate-100 px-5 py-4">
+      <footer className="flex gap-3 border-t border-border px-5 py-4">
         <button
           onClick={onReset}
-          className="h-11 flex-1 rounded-lg border border-slate-200 bg-white text-sm font-semibold transition-colors hover:bg-slate-50"
+          className="h-11 flex-1 rounded-lg border border-border bg-background text-sm font-semibold text-foreground transition-colors hover:bg-accent"
         >
           Đặt lại
         </button>
@@ -335,7 +335,7 @@ export function FilterModal({
             <div className="mt-4 space-y-5">
               {tagOptions.map((optionGroup) => (
                 <div key={optionGroup.group}>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {tagGroupLabel(optionGroup.group, filters.category)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -364,25 +364,25 @@ export function FilterModal({
                   "rounded-full px-4 py-2 text-sm font-semibold",
                   index === 0
                     ? "bg-primary text-primary-foreground"
-                    : "bg-slate-100 text-slate-500",
+                    : "bg-muted text-muted-foreground",
                 )}
               >
                 {label}
               </span>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-muted-foreground">
             API hiện chưa hỗ trợ lọc theo khoảng cách nên nhóm này chỉ hiển thị theo thiết kế.
           </p>
         </section>
         <section>
           <h3 className="text-sm font-semibold">Có mở cửa lúc tôi đến</h3>
           <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               Backend hiện chưa có giờ mở cửa, tùy chọn này chỉ hiển thị trạng thái.
             </p>
-            <span className="h-7 w-12 rounded-full bg-slate-300 p-1">
-              <span className="block size-5 rounded-full bg-white shadow-sm" />
+            <span className="h-7 w-12 rounded-full bg-muted p-1">
+              <span className="block size-5 rounded-full bg-card shadow-sm" />
             </span>
           </div>
         </section>
@@ -408,7 +408,7 @@ export function PlaceDetailModal({
   return (
     <ModalFrame title={place.name} onClose={onClose} className="max-w-md">
       <div className="px-5 pb-5">
-        <div className="relative h-44 overflow-hidden rounded-xl bg-slate-100">
+        <div className="relative h-44 overflow-hidden rounded-xl bg-muted">
           <img
             src={placeImage(place)}
             alt={place.name}
@@ -418,8 +418,8 @@ export function PlaceDetailModal({
             1/{Math.max(place.images?.length || 1, 1)}
           </span>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
-          <span className="flex items-center gap-1 font-semibold text-slate-900">
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1 font-semibold text-foreground">
             <Star className="size-4 fill-amber-400 text-amber-400" />
             {place.rating?.toFixed(1) ?? "N/A"}
           </span>
@@ -427,20 +427,20 @@ export function PlaceDetailModal({
           <span>{compactPrice(place)}</span>
           <span className="ml-auto text-emerald-600">● Dữ liệu DB</span>
         </div>
-        <p className="mt-3 text-sm text-slate-700">{place.address || place.district || "Chưa có địa chỉ"}</p>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-3 text-sm text-foreground">{place.address || place.district || "Chưa có địa chỉ"}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           {place.latitude && place.longitude
             ? `${place.latitude.toFixed(5)}, ${place.longitude.toFixed(5)}`
             : "Chưa có tọa độ"}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold">
+          <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
             {categoryLabel(place.category)}
           </span>
           {tags.map((tag) => (
             <span
               key={tag}
-              className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700"
+              className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground"
             >
               {tag}
             </span>
@@ -448,7 +448,7 @@ export function PlaceDetailModal({
         </div>
         <section className="mt-6">
           <h3 className="font-semibold">Mô tả</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Địa điểm thuộc nhóm {categoryLabel(place.category).toLowerCase()}
             {place.district ? ` tại ${place.district}` : ""}. Thông tin ảnh,
             giá, đánh giá và tag được lấy từ database hiện tại.
@@ -456,10 +456,10 @@ export function PlaceDetailModal({
         </section>
         <section className="mt-6">
           <h3 className="font-semibold">Khoảng giá</h3>
-          <p className="mt-2 text-sm text-slate-600">{formatPrice(place)}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{formatPrice(place)}</p>
         </section>
       </div>
-      <footer className="flex gap-3 border-t border-slate-100 px-5 py-4">
+      <footer className="flex gap-3 border-t border-border px-5 py-4">
         <button
           disabled={isSaved}
           onClick={() => onAddPlace(place)}
@@ -492,14 +492,14 @@ export function NewListModal({
             value={listName}
             onChange={(event) => setListName(event.target.value)}
             placeholder="VD: Địa điểm ăn uống yêu thích"
-            className="mt-3 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-primary"
+            className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
           />
         </label>
         <label className="block">
-          <span className="text-sm font-semibold">Mô tả <span className="font-normal text-slate-500">(tùy chọn)</span></span>
+          <span className="text-sm font-semibold">Mô tả <span className="font-normal text-muted-foreground">(tùy chọn)</span></span>
           <textarea
             placeholder="Mô tả ngắn về danh sách"
-            className="mt-3 h-20 w-full resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-primary"
+            className="mt-3 h-20 w-full resize-none rounded-xl border border-border bg-background px-3 py-3 text-sm text-foreground outline-none focus:border-primary"
           />
         </label>
         <section>
@@ -511,8 +511,8 @@ export function NewListModal({
                 type="button"
                 onClick={() => setSelectedIcon(value)}
                 className={cn(
-                  "flex size-12 items-center justify-center rounded-xl border text-slate-700",
-                  selectedIcon === value ? "border-primary bg-primary/5 text-primary" : "border-slate-200",
+                  "flex size-12 items-center justify-center rounded-xl border text-muted-foreground",
+                  selectedIcon === value ? "border-primary bg-primary/10 text-primary" : "border-border",
                 )}
               >
                 <Icon className="size-5" />
@@ -560,12 +560,12 @@ export function ActiveFiltersModal({
         <div className="mt-6 flex flex-wrap gap-2">
           {active.length ? (
             active.map((item) => (
-              <span key={item} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold">
+              <span key={item} className="rounded-lg bg-muted px-3 py-2 text-sm font-semibold text-muted-foreground">
                 {item} <X className="ml-1 inline size-3.5" />
               </span>
             ))
           ) : (
-            <span className="text-sm text-slate-500">Chưa có bộ lọc nào.</span>
+            <span className="text-sm text-muted-foreground">Chưa có bộ lọc nào.</span>
           )}
         </div>
         <div className="mt-10 flex justify-end">
@@ -573,7 +573,7 @@ export function ActiveFiltersModal({
             Xóa tất cả
           </button>
         </div>
-        <p className="mt-10 text-center text-sm text-slate-500">
+        <p className="mt-10 text-center text-sm text-muted-foreground">
           {resultCount.toLocaleString("vi-VN")} địa điểm phù hợp
         </p>
         <button
@@ -603,7 +603,7 @@ export function SortModal({
           <button
             key={option.value}
             onClick={() => onChange(option.value)}
-            className="flex h-12 w-full items-center justify-between border-b border-slate-100 text-left text-sm font-semibold"
+            className="flex h-12 w-full items-center justify-between border-b border-border text-left text-sm font-semibold text-foreground"
           >
             <span className={cn(value === option.value && "text-primary")}>
               {option.label}
@@ -611,7 +611,7 @@ export function SortModal({
             <span
               className={cn(
                 "flex size-5 items-center justify-center rounded-full border",
-                value === option.value ? "border-primary bg-primary text-white" : "border-slate-300",
+                value === option.value ? "border-primary bg-primary text-primary-foreground" : "border-border",
               )}
             >
               {value === option.value ? <Check className="size-3" /> : null}
@@ -657,14 +657,14 @@ export function TipsModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <h3 className="font-semibold">{title}</h3>
-              <p className="mt-1 text-sm text-slate-500">{description}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
             </div>
           </div>
         ))}
       </div>
-      <footer className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
-        <label className="flex items-center gap-2 text-sm text-slate-500">
-          <input type="checkbox" className="size-4 rounded border-slate-300" />
+      <footer className="flex items-center justify-between border-t border-border px-5 py-4">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" className="size-4 rounded border-border" />
           Không hiển thị lại
         </label>
         <button
