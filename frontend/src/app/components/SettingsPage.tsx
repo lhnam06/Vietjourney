@@ -56,8 +56,17 @@ interface ToggleState {
 }
 
 const ACCOUNT_BIO_STORAGE_KEY = "vj:account-bio:v1";
+const THEME_STORAGE_KEY = "vj:theme:v1";
 const defaultBio =
   "Lưu lại địa điểm hay, biến chúng thành lịch trình rõ ràng, rồi rủ bạn bè cùng chốt từng chặng đi khắp Việt Nam.";
+
+function getInitialTheme(): ThemeChoice {
+  if (typeof window === "undefined") return "light";
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return storedTheme === "dark" || storedTheme === "system" || storedTheme === "light"
+    ? storedTheme
+    : "light";
+}
 
 const settingsNav: {
   id: SettingsSection;
@@ -113,7 +122,7 @@ export function SettingsPage() {
     community: true,
     recommendations: false,
   });
-  const [selectedTheme, setSelectedTheme] = useState<ThemeChoice>("light");
+  const [selectedTheme, setSelectedTheme] = useState<ThemeChoice>(getInitialTheme);
   const [selectedAccent, setSelectedAccent] = useState(0);
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: "",
@@ -146,6 +155,25 @@ export function SettingsPage() {
 
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const systemQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    function applyTheme() {
+      const useDarkTheme =
+        selectedTheme === "dark" || (selectedTheme === "system" && systemQuery.matches);
+      root.dataset.theme = useDarkTheme ? "dark" : "light";
+    }
+
+    window.localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
+    applyTheme();
+
+    if (selectedTheme !== "system") return;
+
+    systemQuery.addEventListener("change", applyTheme);
+    return () => systemQuery.removeEventListener("change", applyTheme);
+  }, [selectedTheme]);
 
   const displayName = user?.displayName || user?.username || "Nhà du hành";
   const username = user?.username ? `@${user.username}` : "@vietjourney";
@@ -264,13 +292,13 @@ export function SettingsPage() {
   }
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_255),oklch(0.965_0.018_260))]">
-      <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8">
-        <header>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-background">
+      <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+        <header className="border-b border-border pb-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             VietJourney
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-foreground">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
             Cài đặt
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -279,15 +307,15 @@ export function SettingsPage() {
           </p>
         </header>
 
-        <div className="mt-7 grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)_430px]">
-          <aside className="rounded-2xl border border-border bg-card p-3 shadow-sm xl:sticky xl:top-6 xl:h-fit">
+        <div className="mt-6 grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)_400px]">
+          <aside className="rounded-xl border border-border bg-card p-2 xl:sticky xl:top-6 xl:h-fit">
             {settingsNav.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setActiveSection(id)}
                 className={cn(
-                  "flex h-12 w-full items-center gap-3 rounded-xl px-4 text-left text-sm font-bold transition",
+                  "flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition",
                   activeSection === id
                     ? "bg-accent text-primary"
                     : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
@@ -324,7 +352,7 @@ export function SettingsPage() {
                         <Camera className="size-4" />
                       </button>
                     </div>
-                    <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-primary">
+                    <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-primary">
                       Explorer
                     </span>
                   </div>
@@ -383,7 +411,7 @@ export function SettingsPage() {
                         className={cn(
                           "rounded-xl border p-3 text-sm font-semibold",
                           accountStatus.type === "success" &&
-                            "border-blue-200 bg-blue-50 text-blue-700",
+                            "border-primary/25 bg-primary/10 text-primary",
                           accountStatus.type === "info" &&
                             "border-border bg-accent text-primary",
                           accountStatus.type === "error" &&
@@ -437,7 +465,7 @@ export function SettingsPage() {
                     <KeyRound className="size-5" />
                   </span>
                   <div>
-                    <h3 className="font-black text-foreground">Đổi mật khẩu</h3>
+                    <h3 className="font-semibold text-foreground">Đổi mật khẩu</h3>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
                       Dùng mật khẩu mạnh để bảo vệ timeline, danh sách đã lưu và lời mời chuyến đi
                       của bạn.
@@ -494,7 +522,7 @@ export function SettingsPage() {
                     className={cn(
                       "rounded-xl border p-3 text-sm font-semibold",
                       passwordStatus.type === "success"
-                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        ? "border-primary/25 bg-primary/10 text-primary"
                         : "border-destructive/30 bg-destructive/10 text-destructive",
                     )}
                   >
@@ -552,7 +580,16 @@ export function SettingsPage() {
 
           <aside className="space-y-5">
             <SettingsCard title="Giao diện">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Chế độ hiển thị</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Chọn giao diện phù hợp với môi trường sử dụng.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-border bg-background p-1">
                 {themeOptions.map(({ value, label, icon: Icon }) => {
                   const active = selectedTheme === value;
 
@@ -562,19 +599,19 @@ export function SettingsPage() {
                       type="button"
                       onClick={() => setSelectedTheme(value)}
                       className={cn(
-                        "group min-h-[148px] rounded-[18px] border p-4 text-center transition-all duration-200",
+                        "group flex min-h-24 flex-col items-center justify-center rounded-lg px-3 py-3 text-center text-sm transition",
                         active
-                          ? "border-primary/25 bg-primary/10 text-primary shadow-[inset_0_0_0_1px_oklch(0.515_0.22_277_/_0.2)] ring-2 ring-primary/15"
-                          : "border-border bg-card text-muted-foreground hover:-translate-y-0.5 hover:border-primary/35 hover:bg-accent/45 hover:text-foreground",
+                          ? "bg-card text-primary shadow-sm ring-1 ring-border"
+                          : "text-muted-foreground hover:bg-card/70 hover:text-foreground",
                       )}
                     >
-                      <Icon className="mx-auto mt-2 size-8" strokeWidth={active ? 2.4 : 2} />
-                      <span className="mx-auto mt-4 block max-w-20 text-sm font-black leading-tight">
+                      <Icon className="size-6" strokeWidth={active ? 2.4 : 2} />
+                      <span className="mt-2 block max-w-20 font-semibold leading-tight">
                         {label}
                       </span>
                       <span
                         className={cn(
-                          "mx-auto mt-4 flex size-5 items-center justify-center rounded-full border bg-card transition",
+                          "mt-2 flex size-4 items-center justify-center rounded-full border transition",
                           active
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border group-hover:border-primary/40",
@@ -588,7 +625,14 @@ export function SettingsPage() {
               </div>
 
               <div className="mt-6 border-t border-border pt-5">
-                <p className="text-sm font-black text-foreground">Màu chủ đạo</p>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Màu chủ đạo</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Dùng để nhấn mạnh nút, liên kết và trạng thái đang chọn.
+                    </p>
+                  </div>
+                </div>
                 <div className="mt-4 flex flex-wrap gap-3">
                   {accentColors.map((color, index) => (
                     <button
@@ -597,18 +641,18 @@ export function SettingsPage() {
                       aria-label={color.label}
                       onClick={() => setSelectedAccent(index)}
                       className={cn(
-                        "flex size-9 items-center justify-center rounded-full shadow-sm transition hover:-translate-y-0.5",
+                        "flex size-8 items-center justify-center rounded-full transition hover:scale-105",
                         color.className,
-                        selectedAccent === index && "ring-4 ring-primary/20",
+                        selectedAccent === index && "ring-4 ring-primary/20 ring-offset-2 ring-offset-card",
                       )}
                     >
                       {selectedAccent === index ? (
-                        <Check className="size-4 text-primary-foreground" strokeWidth={3} />
+                        <Check className="size-3.5 text-primary-foreground" strokeWidth={3} />
                       ) : null}
                     </button>
                   ))}
                 </div>
-                <p className="mt-3 text-xs font-bold text-primary">
+                <p className="mt-3 text-xs font-semibold text-primary">
                   {accentColors[selectedAccent].label}
                 </p>
               </div>
@@ -681,7 +725,7 @@ function SettingsCard({
 }) {
   return (
     <section id={id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <h2 className="text-lg font-black text-foreground">{title}</h2>
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <div className="mt-5">{children}</div>
     </section>
   );
@@ -727,9 +771,9 @@ function ReadonlyFact({
     <div className="rounded-2xl border border-border bg-background p-4">
       <p className="text-xs font-bold text-muted-foreground">{label}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-black text-foreground">{value}</span>
+        <span className="text-sm font-semibold text-foreground">{value}</span>
         {badge ? (
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
             {badge}
           </span>
         ) : null}
@@ -785,7 +829,7 @@ function ActionRow({
         <Icon className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn("block text-sm font-black", danger ? "text-destructive" : "text-foreground")}>
+        <span className={cn("block text-sm font-semibold", danger ? "text-destructive" : "text-foreground")}>
           {title}
         </span>
         <span className={cn("mt-1 block text-xs", danger ? "text-destructive" : "text-muted-foreground")}>
@@ -820,7 +864,7 @@ function ToggleRow({
         <Icon className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black text-foreground">{title}</span>
+        <span className="block text-sm font-semibold text-foreground">{title}</span>
         <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
       </span>
       <span
@@ -856,7 +900,7 @@ function PreferenceRow({
           <Icon className="size-4" />
         </span>
       ) : null}
-      <span className="min-w-0 flex-1 text-sm font-black text-foreground">{label}</span>
+      <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{label}</span>
       <span className="truncate text-right text-sm font-semibold text-muted-foreground">{value}</span>
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
     </button>

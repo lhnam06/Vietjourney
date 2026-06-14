@@ -162,7 +162,7 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
   const topSavedGroups = Object.entries(savedByCategory).slice(0, 4);
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_255),oklch(0.965_0.018_260))]">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-background">
       <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex items-center justify-end gap-3">
           <button
@@ -184,7 +184,7 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
             className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${heroImage})` }}
           />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(1_0_0_/_0.98)_0%,oklch(0.985_0.01_260_/_0.9)_46%,oklch(0.985_0.012_260_/_0.18)_100%)]" />
+          <div className="profile-hero-overlay absolute inset-0" />
           <div className="relative grid min-h-[320px] content-end gap-6 p-6 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-end lg:p-10">
             <div className="relative size-32 shrink-0 sm:size-36">
               <img
@@ -257,7 +257,7 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
         </section>
 
         {error ? (
-          <div className="mt-6 rounded-2xl border border-rose-200 bg-white p-5 text-sm text-rose-600 shadow-sm">
+          <div className="mt-6 rounded-2xl border border-destructive/30 bg-card p-5 text-sm text-destructive shadow-sm">
             {error}
           </div>
         ) : null}
@@ -524,9 +524,9 @@ function Achievement({
 }) {
   const tones = {
     primary: "bg-accent text-primary",
-    blue: "bg-blue-50 text-blue-700",
-    sky: "bg-sky-50 text-sky-700",
-    indigo: "bg-indigo-50 text-indigo-700",
+    blue: "bg-blue-500/12 text-blue-500",
+    sky: "bg-sky-500/12 text-sky-500",
+    indigo: "bg-indigo-500/12 text-indigo-500",
   };
 
   return (
@@ -544,7 +544,7 @@ function StatRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <strong className="font-black text-slate-900">{value}</strong>
+      <strong className="font-black text-foreground">{value}</strong>
     </div>
   );
 }
@@ -559,14 +559,14 @@ function ActivityItem({
   time: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-xl p-2 transition hover:bg-slate-50">
+    <div className="flex gap-3 rounded-xl p-2 transition hover:bg-accent/70">
       <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
         <UserRound className="size-5" />
       </span>
       <span className="min-w-0">
         <strong className="block truncate text-sm font-black text-foreground">{title}</strong>
         <span className="mt-0.5 block line-clamp-1 text-xs text-muted-foreground">{detail}</span>
-        <span className="mt-1 block text-xs font-semibold text-slate-400">{time}</span>
+        <span className="mt-1 block text-xs font-semibold text-muted-foreground">{time}</span>
       </span>
     </div>
   );
