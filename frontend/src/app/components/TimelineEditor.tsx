@@ -41,6 +41,10 @@ const calendarHeaderHeight = 74;
 const timeColumnWidth = 78;
 const dayColumnWidth = "minmax(0,1fr)";
 const eventCardInset = 6;
+const edgeSwitchZone = 50;
+const edgeSwitchDelay = 500;
+const defaultDropDurationMinutes = 90;
+const snapMinutes = 15;
 
 type DragPayload =
   | { kind: "place"; placeId: string }
@@ -51,6 +55,13 @@ interface ResizeState {
   startY: number;
   initialEnd: Date;
   previewEnd: Date;
+}
+
+interface DropPreview {
+  dayKey: string;
+  start: Date;
+  end: Date;
+  topPct: number;
 }
 
 interface TimelineEditorProps {
@@ -79,7 +90,11 @@ export function TimelineEditor({
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [isNewListOpen, setIsNewListOpen] = useState(false);
   const [isListMenuOpen, setIsListMenuOpen] = useState(false);
+  const [draggedPlaceId, setDraggedPlaceId] = useState<string | null>(null);
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const edgeSwitchRef = useRef<number | null>(null);
+  const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
   const ActiveListIcon = listIcon(activeList?.icon);
 
@@ -160,6 +175,8 @@ export function TimelineEditor({
     };
   }, [eventById, resizeState]);
 
+  useEffect(() => () => clearEdgeSwitchTimer(), []);
+
   async function reloadEvents() {
     const nextEvents = await fetchTimelineEvents(timeline.id, rangeStart, rangeEnd);
     setEvents(nextEvents);
@@ -173,41 +190,182 @@ export function TimelineEditor({
     setWeekStart(nextStart);
   }
 
+  function canChangeWeek(offset: number) {
+    const nextStart = addDays(weekStart, offset * 7);
+    return !(nextStart > timelineEnd || addDays(nextStart, 6) < timelineStart);
+  }
+
+  function clearEdgeSwitchTimer() {
+    if (edgeSwitchRef.current) {
+      window.clearTimeout(edgeSwitchRef.current);
+      edgeSwitchRef.current = null;
+    }
+    edgeSwitchDirectionRef.current = null;
+    setEdgeHint(null);
+  }
+
   function handleDragStart(event: DragEvent, payload: DragPayload) {
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = payload.kind === "place" ? "copyMove" : "move";
+
+    window.setTimeout(() => {
+      if (payload.kind === "place") {
+        setDraggedPlaceId(payload.placeId);
+        setDraggedEventId(null);
+      } else {
+        setDraggedEventId(payload.eventId);
+        setDraggedPlaceId(null);
+      }
+      setDropPreview(null);
+    }, 0);
+  }
+
+  function handleDragEnd() {
+    setDraggedPlaceId(null);
+    setDraggedEventId(null);
+    setDropPreview(null);
+    clearEdgeSwitchTimer();
+  }
+
+  function scheduleEdgeWeekSwitch(clientX: number, container: HTMLElement) {
+    if (!draggedPlaceId && !draggedEventId) return;
+
+    const rect = container.getBoundingClientRect();
+    let direction: "previous" | "next" | null = null;
+
+    if (clientX <= rect.left + edgeSwitchZone && canChangeWeek(-1)) {
+      direction = "previous";
+    } else if (clientX >= rect.right - edgeSwitchZone && canChangeWeek(1)) {
+      direction = "next";
+    }
+
+    if (!direction) {
+      clearEdgeSwitchTimer();
+      return;
+    }
+
+    setEdgeHint(direction);
+    if (edgeSwitchRef.current && edgeSwitchDirectionRef.current === direction) return;
+
+    if (edgeSwitchRef.current) {
+      window.clearTimeout(edgeSwitchRef.current);
+      edgeSwitchRef.current = null;
+    }
+
+    edgeSwitchDirectionRef.current = direction;
+    edgeSwitchRef.current = window.setTimeout(() => {
+      changeWeek(direction === "previous" ? -1 : 1);
+      setDropPreview(null);
+      edgeSwitchRef.current = null;
+      edgeSwitchDirectionRef.current = null;
+      setEdgeHint(null);
+    }, edgeSwitchDelay);
   }
 
   function handleCalendarDragOver(event: DragEvent) {
     event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const edgeSize = 54;
-    const nearLeft = event.clientX - rect.left < edgeSize;
-    const nearRight = rect.right - event.clientX < edgeSize;
-
-    if (nearLeft || nearRight) {
-      const direction = nearLeft ? "previous" : "next";
-      setEdgeHint(direction);
-      if (!edgeSwitchRef.current) {
-        edgeSwitchRef.current = window.setTimeout(() => {
-          changeWeek(direction === "previous" ? -1 : 1);
-          edgeSwitchRef.current = null;
-        }, 650);
-      }
-    } else {
-      setEdgeHint(null);
-      if (edgeSwitchRef.current) {
-        window.clearTimeout(edgeSwitchRef.current);
-        edgeSwitchRef.current = null;
-      }
-    }
+    event.dataTransfer.dropEffect = draggedEventId ? "move" : "copy";
+    scheduleEdgeWeekSwitch(event.clientX, event.currentTarget);
   }
 
-  function handleDragLeave() {
-    setEdgeHint(null);
-    if (edgeSwitchRef.current) {
-      window.clearTimeout(edgeSwitchRef.current);
-      edgeSwitchRef.current = null;
+  function handleDragLeave(event: DragEvent) {
+    const next = event.relatedTarget as Node | null;
+    if (next && event.currentTarget.contains(next)) return;
+    clearEdgeSwitchTimer();
+    setDropPreview(null);
+  }
+
+  function dropWindowFor(day: Date, target: HTMLElement, clientY: number, durationMinutes: number) {
+    const rect = target.getBoundingClientRect();
+    const percent = clamp((clientY - rect.top) / rect.height, 0, 1);
+    const rawMinutes = percent * 24 * 60;
+    const maxStart = 24 * 60 - durationMinutes;
+    const startMinutes = clamp(Math.round(rawMinutes / snapMinutes) * snapMinutes, 0, maxStart);
+    const endMinutes = Math.min(startMinutes + durationMinutes, 24 * 60 - 1);
+
+    return {
+      start: dateAtMinutes(day, startMinutes),
+      end: dateAtMinutes(day, endMinutes),
+      topPct: (startMinutes / (24 * 60)) * 100,
+    };
+  }
+
+  function previewColumnDrop(event: DragEvent, day: Date) {
+    if (!canDropOnDay(day)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = draggedEventId ? "move" : "copy";
+
+    const source = draggedEventId ? eventById.get(draggedEventId) : null;
+    const duration = source
+      ? Math.max(snapMinutes, differenceMinutes(new Date(source.endTime), new Date(source.startTime)))
+      : defaultDropDurationMinutes;
+    const next = dropWindowFor(day, event.currentTarget, event.clientY, duration);
+    const dayKey = day.toISOString();
+
+    setDropPreview((current) =>
+      current &&
+      current.dayKey === dayKey &&
+      current.start.getTime() === next.start.getTime() &&
+      current.end.getTime() === next.end.getTime()
+        ? current
+        : { dayKey, ...next },
+    );
+  }
+
+  async function handleColumnDrop(event: DragEvent, day: Date) {
+    event.preventDefault();
+    clearEdgeSwitchTimer();
+    if (!isTimelineDay(day, timelineStart, timelineEnd)) return;
+
+    const payload = parseDragPayload(event);
+    if (!payload) return;
+
+    const source = payload.kind === "event" ? eventById.get(payload.eventId) : null;
+    const duration = source
+      ? Math.max(snapMinutes, differenceMinutes(new Date(source.endTime), new Date(source.startTime)))
+      : defaultDropDurationMinutes;
+    const next = dropWindowFor(day, event.currentTarget, event.clientY, duration);
+    const start = toDateTimeInput(next.start);
+    const end = toDateTimeInput(next.end);
+
+    if (!isWithinTimeline(new Date(start), new Date(end), timelineStart, timelineEnd)) {
+      setError("Khung giờ nằm ngoài thời gian của chuyến đi.");
+      setDropPreview(null);
+      return;
+    }
+
+    try {
+      setError(null);
+      if (payload.kind === "place") {
+        const place = placeById.get(payload.placeId);
+        if (!place) return;
+        const created = await createTimelineEvent(timeline.id, {
+          externalPlaceId: place.id,
+          category: toEventCategory(place.category),
+          startTime: start,
+          endTime: end,
+          orderIndex: dayEvents(day).length,
+          status: "PLANNED",
+        });
+        setEvents((current) => [...current, created]);
+        setDraggedPlaceId(null);
+        setDropPreview(null);
+        return;
+      }
+
+      if (!source) return;
+      setEvents((current) =>
+        current.map((item) =>
+          item.id === source.id ? { ...item, startTime: start, endTime: end } : item,
+        ),
+      );
+      await moveEvent(source, start, end, dayEvents(day).length);
+      setDraggedEventId(null);
+      setDropPreview(null);
+    } catch (dropError) {
+      setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
+      setDropPreview(null);
+      await reloadEvents();
     }
   }
 
@@ -396,6 +554,7 @@ export function TimelineEditor({
                 key={place.id}
                 place={place}
                 onDragStart={(event) => handleDragStart(event, { kind: "place", placeId: place.id })}
+                onDragEnd={handleDragEnd}
               />
             ))}
             {!savedPlaceCards.length ? (
@@ -522,13 +681,62 @@ export function TimelineEditor({
                             : "cursor-not-allowed bg-muted/80",
                         )}
                         style={{ height: hourHeight }}
-                        onDragOver={available ? (event) => event.preventDefault() : undefined}
-                        onDrop={available ? (event) => handleDrop(event, day, hour) : undefined}
                       />
                     );
                   })}
                 </div>
               ))}
+
+              <div
+                className="absolute right-0 z-10 grid"
+                style={{
+                  left: timeColumnWidth,
+                  top: calendarHeaderHeight,
+                  height: hours.length * hourHeight,
+                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                }}
+              >
+                {weekDays.map((day) => {
+                  const available = canDropOnDay(day);
+                  const preview = dropPreview?.dayKey === day.toISOString() ? dropPreview : null;
+
+                  return (
+                    <div
+                      key={`drop-${day.toISOString()}`}
+                      className={cn(
+                        "relative border-r border-transparent",
+                        available ? "pointer-events-auto" : "pointer-events-none",
+                      )}
+                      onDragEnter={available ? (event) => event.preventDefault() : undefined}
+                      onDragOver={available ? (event) => previewColumnDrop(event, day) : undefined}
+                      onDragLeave={
+                        available
+                          ? (event) => {
+                              const next = event.relatedTarget as Node | null;
+                              if (next && event.currentTarget.contains(next)) return;
+                              setDropPreview((current) =>
+                                current?.dayKey === day.toISOString() ? null : current,
+                              );
+                            }
+                          : undefined
+                      }
+                      onDrop={available ? (event) => handleColumnDrop(event, day) : undefined}
+                    >
+                      {preview ? (
+                        <div
+                          className="pointer-events-none absolute left-2 right-2 z-20 flex -translate-y-1/2 items-center gap-2"
+                          style={{ top: `${preview.topPct}%` }}
+                        >
+                          <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-bold tabular-nums text-primary-foreground shadow-md">
+                            {formatTime(preview.start)} - {formatTime(preview.end)}
+                          </span>
+                          <span className="h-0.5 flex-1 rounded-full bg-primary/60 shadow-[0_0_0_3px_oklch(0.515_0.22_277_/_0.12)]" />
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
 
               <div
                 className="pointer-events-none absolute right-0"
@@ -542,7 +750,9 @@ export function TimelineEditor({
                       dayIndex={dayIndex}
                       saving={savingId === event.id}
                       resizing={resizeState?.eventId === event.id ? resizeState.previewEnd : null}
+                      isDragging={draggedEventId === event.id}
                       onDragStart={(dragEvent) => handleDragStart(dragEvent, { kind: "event", eventId: event.id })}
+                      onDragEnd={handleDragEnd}
                       onResizeStart={(pointerEvent) => {
                         pointerEvent.preventDefault();
                         setResizeState({
@@ -589,14 +799,17 @@ export function TimelineEditor({
 function PlaceCard({
   place,
   onDragStart,
+  onDragEnd,
 }: {
   place: Place;
   onDragStart: (event: DragEvent) => void;
+  onDragEnd: () => void;
 }) {
   return (
     <article
       draggable
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       className="group flex cursor-grab items-center gap-3 rounded-2xl border border-border bg-card p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing"
     >
       <img src={placeImage(place)} alt={place.name} className="size-20 rounded-xl object-cover" />
@@ -622,7 +835,9 @@ function TimelineCard({
   dayIndex,
   saving,
   resizing,
+  isDragging,
   onDragStart,
+  onDragEnd,
   onResizeStart,
   onDelete,
 }: {
@@ -630,7 +845,9 @@ function TimelineCard({
   dayIndex: number;
   saving: boolean;
   resizing: Date | null;
+  isDragging: boolean;
   onDragStart: (event: DragEvent) => void;
+  onDragEnd: () => void;
   onResizeStart: (event: PointerEvent) => void;
   onDelete: () => void;
 }) {
@@ -646,9 +863,11 @@ function TimelineCard({
     <article
       draggable={!resizing}
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       className={cn(
         "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-card px-2 py-1.5 text-center text-xs shadow-sm transition hover:z-30 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md active:cursor-grabbing",
         saving ? "opacity-60" : "",
+        isDragging ? "opacity-45 ring-2 ring-primary/30" : "",
       )}
       style={{ left, top, width, height }}
     >
@@ -717,6 +936,16 @@ function addMinutes(date: Date, minutes: number) {
   const next = new Date(date);
   next.setMinutes(next.getMinutes() + minutes);
   return next;
+}
+
+function dateAtMinutes(date: Date, minutes: number) {
+  const next = dateOnly(date);
+  next.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return next;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function differenceMinutes(end: Date, start: Date) {
