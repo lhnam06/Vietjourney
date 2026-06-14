@@ -57,6 +57,7 @@ type StartMethod = "ai" | "explore" | "blank";
 interface MyTripsProps {
   onExplore?: () => void;
   onEditTimeline?: (timeline: Timeline) => void;
+  onViewMap?: (timeline: Timeline) => void;
 }
 
 const today = new Date();
@@ -176,7 +177,7 @@ function makeEventWindow(startDate: string, index: number) {
   };
 }
 
-export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
+export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -329,12 +330,17 @@ export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
                           setOpenMenuId(null);
                           onEditTimeline?.(recentTimeline);
                         }}
+                        onViewMap={() => {
+                          setOpenMenuId(null);
+                          onViewMap?.(recentTimeline);
+                        }}
                         onInvite={() => openInvite(recentTimeline)}
                       />
                     </div>
                     <FeaturedTrip
                       timeline={recentTimeline}
                       onEditTimeline={() => onEditTimeline?.(recentTimeline)}
+                      onViewMap={() => onViewMap?.(recentTimeline)}
                     />
                   </section>
                 ) : (
@@ -397,6 +403,10 @@ export function MyTrips({ onExplore, onEditTimeline }: MyTripsProps) {
                         onEditTimeline={() => {
                           setOpenMenuId(null);
                           onEditTimeline?.(timeline);
+                        }}
+                        onViewMap={() => {
+                          setOpenMenuId(null);
+                          onViewMap?.(timeline);
                         }}
                         onInvite={() => openInvite(timeline)}
                       />
@@ -525,9 +535,11 @@ function QuickAction({
 function FeaturedTrip({
   timeline,
   onEditTimeline,
+  onViewMap,
 }: {
   timeline: Timeline;
   onEditTimeline: () => void;
+  onViewMap: () => void;
 }) {
   const status = timelineStatus(timeline);
   const progress = progressForTimeline(timeline);
@@ -581,7 +593,11 @@ function FeaturedTrip({
           >
             Chỉnh sửa Timeline
           </button>
-          <button className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground">
+          <button
+            type="button"
+            onClick={onViewMap}
+            className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+          >
             Xem bản đồ
           </button>
           <button className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground">
@@ -600,6 +616,7 @@ function TripCard({
   onToggleMenu,
   onEdit,
   onEditTimeline,
+  onViewMap,
   onInvite,
 }: {
   timeline: Timeline;
@@ -608,6 +625,7 @@ function TripCard({
   onToggleMenu: () => void;
   onEdit: () => void;
   onEditTimeline: () => void;
+  onViewMap: () => void;
   onInvite: () => void;
 }) {
   const status = timelineStatus(timeline);
@@ -636,6 +654,7 @@ function TripCard({
         onToggle={onToggleMenu}
         onEdit={onEdit}
         onEditTimeline={onEditTimeline}
+        onViewMap={onViewMap}
         onInvite={onInvite}
         compact
       />
@@ -680,6 +699,7 @@ function TripMenuButton({
   onToggle,
   onEdit,
   onEditTimeline,
+  onViewMap,
   onInvite,
   compact,
 }: {
@@ -688,6 +708,7 @@ function TripMenuButton({
   onToggle: () => void;
   onEdit: () => void;
   onEditTimeline: () => void;
+  onViewMap: () => void;
   onInvite: () => void;
   compact?: boolean;
 }) {
@@ -705,7 +726,7 @@ function TripMenuButton({
         <div className="absolute right-0 top-11 z-50 w-72 rounded-2xl border border-border bg-card p-2 shadow-xl">
           <MenuItem icon={Edit3} label="Chỉnh sửa chuyến đi" onClick={onEdit} />
           <MenuItem icon={CalendarDays} label="Chỉnh sửa Timeline" onClick={onEditTimeline} />
-          <MenuItem icon={Map} label="Xem bản đồ" />
+          <MenuItem icon={Map} label="Xem bản đồ" onClick={onViewMap} />
           <div className="my-2 border-t border-border" />
           <MenuItem icon={Users} label="Thành viên" />
           <MenuItem icon={Link2} label="Mã tham gia" badge={timeline.activeInviteCode || "Tạo mã"} onClick={onInvite} />
