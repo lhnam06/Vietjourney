@@ -6,11 +6,12 @@ import { MyTrips } from "./components/MyTrips";
 import { Profile } from "./components/Profile";
 import { Sidebar } from "./components/Sidebar";
 import { TimelineEditor } from "./components/TimelineEditor";
+import { TripMapPage } from "./components/TripMapPage";
 import { clearAuthToken, getAuthToken } from "./lib/authApi";
 import type { Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
 
-export type AppView = "explore" | "trips" | "profile" | "timeline-editor";
+export type AppView = "explore" | "trips" | "profile" | "timeline-editor" | "trip-map";
 
 export interface PlaceList {
   id: string;
@@ -62,10 +63,12 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
   const [view, setView] = useState<AppView>("trips");
   const [editingTimeline, setEditingTimeline] = useState<Timeline | null>(null);
+  const [mapTimeline, setMapTimeline] = useState<Timeline | null>(null);
   const [placeLists, setPlaceLists] = useState<PlaceList[]>(loadPlaceLists);
   const [activeListId, setActiveListId] = useState(() => placeLists[0]?.id || "");
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
   const savedPlaces = activeList?.places || [];
+
   const savedPlaceIds = useMemo(
     () => new Set(savedPlaces.map((place) => place.id)),
     [savedPlaces],
@@ -168,13 +171,21 @@ export default function App() {
   function logout() {
     clearAuthToken();
     setEditingTimeline(null);
+    setMapTimeline(null);
     setView("trips");
     setIsAuthenticated(false);
   }
 
   function openTimelineEditor(timeline: Timeline) {
+    setMapTimeline(null);
     setEditingTimeline(timeline);
     setView("timeline-editor");
+  }
+
+  function openTripMap(timeline: Timeline) {
+    setEditingTimeline(null);
+    setMapTimeline(timeline);
+    setView("trip-map");
   }
 
   if (!isAuthenticated) {
@@ -196,8 +207,20 @@ export default function App() {
             setView("trips");
           }}
         />
+      ) : view === "trip-map" && mapTimeline ? (
+        <TripMapPage
+          timeline={mapTimeline}
+          onBack={() => {
+            setMapTimeline(null);
+            setView("trips");
+          }}
+        />
       ) : view === "trips" ? (
-        <MyTrips onExplore={() => setView("explore")} onEditTimeline={openTimelineEditor} />
+        <MyTrips
+          onExplore={() => setView("explore")}
+          onEditTimeline={openTimelineEditor}
+          onViewMap={openTripMap} 
+        />
       ) : view === "profile" ? (
         <Profile
           savedPlaces={savedPlaces}
