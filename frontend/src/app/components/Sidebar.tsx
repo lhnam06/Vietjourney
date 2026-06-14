@@ -320,7 +320,10 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
             <AccountMenuButton
               icon={Settings}
               label="Cài đặt"
-              onClick={() => setIsAccountMenuOpen(false)}
+              onClick={() => {
+                onNavigate("settings");
+                closeMenu();
+              }}
             />
             <div className="my-1 h-px bg-border/70" />
             <AccountMenuButton

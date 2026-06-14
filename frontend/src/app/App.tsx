@@ -4,13 +4,14 @@ import { Explore } from "./components/Explore";
 import { ListPanel } from "./components/ListPanel";
 import { MyTrips } from "./components/MyTrips";
 import { Profile } from "./components/Profile";
+import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { clearAuthToken, getAuthToken } from "./lib/authApi";
 import type { Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
 
-export type AppView = "explore" | "trips" | "profile" | "timeline-editor";
+export type AppView = "explore" | "trips" | "profile" | "settings" | "timeline-editor";
 
 export interface PlaceList {
   id: string;
@@ -204,6 +205,8 @@ export default function App() {
           onExplore={() => setView("explore")}
           onEditTimeline={openTimelineEditor}
         />
+      ) : view === "settings" ? (
+        <SettingsPage />
       ) : (
         <>
           <Explore savedPlaceIds={savedPlaceIds} onAddPlace={addPlace} />
