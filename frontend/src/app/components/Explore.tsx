@@ -184,7 +184,7 @@ function CategoryBadges({ place }: { place: Place }) {
         {categoryLabel(place.category)}
       </span>
       {subCategory ? (
-        <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+        <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
           {tagLabel(subCategory)}
         </span>
       ) : null}

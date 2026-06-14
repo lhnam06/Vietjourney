@@ -150,7 +150,7 @@ export function ListPanel({
             <button
               type="button"
               onClick={() => setIsListMenuOpen((open) => !open)}
-              className="flex h-12 w-full items-center justify-between rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.98_0.018_277),white)] px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              className="flex h-12 w-full items-center justify-between rounded-xl border border-border bg-background px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -294,7 +294,7 @@ export function ListPanel({
                     {categoryLabel(place.category)}
                   </span>
                   {placeSubCategory(place) ? (
-                    <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       {tagLabel(placeSubCategory(place) || "")}
                     </span>
                   ) : null}

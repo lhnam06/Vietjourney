@@ -34,6 +34,40 @@
   --destructive: oklch(0.577 0.245 27.325);
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(0.18 0.018 270);
+  --foreground: oklch(0.96 0.006 270);
+  --card: oklch(0.235 0.018 270);
+  --card-foreground: oklch(0.96 0.006 270);
+  --primary: oklch(0.68 0.19 270);
+  --primary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.29 0.018 270);
+  --muted-foreground: oklch(0.72 0.018 270);
+  --accent: oklch(0.31 0.035 270);
+  --accent-foreground: oklch(0.88 0.08 270);
+  --border: oklch(0.36 0.018 270);
+  --destructive: oklch(0.68 0.2 27);
+}
+
+.profile-hero-overlay {
+  background: linear-gradient(
+    90deg,
+    oklch(1 0 0 / 0.98) 0%,
+    oklch(0.985 0.01 260 / 0.9) 46%,
+    oklch(0.985 0.012 260 / 0.18) 100%
+  );
+}
+
+:root[data-theme="dark"] .profile-hero-overlay {
+  background: linear-gradient(
+    90deg,
+    oklch(0.235 0.018 270 / 0.96) 0%,
+    oklch(0.235 0.018 270 / 0.82) 48%,
+    oklch(0.235 0.018 270 / 0.28) 100%
+  );
+}
+
 * {
   box-sizing: border-box;
   border-color: var(--border);

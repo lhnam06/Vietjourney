@@ -310,7 +310,7 @@ export function TimelineEditor({
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(135deg,oklch(0.99_0.004_280),oklch(0.965_0.014_277))] px-4 pb-5 pt-10 lg:px-5">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-background px-4 pb-5 pt-10 lg:px-5">
       <div className="grid min-h-full gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="flex max-h-[calc(100vh-40px)] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-5">
           <div className="flex items-center justify-between gap-3">
@@ -344,7 +344,7 @@ export function TimelineEditor({
             <button
               type="button"
               onClick={() => setIsListMenuOpen((open) => !open)}
-              className="flex h-12 w-full items-center justify-between rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.98_0.018_277),white)] px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              className="flex h-12 w-full items-center justify-between rounded-xl border border-border bg-background px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -447,26 +447,26 @@ export function TimelineEditor({
               >
                 <ChevronRight className="size-5" />
               </button>
-              <div className="flex h-11 items-center gap-3 rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.98_0.018_277),white)] px-4 text-sm font-semibold text-foreground shadow-sm">
+              <div className="flex h-11 items-center gap-3 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground shadow-sm">
                 <CalendarDays className="size-4 text-primary" />
                 {weekRangeText}
               </div>
             </div>
 
             <div className="flex rounded-xl border border-primary/20 bg-primary/10 p-1 shadow-sm">
-              <button className="rounded-lg px-5 py-2 text-sm font-medium text-primary/65 hover:bg-white/70">Ngày</button>
+              <button className="rounded-lg px-5 py-2 text-sm font-medium text-primary/70 hover:bg-card">Ngày</button>
               <button className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm">Tuần</button>
             </div>
           </div>
 
           {error ? (
-            <div className="mt-4 rounded-xl border border-destructive/20 bg-red-50 px-4 py-3 text-sm text-destructive">
+            <div className="mt-4 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           ) : null}
 
           <div
-            className="relative mt-5 overflow-x-auto overflow-y-visible rounded-2xl border border-border bg-white"
+            className="relative mt-5 overflow-x-auto overflow-y-visible rounded-2xl border border-border bg-background"
             onDragOver={handleCalendarDragOver}
             onDragLeave={handleDragLeave}
           >
@@ -501,7 +501,7 @@ export function TimelineEditor({
                     key={day.toISOString()}
                     className={cn(
                       "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-r border-border px-4 text-center",
-                      available ? "bg-card" : "bg-slate-100 text-muted-foreground",
+                      available ? "bg-card" : "bg-muted text-muted-foreground",
                     )}
                     style={{ height: calendarHeaderHeight }}
                   >
@@ -530,8 +530,8 @@ export function TimelineEditor({
                         className={cn(
                           "relative border-b border-r border-dashed border-border/75 transition",
                           available
-                            ? "bg-white hover:bg-accent/20"
-                            : "cursor-not-allowed bg-slate-100/80",
+                            ? "bg-card hover:bg-accent/30"
+                            : "cursor-not-allowed bg-muted/80",
                         )}
                         style={{ height: hourHeight }}
                         onDragOver={available ? (event) => event.preventDefault() : undefined}
@@ -658,7 +658,7 @@ function TimelineCard({
       draggable={!resizing}
       onDragStart={onDragStart}
       className={cn(
-        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-xl border border-primary/20 bg-[linear-gradient(135deg,oklch(0.985_0.016_277),white)] p-2 text-xs shadow-sm transition hover:z-30 hover:shadow-md active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-xl border border-primary/20 bg-card p-2 text-xs shadow-sm transition hover:z-30 hover:bg-accent/60 hover:shadow-md active:cursor-grabbing",
         saving ? "opacity-60" : "",
       )}
       style={{ left, top, width, height }}
