@@ -5,9 +5,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
   GripVertical,
   Loader2,
-  MoreHorizontal,
   Plus,
   Sparkles,
   Trash2,
@@ -40,7 +40,7 @@ const hourHeight = 44;
 const calendarHeaderHeight = 74;
 const timeColumnWidth = 78;
 const dayColumnWidth = "minmax(0,1fr)";
-const eventCardInset = 6;
+const eventCardInset = 4;
 const edgeSwitchZone = 50;
 const edgeSwitchDelay = 500;
 const defaultDropDurationMinutes = 90;
@@ -92,6 +92,7 @@ export function TimelineEditor({
   const [isListMenuOpen, setIsListMenuOpen] = useState(false);
   const [draggedPlaceId, setDraggedPlaceId] = useState<string | null>(null);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [deleteZoneActive, setDeleteZoneActive] = useState(false);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const edgeSwitchRef = useRef<number | null>(null);
   const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
@@ -207,6 +208,7 @@ export function TimelineEditor({
   function handleDragStart(event: DragEvent, payload: DragPayload) {
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = payload.kind === "place" ? "copyMove" : "move";
+    setTransparentDragImage(event);
 
     window.setTimeout(() => {
       if (payload.kind === "place") {
@@ -223,6 +225,7 @@ export function TimelineEditor({
   function handleDragEnd() {
     setDraggedPlaceId(null);
     setDraggedEventId(null);
+    setDeleteZoneActive(false);
     setDropPreview(null);
     clearEdgeSwitchTimer();
   }
@@ -349,6 +352,7 @@ export function TimelineEditor({
         });
         setEvents((current) => [...current, created]);
         setDraggedPlaceId(null);
+        setDeleteZoneActive(false);
         setDropPreview(null);
         return;
       }
@@ -361,12 +365,27 @@ export function TimelineEditor({
       );
       await moveEvent(source, start, end, dayEvents(day).length);
       setDraggedEventId(null);
+      setDeleteZoneActive(false);
       setDropPreview(null);
     } catch (dropError) {
       setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
       setDropPreview(null);
       await reloadEvents();
     }
+  }
+
+  async function handleDeleteZoneDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    clearEdgeSwitchTimer();
+    const payload = parseDragPayload(event);
+    const eventId = payload?.kind === "event" ? payload.eventId : draggedEventId;
+    if (!eventId) return;
+
+    setDraggedEventId(null);
+    setDeleteZoneActive(false);
+    setDropPreview(null);
+    await removeEvent(eventId);
   }
 
   async function handleDrop(event: DragEvent, day: Date, hour: number) {
@@ -620,8 +639,8 @@ export function TimelineEditor({
             {edgeHint ? (
               <div
                 className={cn(
-                  "pointer-events-none absolute inset-y-16 z-30 flex w-28 items-center justify-center rounded-2xl border border-dashed border-primary/45 bg-accent/80 text-center text-xs font-semibold text-primary backdrop-blur",
-                  edgeHint === "previous" ? "left-3" : "right-3",
+                  "pointer-events-none absolute top-1/2 z-40 flex h-24 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-primary/30 bg-primary text-center text-[10px] font-bold text-primary-foreground shadow-lg shadow-primary/20 backdrop-blur [writing-mode:vertical-rl]",
+                  edgeHint === "previous" ? "left-2" : "right-2",
                 )}
               >
                 {edgeHint === "previous" ? "Tuần trước" : "Tuần tiếp theo"}
@@ -768,6 +787,27 @@ export function TimelineEditor({
                 )}
               </div>
             </div>
+
+            {draggedEventId ? (
+              <div
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDeleteZoneActive(true);
+                }}
+                onDragLeave={() => setDeleteZoneActive(false)}
+                onDrop={handleDeleteZoneDrop}
+                className={cn(
+                  "sticky bottom-3 z-40 mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold shadow-lg backdrop-blur transition-all",
+                  deleteZoneActive
+                    ? "scale-105 border-destructive bg-destructive text-destructive-foreground"
+                    : "border-destructive/30 bg-card/95 text-destructive",
+                )}
+              >
+                <Trash2 className="size-4" />
+                {deleteZoneActive ? "Thả để xóa khỏi timetable" : "Kéo vào đây để xóa khỏi timetable"}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 rounded-2xl border border-primary/10 bg-accent/55 p-4">
@@ -810,7 +850,7 @@ function PlaceCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className="group flex cursor-grab items-center gap-3 rounded-2xl border border-border bg-card p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing"
+      className="group flex cursor-grab items-center gap-3 rounded-2xl border border-primary/15 bg-muted/70 p-2.5 shadow-sm ring-1 ring-border/60 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-accent/50 hover:shadow-md active:cursor-grabbing"
     >
       <img src={placeImage(place)} alt={place.name} className="size-20 rounded-xl object-cover" />
       <div className="min-w-0 flex-1">
@@ -865,7 +905,7 @@ function TimelineCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-card px-2 py-1.5 text-center text-xs shadow-sm transition hover:z-30 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/35 bg-primary/15 px-2 py-1.5 text-center text-xs shadow-sm shadow-primary/10 ring-1 ring-primary/10 transition hover:z-30 hover:border-primary/55 hover:bg-primary/20 hover:shadow-md active:cursor-grabbing",
         saving ? "opacity-60" : "",
         isDragging ? "opacity-45 ring-2 ring-primary/30" : "",
       )}
@@ -886,13 +926,14 @@ function TimelineCard({
       >
         <Trash2 className="size-3.5" />
       </button>
-      <MoreHorizontal className="absolute bottom-1 right-1 size-4 text-muted-foreground opacity-70 group-hover:opacity-100" />
       <button
         type="button"
         aria-label="Đổi thời lượng"
         onPointerDown={onResizeStart}
-        className="absolute inset-x-2 bottom-1 h-2 cursor-ns-resize rounded-full bg-primary/25 opacity-0 transition group-hover:opacity-100 hover:bg-primary/40"
-      />
+        className="absolute bottom-1 right-1 flex size-5 cursor-ns-resize items-center justify-center rounded-md border border-primary/20 bg-card/90 text-primary opacity-75 shadow-sm transition hover:bg-primary hover:text-primary-foreground group-hover:opacity-100"
+      >
+        <ChevronsUpDown className="size-3.5" />
+      </button>
     </article>
   );
 }
@@ -903,6 +944,21 @@ function parseDragPayload(event: DragEvent): DragPayload | null {
   } catch {
     return null;
   }
+}
+
+function setTransparentDragImage(event: DragEvent) {
+  if (typeof document === "undefined") return;
+
+  const dragImage = document.createElement("div");
+  dragImage.style.position = "fixed";
+  dragImage.style.left = "-100px";
+  dragImage.style.top = "-100px";
+  dragImage.style.width = "1px";
+  dragImage.style.height = "1px";
+  dragImage.style.opacity = "0";
+  document.body.appendChild(dragImage);
+  event.dataTransfer.setDragImage(dragImage, 0, 0);
+  window.setTimeout(() => dragImage.remove(), 0);
 }
 
 function toEventCategory(category?: Place["category"] | null): TimelineEventCategory {
