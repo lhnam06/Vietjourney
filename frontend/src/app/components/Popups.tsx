@@ -1,17 +1,22 @@
 import { useState, type ReactNode } from "react";
 import {
+  ArrowDownWideNarrow,
+  ArrowUpWideNarrow,
   Bookmark,
   Camera,
   Check,
   ChevronRight,
+  Clock3,
   Coffee,
   Heart,
   ListFilter,
   MapPin,
+  Navigation,
   Search,
   SlidersHorizontal,
   Sparkles,
   Star,
+  type LucideIcon,
   X,
 } from "lucide-react";
 import {
@@ -69,14 +74,39 @@ const ratingOptions: { value: RatingFilter; label: string }[] = [
   { value: "5", label: "5.0" },
 ];
 
-const sortOptions: { value: SortOption; label: string }[] = [
-  { value: "best", label: "Phù hợp nhất" },
-  { value: "rating", label: "Đánh giá cao nhất" },
-  { value: "distance", label: "Khoảng cách gần nhất" },
-  { value: "priceAsc", label: "Giá: Thấp đến cao" },
-  { value: "priceDesc", label: "Giá: Cao đến thấp" },
-  { value: "newest", label: "Mới nhất" },
+const sortOptions: { value: SortOption; label: string; icon: LucideIcon }[] = [
+  { value: "best", label: "Phù hợp nhất", icon: Sparkles },
+  { value: "rating", label: "Đánh giá cao nhất", icon: Star },
+  { value: "distance", label: "Khoảng cách gần nhất", icon: Navigation },
+  { value: "priceAsc", label: "Giá: Thấp đến cao", icon: ArrowDownWideNarrow },
+  { value: "priceDesc", label: "Giá: Cao đến thấp", icon: ArrowUpWideNarrow },
+  { value: "newest", label: "Mới nhất", icon: Clock3 },
 ];
+
+const districtImages: Record<string, string> = {
+  "Quận 1": "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=180&q=70",
+  "Quận 3": "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?auto=format&fit=crop&w=180&q=70",
+  "Quận 4": "https://images.unsplash.com/photo-1606398850524-7058c319a920?auto=format&fit=crop&w=180&q=70",
+  "Quận 5": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=180&q=70",
+  "Quận 7": "https://images.unsplash.com/photo-1596422846543-75c6fc197f07?auto=format&fit=crop&w=180&q=70",
+  "Quận 10": "https://images.unsplash.com/photo-1555400038-63f5ba517a47?auto=format&fit=crop&w=180&q=70",
+  "Bình Thạnh": "https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=180&q=70",
+  "Bình Tân": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=180&q=70",
+  "Bình Chánh": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=180&q=70",
+  "Tân Bình": "https://images.unsplash.com/photo-1542296332-2e4473faf563?auto=format&fit=crop&w=180&q=70",
+  "Tân Phú": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=180&q=70",
+  "Phú Nhuận": "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?auto=format&fit=crop&w=180&q=70",
+  "Gò Vấp": "https://images.unsplash.com/photo-1578894381163-e72c17f2d45f?auto=format&fit=crop&w=180&q=70",
+  "Thủ Đức": "https://images.unsplash.com/photo-1565967511849-76a60a516170?auto=format&fit=crop&w=180&q=70",
+  "Nhà Bè": "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=180&q=70",
+  "Củ Chi": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=180&q=70",
+  "Hóc Môn": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=180&q=70",
+  "Cần Giờ": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=180&q=70",
+};
+
+function districtImage(name: string) {
+  return districtImages[name] || `https://picsum.photos/seed/${encodeURIComponent(name)}/180/120`;
+}
 
 const listIconOptions = [
   { value: "bookmark", icon: Bookmark },
@@ -219,7 +249,7 @@ export function AreaModal({
               )}
             >
               <img
-                src={district.image || "/placeholder.svg"}
+                src={district.image || districtImage(district.name)}
                 alt={district.name}
                 className="size-14 rounded-lg object-cover"
               />
@@ -294,7 +324,7 @@ export function FilterModal({
 
   return (
     <ModalFrame title="Bộ lọc" onClose={onClose} className="max-w-lg">
-      <div className="space-y-8 px-5 pb-5">
+      <div className="max-h-[calc(92vh-9rem)] space-y-8 overflow-y-auto px-5 pb-5 pr-4">
         <div className="flex justify-end">
           <button onClick={onReset} className="text-sm font-semibold text-primary">
             Đặt lại tất cả
@@ -599,25 +629,40 @@ export function SortModal({
   return (
     <ModalFrame title="Sắp xếp theo" onClose={onClose} className="max-w-md">
       <div className="px-5 pb-7">
-        {sortOptions.map((option) => (
-          <button
-            key={option.value}
-            onClick={() => onChange(option.value)}
-            className="flex h-12 w-full items-center justify-between border-b border-border text-left text-sm font-semibold text-foreground"
-          >
-            <span className={cn(value === option.value && "text-primary")}>
-              {option.label}
-            </span>
-            <span
-              className={cn(
-                "flex size-5 items-center justify-center rounded-full border",
-                value === option.value ? "border-primary bg-primary text-primary-foreground" : "border-border",
-              )}
+        {sortOptions.map((option) => {
+          const Icon = option.icon;
+          const active = value === option.value;
+
+          return (
+            <button
+              key={option.value}
+              onClick={() => onChange(option.value)}
+              className="flex h-12 w-full items-center justify-between gap-3 border-b border-border text-left text-sm font-semibold text-foreground"
             >
-              {value === option.value ? <Check className="size-3" /> : null}
-            </span>
-          </button>
-        ))}
+              <span className="flex min-w-0 items-center gap-3">
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                    active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  <Icon className={cn("size-4", option.value === "rating" ? "fill-current" : "")} />
+                </span>
+                <span className={cn("truncate", active && "text-primary")}>
+                  {option.label}
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border",
+                  active ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                )}
+              >
+                {active ? <Check className="size-3" /> : null}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </ModalFrame>
   );

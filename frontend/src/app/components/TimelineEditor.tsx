@@ -36,11 +36,11 @@ import { listIcon } from "./ListPanel";
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const hours = Array.from({ length: 24 }, (_, index) => index);
-const hourHeight = 54;
-const calendarHeaderHeight = 88;
-const timeColumnWidth = 86;
-const dayColumnWidth = "minmax(156px,1fr)";
-const eventCardInset = 8;
+const hourHeight = 44;
+const calendarHeaderHeight = 74;
+const timeColumnWidth = 78;
+const dayColumnWidth = "minmax(0,1fr)";
+const eventCardInset = 6;
 
 type DragPayload =
   | { kind: "place"; placeId: string }
@@ -310,9 +310,9 @@ export function TimelineEditor({
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-background px-4 pb-5 pt-10 lg:px-5">
-      <div className="grid min-h-full gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="flex max-h-[calc(100vh-40px)] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-5">
+    <main className="min-w-0 flex-1 overflow-hidden bg-background px-4 pb-4 pt-8 lg:px-5">
+      <div className="grid h-[calc(100vh-3rem)] min-h-0 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -332,7 +332,7 @@ export function TimelineEditor({
             </button>
           </div>
 
-          <div className="mt-5 rounded-xl border border-border bg-background px-4 py-3">
+          <div className="mt-4 rounded-xl border border-border bg-background px-4 py-3">
             <p className="text-xs text-muted-foreground">Đang chỉnh sửa</p>
             <h1 className="mt-1 truncate text-lg font-bold text-foreground">{timeline.title}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -340,7 +340,7 @@ export function TimelineEditor({
             </p>
           </div>
 
-          <div className="relative mt-5">
+          <div className="relative mt-4">
             <button
               type="button"
               onClick={() => setIsListMenuOpen((open) => !open)}
@@ -385,24 +385,12 @@ export function TimelineEditor({
             ) : null}
           </div>
 
-          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-primary/25 bg-accent/25 p-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-card text-primary">
-              <GripVertical className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-sm font-bold text-foreground">Kéo địa điểm vào lịch</h2>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Kéo card trong danh sách vào ngày và khung giờ bạn muốn.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 flex items-center justify-between">
+          <div className="mt-3 flex items-center justify-between">
             <h2 className="font-bold text-foreground">Địa điểm đã lưu ({savedPlaceCards.length})</h2>
             {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
           </div>
 
-          <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             {savedPlaceCards.map((place) => (
               <PlaceCard
                 key={place.id}
@@ -418,7 +406,7 @@ export function TimelineEditor({
           </div>
         </aside>
 
-        <section className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <section className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold text-foreground">Lên lịch trình cho chuyến đi</h2>
@@ -466,7 +454,7 @@ export function TimelineEditor({
           ) : null}
 
           <div
-            className="relative mt-5 overflow-x-auto overflow-y-visible rounded-2xl border border-border bg-background"
+            className="relative mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-background"
             onDragOver={handleCalendarDragOver}
             onDragLeave={handleDragLeave}
           >
@@ -482,7 +470,7 @@ export function TimelineEditor({
             ) : null}
 
             <div
-              className="min-w-[1180px] grid"
+              className="relative grid w-full min-w-0"
               style={{
                 gridTemplateColumns: `${timeColumnWidth}px repeat(7, ${dayColumnWidth})`,
               }}
@@ -649,45 +637,37 @@ function TimelineCard({
   const start = new Date(event.startTime);
   const end = resizing || new Date(event.endTime);
   const top = (start.getHours() * 60 + start.getMinutes()) * (hourHeight / 60);
-  const height = Math.max(52, differenceMinutes(end, start) * (hourHeight / 60));
+  const height = Math.max(38, differenceMinutes(end, start) * (hourHeight / 60));
   const width = `calc((100% / 7) - ${eventCardInset * 2}px)`;
   const left = `calc(${dayIndex} * (100% / 7) + ${eventCardInset}px)`;
+  const compact = height < 58;
 
   return (
     <article
       draggable={!resizing}
       onDragStart={onDragStart}
       className={cn(
-        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-xl border border-primary/20 bg-card p-2 text-xs shadow-sm transition hover:z-30 hover:bg-accent/60 hover:shadow-md active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-card px-2 py-1.5 text-center text-xs shadow-sm transition hover:z-30 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md active:cursor-grabbing",
         saving ? "opacity-60" : "",
       )}
       style={{ left, top, width, height }}
     >
-      <div className="flex h-full min-h-0 gap-2.5">
-        <img
-          src={event.place?.imageUrl || `https://picsum.photos/seed/${event.externalPlaceId}/96/96`}
-          alt={event.place?.name || "Địa điểm"}
-          className="h-full min-h-9 max-h-16 w-16 shrink-0 rounded-lg object-cover"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-1.5">
-            <h3 className="line-clamp-2 flex-1 font-bold leading-tight text-foreground">
-              {event.place?.name || "Địa điểm"}
-            </h3>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-destructive"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-          </div>
-          <p className="mt-1 text-[11px] font-medium text-muted-foreground">
-            {formatTime(start)} - {formatTime(end)}
-          </p>
-        </div>
-        <MoreHorizontal className="size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 px-4">
+        <h3 className={cn("font-bold leading-tight text-foreground", compact ? "truncate" : "line-clamp-2")}>
+          {event.place?.name || "Địa điểm"}
+        </h3>
+        <p className={cn("text-[11px] font-semibold text-primary/80", compact ? "mt-0.5" : "mt-1")}>
+          {formatTime(start)} - {formatTime(end)}
+        </p>
       </div>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-80 hover:bg-red-50 hover:text-destructive group-hover:opacity-100"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+      <MoreHorizontal className="absolute bottom-1 right-1 size-4 text-muted-foreground opacity-70 group-hover:opacity-100" />
       <button
         type="button"
         aria-label="Đổi thời lượng"
