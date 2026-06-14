@@ -115,6 +115,128 @@ button {
   border-radius: 999px;
 }
 
+.leaflet-container {
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: oklch(0.97 0.01 250);
+}
+
+.leaflet-control-zoom {
+  overflow: hidden;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1) !important;
+}
+
+.leaflet-control-zoom a {
+  width: 38px !important;
+  height: 38px !important;
+  border: 0 !important;
+  color: var(--foreground) !important;
+  line-height: 38px !important;
+}
+
+.leaflet-control-zoom a + a {
+  border-top: 1px solid var(--border) !important;
+}
+
+.leaflet-control-scale-line {
+  border-color: oklch(0.3 0.02 270) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.leaflet-control-attribution {
+  margin: 0 10px 8px 0 !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.62) !important;
+  color: rgba(71, 85, 105, 0.68) !important;
+  font-size: 10px !important;
+  line-height: 1.6 !important;
+  padding: 1px 8px !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-control-attribution a {
+  color: rgba(67, 56, 202, 0.72) !important;
+  text-decoration: none !important;
+}
+
+.vj-map-attribution a {
+  color: rgba(67, 56, 202, 0.82);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.vj-map-attribution a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.vj-map-marker {
+  background: transparent;
+  border: 0;
+}
+
+.vj-map-marker span {
+  position: relative;
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 16px 28px oklch(0.515 0.22 277 / 0.32);
+  color: white;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.vj-map-marker span::after {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.vj-map-tooltip {
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16) !important;
+  padding: 8px 10px !important;
+}
+
+.vj-map-tooltip::before {
+  display: none;
+}
+
+.vj-map-popup .leaflet-popup-content-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.vj-map-popup .leaflet-popup-content {
+  margin: 14px;
+  color: var(--foreground);
+}
+
+.vj-map-popup .leaflet-popup-tip {
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-panel-in,
   .auth-copy-in,
