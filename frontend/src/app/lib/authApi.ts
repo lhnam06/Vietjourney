@@ -20,6 +20,15 @@ export interface LoginInput {
   password: string;
 }
 
+export interface ChangePasswordInput {
+  oldPassword: string;
+  newPassword: string;
+}
+
+export interface ChangeDisplayNameInput {
+  displayName: string;
+}
+
 export interface UserInfo {
   id: string;
   username: string;
@@ -29,12 +38,12 @@ export interface UserInfo {
 export const authStorageKey = "token";
 
 async function authFetch<T>(path: string, init: RequestInit) {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+
   const response = await fetch(path, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
+    headers,
   });
 
   let payload: ApiResponse<T> | null = null;
@@ -53,6 +62,21 @@ async function authFetch<T>(path: string, init: RequestInit) {
   }
 
   return payload.result;
+}
+
+async function authenticatedAuthFetch<T>(path: string, init: RequestInit) {
+  const token = getAuthToken();
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token.replace(/^Bearer\s+/i, "")}`);
+  }
+
+  return authFetch<T>(path, {
+    ...init,
+    headers,
+  });
 }
 
 export function getAuthToken() {
@@ -77,6 +101,20 @@ export function login(input: LoginInput) {
 export function register(input: RegisterInput) {
   return authFetch<UserInfo>("/api/v1/users/register", {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function changePassword(input: ChangePasswordInput) {
+  return authenticatedAuthFetch<UserInfo>("/api/v1/users/my-password", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function changeDisplayName(input: ChangeDisplayNameInput) {
+  return authenticatedAuthFetch<UserInfo>("/api/v1/users/my-display-name", {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
 }
