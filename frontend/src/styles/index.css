@@ -197,12 +197,17 @@ button {
 }
 
 .auth-card-scroll {
-  scrollbar-color: oklch(0.68 0.19 270) transparent;
-  scrollbar-gutter: stable;
+  /* scrollbar-color: oklch(0.68 0.19 270) transparent;
+  scrollbar-gutter: stable; */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .auth-card-scroll::-webkit-scrollbar {
-  width: 8px;
+  /* width: 8px; */
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .auth-card-scroll::-webkit-scrollbar-track {
