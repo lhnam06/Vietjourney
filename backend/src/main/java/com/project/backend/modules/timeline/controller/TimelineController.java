@@ -62,6 +62,21 @@ public class TimelineController {
                 .build();
     }
 
+    @DeleteMapping("/{timelineId}")
+    @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
+    public ApiResponse<Void> delete(@PathVariable String timelineId) {
+        timelineService.deleteTimeline(timelineId);
+        return ApiResponse.<Void>builder().build();
+    }
+
+    @PostMapping("/{timelineId}/duplicate")
+    @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
+    public ApiResponse<TimelineResponse> duplicate(@PathVariable String timelineId) {
+        return ApiResponse.<TimelineResponse>builder()
+                .result(timelineService.duplicateTimeline(timelineId))
+                .build();
+    }
+
     @PutMapping("/{timelineId}/members")
     @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
     public ApiResponse<TimelineMemberResponse> upsertMember(

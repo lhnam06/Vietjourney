@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  Bookmark,
   Bot,
   CalendarDays,
   Check,
@@ -19,6 +20,7 @@ import {
   MapPin,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   Search,
   Share2,
   Sparkles,
@@ -29,18 +31,23 @@ import {
 import {
   createTimeline,
   createTimelineEvent,
+  deleteTimeline,
+  duplicateTimeline,
   fetchCurrentUser,
   fetchMyTimelines,
   fetchRecentNotifications,
   joinTimelineByCode,
+  removeTimelineMember,
   resetTimelineInviteCode,
   tripCoverImage,
   updateTimeline,
+  upsertTimelineMember,
   type CurrentUser,
   type InviteCodeResult,
   type NotificationItem,
   type Timeline,
   type TimelineInput,
+  type TimelineMemberRole,
   type TimelineVisibility,
 } from "../lib/timelineApi";
 import {
@@ -49,13 +56,16 @@ import {
   placeImage,
   type Place,
 } from "../lib/placesApi";
+import { fetchRecommendedPlaces } from "../lib/recommendationApi";
 import { cn } from "../lib/utils";
 
-type TripModal = "create" | "join" | "edit" | "invite" | null;
+type TripModal = "create" | "join" | "edit" | "invite" | "members" | null;
 type StartMethod = "ai" | "explore" | "blank";
 
 interface MyTripsProps {
+  savedPlaces?: Place[];
   onExplore?: () => void;
+  onOpenNotifications?: () => void;
   onEditTimeline?: (timeline: Timeline) => void;
   onViewMap?: (timeline: Timeline) => void;
 }
@@ -177,12 +187,20 @@ function makeEventWindow(startDate: string, index: number) {
   };
 }
 
-export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) {
+export function MyTrips({
+  savedPlaces = [],
+  onExplore,
+  onOpenNotifications,
+  onEditTimeline,
+  onViewMap,
+}: MyTripsProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [recommendedPlaces, setRecommendedPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<TripModal>(null);
   const [selectedTimeline, setSelectedTimeline] = useState<Timeline | null>(null);
   const [inviteResult, setInviteResult] = useState<InviteCodeResult | null>(null);
@@ -216,6 +234,15 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
   useEffect(() => {
     const controller = new AbortController();
     loadDashboard(controller.signal);
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchRecommendedPlaces(4, controller.signal)
+      .then(setRecommendedPlaces)
+      .catch(() => setRecommendedPlaces([]));
+
     return () => controller.abort();
   }, []);
 
@@ -258,6 +285,43 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
     }
   }
 
+  function openMembers(timeline: Timeline) {
+    setSelectedTimeline(timeline);
+    setOpenMenuId(null);
+    setModal("members");
+  }
+
+  async function duplicateTrip(timeline: Timeline) {
+    setOpenMenuId(null);
+    setActionMessage(null);
+    setError(null);
+
+    try {
+      const duplicated = await duplicateTimeline(timeline.id);
+      setActionMessage(`Đã nhân bản "${duplicated.title}".`);
+      await loadDashboard();
+    } catch (duplicateError) {
+      setError(duplicateError instanceof Error ? duplicateError.message : "Không nhân bản được chuyến đi.");
+    }
+  }
+
+  async function deleteTrip(timeline: Timeline) {
+    setOpenMenuId(null);
+    const confirmed = window.confirm(`Xóa chuyến đi "${timeline.title}"? Hành động này không thể hoàn tác.`);
+    if (!confirmed) return;
+
+    setActionMessage(null);
+    setError(null);
+
+    try {
+      await deleteTimeline(timeline.id);
+      setActionMessage(`Đã xóa chuyến đi "${timeline.title}".`);
+      await loadDashboard();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Không xóa được chuyến đi.");
+    }
+  }
+
   const displayName = user?.displayName || user?.username || "bạn";
 
   return (
@@ -283,7 +347,12 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
                   <Plus className="size-4" />
                   Tạo chuyến đi mới
                 </button>
-                <button className="relative flex size-11 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm">
+                <button
+                  type="button"
+                  aria-label="Mở thông báo"
+                  onClick={onOpenNotifications}
+                  className="relative flex size-11 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+                >
                   <Bell className="size-5" />
                   {notifications.length ? (
                     <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-white">
@@ -304,6 +373,12 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
             {error ? (
               <div className="mt-6 rounded-2xl border border-destructive/30 bg-card p-5 text-sm text-destructive shadow-sm">
                 {error}
+              </div>
+            ) : null}
+
+            {actionMessage ? (
+              <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-5 text-sm font-medium text-emerald-700 shadow-sm">
+                {actionMessage}
               </div>
             ) : null}
 
@@ -334,13 +409,17 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
                           setOpenMenuId(null);
                           onViewMap?.(recentTimeline);
                         }}
+                        onMembers={() => openMembers(recentTimeline)}
                         onInvite={() => openInvite(recentTimeline)}
+                        onDuplicate={() => void duplicateTrip(recentTimeline)}
+                        onDelete={() => void deleteTrip(recentTimeline)}
                       />
                     </div>
                     <FeaturedTrip
                       timeline={recentTimeline}
                       onEditTimeline={() => onEditTimeline?.(recentTimeline)}
                       onViewMap={() => onViewMap?.(recentTimeline)}
+                      onInvite={() => openInvite(recentTimeline)}
                     />
                   </section>
                 ) : (
@@ -408,7 +487,10 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
                           setOpenMenuId(null);
                           onViewMap?.(timeline);
                         }}
+                        onMembers={() => openMembers(timeline)}
                         onInvite={() => openInvite(timeline)}
+                        onDuplicate={() => void duplicateTrip(timeline)}
+                        onDelete={() => void deleteTrip(timeline)}
                       />
                     ))}
                     <button
@@ -430,21 +512,12 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
             )}
           </section>
 
-          <aside className="space-y-5">
-            <RecentActivities notifications={notifications} timelines={sortedTimelines} />
-            <div className="overflow-hidden rounded-2xl border border-border bg-accent p-5 shadow-sm">
-              <h3 className="font-bold text-primary">Khám phá những địa điểm mới</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Hàng nghìn địa điểm hấp dẫn đang chờ bạn khám phá và thêm vào hành trình.
-              </p>
-              <button
-                type="button"
-                onClick={onExplore}
-                className="mt-5 rounded-xl bg-card px-5 py-3 text-sm font-semibold text-primary shadow-sm"
-              >
-                Khám phá ngay
-              </button>
-            </div>
+          <aside className="space-y-4">
+            <UpcomingTrips timelines={sortedTimelines} onViewAll={onOpenNotifications} onOpenTimeline={onEditTimeline} />
+            <RecentActivities notifications={notifications} timelines={sortedTimelines} onViewAll={onOpenNotifications} />
+            <CollaborationInvites notifications={notifications} timelines={sortedTimelines} onViewAll={onOpenNotifications} onOpenTimeline={onEditTimeline} />
+            <SavedPlacesWidget places={savedPlaces} onExplore={onExplore} />
+            <RecommendationsWidget places={recommendedPlaces} onExplore={onExplore} />
           </aside>
         </div>
       </main>
@@ -488,6 +561,22 @@ export function MyTrips({ onExplore, onEditTimeline, onViewMap }: MyTripsProps) 
           onGenerated={(result) => {
             setInviteResult(result);
             loadDashboard();
+          }}
+        />
+      ) : null}
+
+      {modal === "members" && selectedTimeline ? (
+        <MembersTripModal
+          timeline={selectedTimeline}
+          currentUserId={user?.id}
+          onClose={() => setModal(null)}
+          onChanged={() => {
+            setModal(null);
+            loadDashboard();
+          }}
+          onInvite={() => {
+            setModal("invite");
+            setInviteResult(null);
           }}
         />
       ) : null}
@@ -536,10 +625,12 @@ function FeaturedTrip({
   timeline,
   onEditTimeline,
   onViewMap,
+  onInvite,
 }: {
   timeline: Timeline;
   onEditTimeline: () => void;
   onViewMap: () => void;
+  onInvite: () => void;
 }) {
   const status = timelineStatus(timeline);
   const progress = progressForTimeline(timeline);
@@ -600,7 +691,11 @@ function FeaturedTrip({
           >
             Xem bản đồ
           </button>
-          <button className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground">
+          <button
+            type="button"
+            onClick={onInvite}
+            className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground"
+          >
             Mời thành viên
           </button>
         </div>
@@ -617,7 +712,10 @@ function TripCard({
   onEdit,
   onEditTimeline,
   onViewMap,
+  onMembers,
   onInvite,
+  onDuplicate,
+  onDelete,
 }: {
   timeline: Timeline;
   listMode: boolean;
@@ -626,7 +724,10 @@ function TripCard({
   onEdit: () => void;
   onEditTimeline: () => void;
   onViewMap: () => void;
+  onMembers: () => void;
   onInvite: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 }) {
   const status = timelineStatus(timeline);
   const progress = progressForTimeline(timeline);
@@ -655,7 +756,10 @@ function TripCard({
         onEdit={onEdit}
         onEditTimeline={onEditTimeline}
         onViewMap={onViewMap}
+        onMembers={onMembers}
         onInvite={onInvite}
+        onDuplicate={onDuplicate}
+        onDelete={onDelete}
         compact
       />
       <div className="p-4">
@@ -700,7 +804,10 @@ function TripMenuButton({
   onEdit,
   onEditTimeline,
   onViewMap,
+  onMembers,
   onInvite,
+  onDuplicate,
+  onDelete,
   compact,
 }: {
   timeline: Timeline;
@@ -709,7 +816,10 @@ function TripMenuButton({
   onEdit: () => void;
   onEditTimeline: () => void;
   onViewMap: () => void;
+  onMembers: () => void;
   onInvite: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
   compact?: boolean;
 }) {
   return (
@@ -728,12 +838,12 @@ function TripMenuButton({
           <MenuItem icon={CalendarDays} label="Chỉnh sửa Timeline" onClick={onEditTimeline} />
           <MenuItem icon={Map} label="Xem bản đồ" onClick={onViewMap} />
           <div className="my-2 border-t border-border" />
-          <MenuItem icon={Users} label="Thành viên" />
+          <MenuItem icon={Users} label="Thành viên" onClick={onMembers} />
           <MenuItem icon={Link2} label="Mã tham gia" badge={timeline.activeInviteCode || "Tạo mã"} onClick={onInvite} />
           <MenuItem icon={Share2} label="Chia sẻ chuyến đi" onClick={onInvite} />
           <div className="my-2 border-t border-border" />
-          <MenuItem icon={Copy} label="Nhân bản chuyến đi" disabled />
-          <MenuItem icon={Trash2} label="Xóa chuyến đi" danger disabled />
+          <MenuItem icon={Copy} label="Nhân bản chuyến đi" onClick={onDuplicate} />
+          <MenuItem icon={Trash2} label="Xóa chuyến đi" danger onClick={onDelete} />
         </div>
       ) : null}
     </div>
@@ -794,12 +904,90 @@ function MemberStack({ members }: { members: Timeline["members"] }) {
   );
 }
 
+function UtilityHeader({
+  title,
+  onViewAll,
+}: {
+  title: string;
+  onViewAll?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="font-bold text-foreground">{title}</h2>
+      {onViewAll ? (
+        <button
+          type="button"
+          onClick={onViewAll}
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          Xem tất cả
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function UpcomingTrips({
+  timelines,
+  onViewAll,
+  onOpenTimeline,
+}: {
+  timelines: Timeline[];
+  onViewAll?: () => void;
+  onOpenTimeline?: (timeline: Timeline) => void;
+}) {
+  const upcoming = timelines
+    .filter((timeline) => dateOnly(timeline.endDate).getTime() >= dateOnly(todayIso).getTime())
+    .sort((first, second) => dateOnly(first.startDate).getTime() - dateOnly(second.startDate).getTime())
+    .slice(0, 2);
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <UtilityHeader title="Lịch sắp tới" onViewAll={onViewAll} />
+      <div className="mt-4 space-y-3">
+        {upcoming.map((timeline) => {
+          const daysUntil = Math.ceil((dateOnly(timeline.startDate).getTime() - dateOnly(todayIso).getTime()) / 86400000);
+          return (
+            <button
+              key={timeline.id}
+              type="button"
+              onClick={() => onOpenTimeline?.(timeline)}
+              className="flex w-full items-center gap-3 rounded-xl text-left transition-colors hover:bg-accent"
+            >
+              <span className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-muted text-foreground">
+                <span className="text-lg font-bold leading-none">{dateOnly(timeline.startDate).getDate()}</span>
+                <span className="mt-1 text-[10px] font-semibold uppercase text-muted-foreground">
+                  Th {dateOnly(timeline.startDate).getMonth() + 1}
+                </span>
+              </span>
+              <span className="min-w-0 flex-1 py-2">
+                <span className="block truncate text-sm font-semibold text-foreground">{timeline.title}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">{formatDateRange(timeline)}</span>
+                <span className="mt-1 block text-xs font-semibold text-primary">
+                  {daysUntil > 0 ? `Còn ${daysUntil} ngày nữa` : "Đang diễn ra"}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+        {!upcoming.length ? (
+          <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+            Chưa có lịch sắp tới.
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function RecentActivities({
   notifications,
   timelines,
+  onViewAll,
 }: {
   notifications: NotificationItem[];
   timelines: Timeline[];
+  onViewAll?: () => void;
 }) {
   const fallback = timelines.slice(0, 4).map((timeline) => ({
     id: timeline.id,
@@ -812,16 +1000,13 @@ function RecentActivities({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-foreground">Hoạt động gần đây</h2>
-        <button className="text-sm font-semibold text-primary">Xem tất cả</button>
-      </div>
-      <div className="mt-5 space-y-5">
+      <UtilityHeader title="Hoạt động gần đây" onViewAll={onViewAll} />
+      <div className="mt-4 space-y-4">
         {activities.map((item, index) => (
           <div key={item.id} className="flex gap-3">
             <span
               className={cn(
-                "flex size-12 shrink-0 items-center justify-center rounded-xl",
+                "flex size-9 shrink-0 items-center justify-center rounded-xl",
                 index % 4 === 0 && "bg-orange-50 text-orange-600",
                 index % 4 === 1 && "bg-emerald-50 text-emerald-600",
                 index % 4 === 2 && "bg-accent text-primary",
@@ -848,6 +1033,156 @@ function RecentActivities({
           </p>
         ) : null}
       </div>
+    </section>
+  );
+}
+
+function CollaborationInvites({
+  notifications,
+  timelines,
+  onViewAll,
+  onOpenTimeline,
+}: {
+  notifications: NotificationItem[];
+  timelines: Timeline[];
+  onViewAll?: () => void;
+  onOpenTimeline?: (timeline: Timeline) => void;
+}) {
+  const inviteNotifications = notifications.filter(
+    (notification) => notification.category === "COLLABORATION" || notification.type === "COLLABORATION_INVITE",
+  );
+  const fallbackTimelines = timelines.filter((timeline) => timeline.members.length > 1).slice(0, 2);
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <UtilityHeader title="Lời mời tham gia" onViewAll={onViewAll} />
+      <div className="mt-4 space-y-3">
+        {inviteNotifications.slice(0, 2).map((notification) => (
+          <div key={notification.id} className="rounded-xl bg-muted p-3">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-700">
+                {memberInitial(String(notification.payload?.actorUsername || notification.title))}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{notification.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{notification.message || "Bạn có lời mời cộng tác mới."}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="mt-3 w-full rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
+            >
+              Xem chi tiết
+            </button>
+          </div>
+        ))}
+        {!inviteNotifications.length
+          ? fallbackTimelines.map((timeline) => (
+              <button
+                key={timeline.id}
+                type="button"
+                onClick={() => onOpenTimeline?.(timeline)}
+                className="flex w-full items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors hover:bg-accent"
+              >
+                <MemberStack members={timeline.members} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-foreground">{timeline.title}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{timeline.members.length} thành viên đang cộng tác</span>
+                </span>
+              </button>
+            ))
+          : null}
+        {!inviteNotifications.length && !fallbackTimelines.length ? (
+          <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+            Chưa có lời mời hoặc timeline cộng tác.
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function SavedPlacesWidget({
+  places,
+  onExplore,
+}: {
+  places: Place[];
+  onExplore?: () => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <UtilityHeader title="Địa điểm đã lưu" onViewAll={onExplore} />
+      <div className="mt-4 space-y-3">
+        {places.slice(0, 3).map((place) => (
+          <button
+            key={`${place.category}-${place.id}`}
+            type="button"
+            onClick={onExplore}
+            className="flex w-full items-center gap-3 rounded-xl text-left transition-colors hover:bg-accent"
+          >
+            <img src={placeImage(place)} alt={place.name} className="size-11 shrink-0 rounded-xl object-cover" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-foreground">{place.name}</span>
+              <span className="mt-1 block truncate text-xs text-muted-foreground">{place.district || place.address || "Việt Nam"}</span>
+            </span>
+          </button>
+        ))}
+        {!places.length ? (
+          <button
+            type="button"
+            onClick={onExplore}
+            className="flex w-full items-center gap-3 rounded-xl bg-muted p-4 text-left text-sm text-muted-foreground transition-colors hover:bg-accent"
+          >
+            <Bookmark className="size-5 text-primary" />
+            Lưu địa điểm từ trang khám phá để xem nhanh ở đây.
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function RecommendationsWidget({
+  places,
+  onExplore,
+}: {
+  places: Place[];
+  onExplore?: () => void;
+}) {
+  const place = places[0];
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-5 text-amber-500" />
+        <h2 className="font-bold text-foreground">Gợi ý cho bạn</h2>
+      </div>
+      {place ? (
+        <button
+          type="button"
+          onClick={onExplore}
+          className="mt-4 flex w-full items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors hover:bg-accent"
+        >
+          <img src={placeImage(place)} alt={place.name} className="size-14 shrink-0 rounded-xl object-cover" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm text-muted-foreground">Bạn có thể thích</span>
+            <span className="mt-1 block truncate text-sm font-semibold text-foreground">{place.name}</span>
+            <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+              Xem gợi ý
+              <RefreshCw className="size-3.5" />
+            </span>
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onExplore}
+          className="mt-4 rounded-xl bg-accent p-4 text-left text-sm text-primary"
+        >
+          Khám phá thêm địa điểm để VietJourney gợi ý chính xác hơn.
+        </button>
+      )}
     </section>
   );
 }
@@ -1567,6 +1902,130 @@ function EditTripModal({
             Lưu thay đổi
           </button>
         </div>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function MembersTripModal({
+  timeline,
+  currentUserId,
+  onClose,
+  onChanged,
+  onInvite,
+}: {
+  timeline: Timeline;
+  currentUserId?: string;
+  onClose: () => void;
+  onChanged: () => void;
+  onInvite: () => void;
+}) {
+  const [username, setUsername] = useState("");
+  const [role, setRole] = useState<Exclude<TimelineMemberRole, "OWNER">>("EDITOR");
+  const [submitting, setSubmitting] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const canManage = timeline.ownerId === currentUserId;
+
+  async function addMember() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await upsertTimelineMember(timeline.id, { username: username.trim(), role });
+      onChanged();
+    } catch (addError) {
+      setError(addError instanceof Error ? addError.message : "Không thêm được thành viên.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function removeMember(memberId: string) {
+    setRemovingId(memberId);
+    setError(null);
+    try {
+      await removeTimelineMember(timeline.id, memberId);
+      onChanged();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Không xóa được thành viên.");
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  return (
+    <ModalFrame title="Thành viên" subtitle={timeline.title} onClose={onClose} className="max-w-2xl">
+      <div className="mt-6 space-y-5">
+        {error ? <div className="rounded-xl bg-red-50 p-3 text-sm text-destructive">{error}</div> : null}
+
+        <div className="space-y-3">
+          {timeline.members.map((member) => {
+            const isOwner = member.role === "OWNER";
+            return (
+              <div key={member.id} className="flex items-center gap-3 rounded-2xl border border-border bg-background p-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                  {memberInitial(member.displayName || member.username)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-foreground">{member.displayName || member.username}</p>
+                  <p className="mt-0.5 truncate text-sm text-muted-foreground">@{member.username}</p>
+                </div>
+                <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                  {member.role === "OWNER" ? "Chủ chuyến đi" : member.role === "EDITOR" ? "Biên tập" : "Chỉ xem"}
+                </span>
+                {canManage && !isOwner ? (
+                  <button
+                    type="button"
+                    disabled={removingId === member.id}
+                    onClick={() => void removeMember(member.id)}
+                    className="flex size-9 items-center justify-center rounded-xl text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                    aria-label={`Xóa ${member.username}`}
+                  >
+                    {removingId === member.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        {canManage ? (
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <h3 className="font-semibold text-foreground">Thêm thành viên</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+              <TextField label="Username" value={username} onChange={setUsername} placeholder="nguyenvana" />
+              <Segmented
+                label="Vai trò"
+                values={["EDITOR", "VIEWER"]}
+                value={role}
+                onChange={(value) => setRole(value as Exclude<TimelineMemberRole, "OWNER">)}
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap justify-between gap-3">
+              <button
+                type="button"
+                onClick={onInvite}
+                className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-primary hover:bg-accent"
+              >
+                <Link2 className="size-4" />
+                Dùng mã tham gia
+              </button>
+              <button
+                type="button"
+                disabled={!username.trim() || submitting}
+                onClick={() => void addMember()}
+                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {submitting ? <Loader2 className="size-4 animate-spin" /> : <Users className="size-4" />}
+                Thêm thành viên
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+            Chỉ chủ chuyến đi có thể thêm hoặc xóa thành viên.
+          </p>
+        )}
       </div>
     </ModalFrame>
   );
