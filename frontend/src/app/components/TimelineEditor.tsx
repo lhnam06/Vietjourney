@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronsUpDown,
   GripVertical,
   Loader2,
   Plus,
@@ -905,9 +904,9 @@ function TimelineCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/35 bg-primary/15 px-2 py-1.5 text-center text-xs shadow-sm shadow-primary/10 ring-1 ring-primary/10 transition hover:z-30 hover:border-primary/55 hover:bg-primary/20 hover:shadow-md active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/45 bg-primary/30 px-2 py-1.5 text-center text-xs shadow-md shadow-primary/15 ring-1 ring-primary/15 transition hover:z-30 hover:border-primary/60 hover:bg-primary/35 hover:shadow-lg active:cursor-grabbing",
         saving ? "opacity-60" : "",
-        isDragging ? "opacity-45 ring-2 ring-primary/30" : "",
+        isDragging ? "opacity-75 ring-2 ring-primary/35" : "",
       )}
       style={{ left, top, width, height }}
     >
@@ -930,9 +929,9 @@ function TimelineCard({
         type="button"
         aria-label="Đổi thời lượng"
         onPointerDown={onResizeStart}
-        className="absolute bottom-1 right-1 flex size-5 cursor-ns-resize items-center justify-center rounded-md border border-primary/20 bg-card/90 text-primary opacity-75 shadow-sm transition hover:bg-primary hover:text-primary-foreground group-hover:opacity-100"
+        className="absolute bottom-1 left-1/2 flex h-2.5 w-9 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-primary/45 opacity-75 transition hover:bg-primary/70 group-hover:opacity-100"
       >
-        <ChevronsUpDown className="size-3.5" />
+        <span className="h-0.5 w-5 rounded-full bg-primary-foreground/90" />
       </button>
     </article>
   );
