@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Eye,
   EyeOff,
+  Check,
   Lock,
   Navigation,
   UserRound,
@@ -17,6 +18,7 @@ import {
   type LoginInput,
   type RegisterInput,
 } from "../lib/authApi";
+import { defaultAuthHeroVideo } from "../lib/mediaConfig";
 import { cn } from "../lib/utils";
 
 type AuthMode = "login" | "signup";
@@ -28,6 +30,7 @@ interface AuthPageProps {
 
 const heroImage =
   "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1600&q=88";
+const heroVideo = (import.meta.env.VITE_AUTH_HERO_VIDEO as string | undefined) || defaultAuthHeroVideo;
 
 const authCopy = {
   login: {
@@ -59,102 +62,146 @@ export function AuthPage({ initialMode = "login", onAuthenticated }: AuthPagePro
   }
 
   return (
-    <main className="grid min-h-dvh bg-white text-slate-950 lg:grid-cols-[minmax(520px,0.93fr)_minmax(560px,1.07fr)]">
-      <HeroPanel />
+    <main className="flex min-h-dvh items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_18%_18%,rgba(214,205,255,0.56),transparent_32%),radial-gradient(circle_at_92%_54%,rgba(128,151,255,0.56),transparent_42%),linear-gradient(135deg,oklch(0.55_0.13_278),oklch(0.52_0.15_268)_48%,oklch(0.45_0.13_252))] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+      <div className="grid w-full max-w-6xl overflow-hidden rounded-[28px] border border-white/45 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.28)] lg:min-h-[720px] lg:grid-cols-[minmax(430px,0.86fr)_minmax(0,1.14fr)]">
+        <section className="relative flex min-h-[620px] items-center justify-center px-5 py-8 sm:px-8 lg:px-12">
+          <div className="auth-card-scroll w-full max-w-[480px] pr-8 lg:max-h-[calc(100dvh-96px)] lg:overflow-y-auto lg:pl-1 lg:pr-12">
+            <BrandMark compact />
 
-      <section className="relative flex min-h-dvh items-center justify-center overflow-hidden px-5 py-6 sm:px-8 lg:px-12 xl:px-20">
-        <div className="auth-card-scroll w-full max-w-[540px] lg:max-h-[calc(100dvh-48px)] lg:overflow-y-auto lg:px-1">
-          <div key={`auth-${mode}`} className="auth-panel-in">
-            <header className="text-center">
-              <h1 className="text-[2rem] font-bold leading-tight tracking-[-0.01em] text-slate-950 sm:text-[2.45rem]">
-                {copy.title}
-              </h1>
-              <p className="mt-3 text-base leading-7 text-slate-600">{copy.subtitle}</p>
-            </header>
-
-            <AuthForm mode={mode} onAuthenticated={onAuthenticated} />
-
-            <p className="mt-6 text-center text-sm text-slate-500">
-              {copy.switchText}{" "}
+            <div className="mt-8 grid grid-cols-2 rounded-xl border border-primary/20 bg-primary/5 p-1 shadow-sm">
               <button
                 type="button"
-                onClick={() => switchMode(mode === "login" ? "signup" : "login")}
-                className="font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                onClick={() => switchMode("signup")}
+                className={cn(
+                  "rounded-lg px-4 py-2.5 text-sm font-semibold transition",
+                  mode === "signup" ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" : "text-slate-500 hover:bg-white/70 hover:text-primary",
+                )}
               >
-                {copy.switchAction}
+                Đăng ký
               </button>
-            </p>
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                className={cn(
+                  "rounded-lg px-4 py-2.5 text-sm font-semibold transition",
+                  mode === "login" ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" : "text-slate-500 hover:bg-white/70 hover:text-primary",
+                )}
+              >
+                Đăng nhập
+              </button>
+            </div>
 
-            <p className="mx-auto mt-5 max-w-[360px] text-center text-xs leading-5 text-slate-500">
-              <button type="button" className="font-medium text-primary hover:text-primary/80">
-                Điều khoản
-              </button>{" "}
-              và{" "}
-              <button type="button" className="font-medium text-primary hover:text-primary/80">
-                Chính sách bảo mật
-              </button>
-            </p>
+            <div key={`auth-${mode}`} className="auth-panel-in mt-8">
+              <header>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-primary">VietJourney</p>
+                <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-[-0.01em] text-slate-950 sm:text-[2.35rem]">
+                  {copy.title}
+                </h1>
+                <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">{copy.subtitle}</p>
+              </header>
+
+              <AuthForm mode={mode} onAuthenticated={onAuthenticated} />
+
+              <p className="mt-6 text-center text-sm text-slate-500">
+                {copy.switchText}{" "}
+                <button
+                  type="button"
+                  onClick={() => switchMode(mode === "login" ? "signup" : "login")}
+                  className="font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                  {copy.switchAction}
+                </button>
+              </p>
+
+              <p className="mx-auto mt-5 max-w-[360px] text-center text-xs leading-5 text-slate-500">
+                <button type="button" className="font-medium text-primary hover:text-primary/80">
+                  Điều khoản
+                </button>{" "}
+                và{" "}
+                <button type="button" className="font-medium text-primary hover:text-primary/80">
+                  Chính sách bảo mật
+                </button>
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <HeroPanel />
+      </div>
     </main>
   );
 }
 
 function HeroPanel() {
   return (
-    <aside className="relative hidden min-h-dvh overflow-hidden lg:block">
-      <img
-        src={heroImage}
-        alt="Người du lịch đứng trên núi nhìn xuống thung lũng"
-        className="absolute inset-0 size-full object-cover"
-      />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(15,23,42,0.16)_45%,rgba(15,23,42,0.5))]" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.36),rgba(255,255,255,0.02)_46%,rgba(0,0,0,0.08))]" />
-
-      <div className="relative z-10 flex min-h-dvh flex-col px-16 py-12 xl:px-20">
-        <BrandMark />
-
-        <div className="mt-24 max-w-[560px]">
-          <h2 className="text-[3.05rem] font-bold leading-[1.02] tracking-[-0.02em] text-slate-950 drop-shadow-[0_2px_18px_rgba(255,255,255,0.3)] xl:text-[3.4rem]">
-            Lên kế hoạch
-          </h2>
-          <p className="mt-3 font-['Segoe_Script','Brush_Script_MT',cursive] text-[2.35rem] leading-tight text-primary drop-shadow-[0_8px_22px_rgba(84,78,226,0.32)] xl:text-[2.65rem]">
-            Dễ hơn mỗi ngày
-          </p>
-        </div>
-
-        <div className="mt-auto w-full max-w-[475px] rounded-2xl border border-white/70 bg-white/[0.035] p-6 text-white shadow-[0_28px_90px_rgba(15,23,42,0.18)] backdrop-blur-[2px]">
-          <HeroFeature
-            icon={Bookmark}
-            title="Lưu địa điểm yêu thích"
-            text="Lưu lại những nơi bạn muốn đến."
+    <aside className="relative hidden min-h-[720px] overflow-hidden p-4 lg:block">
+      <div className="auth-side-in relative h-full overflow-hidden rounded-[24px] bg-slate-950">
+        {heroVideo ? (
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster={heroImage}
+            className="absolute inset-0 size-full object-cover"
+          >
+            <source src={heroVideo} />
+          </video>
+        ) : (
+          <img
+            src={heroImage}
+            alt="Người du lịch đứng trên núi nhìn xuống thung lũng"
+            className="absolute inset-0 size-full object-cover"
           />
-          <HeroFeature
-            icon={CalendarDays}
-            title="Lên lịch trình thông minh"
-            text="Sắp xếp hành trình tối ưu theo thời gian của bạn."
-          />
-          <HeroFeature
-            icon={Users}
-            title="Cùng nhau khám phá"
-            text="Chia sẻ chuyến đi và đồng hành cùng bạn bè."
-          />
+        )}
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.04),rgba(15,23,42,0.12)_42%,rgba(15,23,42,0.58))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(255,255,255,0.24),transparent_24%),linear-gradient(90deg,rgba(255,255,255,0.04),transparent_48%)]" />
+
+        <div className="relative z-10 flex h-full flex-col p-8 xl:p-10">
+          <div className="ml-auto rounded-2xl border border-white/25 bg-white/88 px-4 py-3 text-slate-950 shadow-xl backdrop-blur">
+            <p className="text-xs font-bold">Wonder. Explore.</p>
+            <p className="mt-1 max-w-[170px] text-[11px] leading-4 text-slate-600">
+              Tạo lịch trình gọn hơn từ những địa điểm bạn đã lưu.
+            </p>
+          </div>
+
+          <div className="mt-auto max-w-[390px] text-white">
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/75">Journey begins</p>
+            <h2 className="mt-3 text-[2.8rem] font-bold leading-[1.02] tracking-[-0.03em] xl:text-[3.3rem]">
+              Khám phá Việt Nam theo cách riêng.
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-white/78">
+              Lưu địa điểm, kéo thả vào lịch và theo dõi chuyến đi trong một không gian nhẹ nhàng.
+            </p>
+          </div>
+
+          <div className="mt-8 grid grid-cols-3 gap-3">
+            <HeroFeature icon={Bookmark} title="Lưu" text="Địa điểm" />
+            <HeroFeature icon={CalendarDays} title="Lịch" text="Kế hoạch" />
+            <HeroFeature icon={Users} title="Nhóm" text="Đồng hành" />
+          </div>
         </div>
       </div>
     </aside>
   );
 }
 
-function BrandMark() {
+function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-4">
-      <span className="flex size-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_18px_42px_rgba(84,78,226,0.35)]">
-        <Navigation className="size-8 -translate-x-0.5 rotate-[18deg]" />
+    <div className={cn("flex items-center gap-4", compact && "justify-center")}>
+      <span
+        className={cn(
+          "flex items-center justify-center rounded-2xl bg-primary text-white shadow-[0_8px_18px_rgba(84,78,226,0.18)]",
+          compact ? "size-12" : "size-14",
+        )}
+      >
+        <Navigation className={cn("-translate-x-0.5 rotate-[18deg]", compact ? "size-7" : "size-8")} />
       </span>
       <span>
-        <span className="block text-2xl font-bold leading-tight text-slate-950">VietJourney</span>
-        <span className="block text-sm font-medium text-slate-600">Travel planner for Vietnam</span>
+        <span className={cn("block font-bold leading-tight text-slate-950", compact ? "text-xl" : "text-2xl")}>
+          VietJourney
+        </span>
+        <span className="block text-xs font-medium text-slate-600 sm:text-sm">Travel planner for Vietnam</span>
       </span>
     </div>
   );
@@ -354,13 +401,16 @@ function AuthForm({
                 />
               }
             />
-            <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-600">
+            <label className="flex items-start gap-3 rounded-xl bg-primary/5 px-3 py-2.5 text-sm leading-6 text-slate-600">
               <input
                 type="checkbox"
                 checked={accepted}
                 onChange={(event) => setAccepted(event.target.checked)}
-                className="mt-1 size-4 shrink-0 accent-primary"
+                className="peer sr-only"
               />
+              <span className="mt-1 flex size-4 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-white transition peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30">
+                {accepted ? <Check className="size-3" strokeWidth={3} /> : null}
+              </span>
               <span>
                 Tôi đồng ý với <span className="text-primary">điều khoản</span>.
               </span>
@@ -399,14 +449,12 @@ function HeroFeature({
   text: string;
 }) {
   return (
-    <div className="flex items-center gap-5 py-3">
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-white/65 bg-white/[0.04] text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-        <Icon className="size-6" />
+    <div className="rounded-2xl border border-white/20 bg-white/12 p-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur">
+      <span className="flex size-10 items-center justify-center rounded-xl bg-white/16 text-violet-100">
+        <Icon className="size-5" />
       </span>
-      <span>
-        <span className="block text-sm font-bold">{title}</span>
-        <span className="mt-1 block text-sm leading-6 text-white/82">{text}</span>
-      </span>
+      <span className="mt-3 block text-sm font-bold">{title}</span>
+      <span className="mt-1 block text-xs leading-5 text-white/76">{text}</span>
     </div>
   );
 }
