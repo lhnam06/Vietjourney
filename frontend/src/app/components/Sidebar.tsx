@@ -13,12 +13,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { AppView } from "../App";
+import { fetchNotificationUnreadCount } from "../lib/timelineApi";
 import { cn } from "../lib/utils";
 
 const navItems = [
   { icon: Compass, label: "Khám phá", view: "explore" as const },
   { icon: Map, label: "Chuyến đi của tôi", view: "trips" as const },
-  { icon: Users, label: "Cộng đồng" },
+  { icon: Users, label: "Cộng đồng", view: "community" as const },
 ];
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ interface SidebarProps {
 export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearCloseTimer() {
@@ -60,6 +62,15 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
   }
 
   useEffect(() => clearCloseTimer, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchNotificationUnreadCount(controller.signal)
+      .then((result) => setUnreadCount(result.unreadCount))
+      .catch(() => setUnreadCount(0));
+
+    return () => controller.abort();
+  }, [activeView]);
 
   return (
     <div className="hidden h-screen w-[72px] shrink-0 lg:block">
@@ -155,6 +166,7 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
               <button
                 key={label}
                 type="button"
+                aria-label={label}
                 onClick={() => {
                   if (view) {
                     onNavigate(view);
@@ -202,12 +214,20 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
 
         <button
           type="button"
-          onClick={openMenu}
+          aria-label="Thông báo"
+          onClick={() => {
+            onNavigate("notifications");
+            closeMenu();
+          }}
           className={cn(
             "group relative flex h-12 items-center rounded-[18px] text-sm font-medium text-muted-foreground transition-all duration-[250ms] ease-out hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
             isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
+            activeView === "notifications" ? "bg-accent text-primary" : "",
           )}
         >
+          {activeView === "notifications" && isMenuOpen ? (
+            <span className="absolute left-0 h-8 w-1 rounded-r-full bg-primary" />
+          ) : null}
           <Bell className="size-5 shrink-0 transition-transform duration-200 group-hover:scale-105" />
           <span
             className={cn(
@@ -219,14 +239,16 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
           >
             Thông báo
           </span>
-          <span
-            className={cn(
-              "flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold tabular-nums text-white transition-all duration-300",
-              isMenuOpen ? "ml-auto" : "absolute right-0 top-0",
-            )}
-          >
-            1
-          </span>
+          {unreadCount ? (
+            <span
+              className={cn(
+                "flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold tabular-nums text-white transition-all duration-300",
+                isMenuOpen ? "ml-auto" : "absolute right-0 top-0",
+              )}
+            >
+              {Math.min(unreadCount, 9)}
+            </span>
+          ) : null}
         </button>
 
         <div className="min-h-6 flex-1" />

@@ -2,6 +2,8 @@ export type TimelineVisibility = "PRIVATE" | "SHARED" | "PUBLIC_READ";
 export type TimelineMemberRole = "OWNER" | "EDITOR" | "VIEWER";
 export type TimelineEventCategory = "FOOD" | "DRINK" | "ACTIVITY";
 export type TimelineEventStatus = "PLANNED" | "CONFIRMED" | "CANCELLED";
+export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
+export type NotificationCategory = "TIMELINE" | "COLLABORATION" | "SYSTEM" | "RECOMMENDATION";
 
 interface ApiResponse<T> {
   code: number;
@@ -105,13 +107,30 @@ export interface ReorderTimelineEventInput {
 
 export interface NotificationItem {
   id: string;
-  category: string;
+  category: NotificationCategory;
   type: string;
   title: string;
   message?: string | null;
-  status: string;
+  payload?: Record<string, unknown> | null;
+  status: NotificationStatus;
+  sourceModule?: string | null;
+  sourceReferenceType?: string | null;
   createdAt: string;
+  readAt?: string | null;
+  archivedAt?: string | null;
   sourceReferenceId?: string | null;
+}
+
+export interface NotificationQuery {
+  status?: NotificationStatus;
+  category?: NotificationCategory;
+  includeArchived?: boolean;
+  page?: number;
+  size?: number;
+}
+
+export interface NotificationUnreadCount {
+  unreadCount: number;
 }
 
 export interface InviteCodeResult {
@@ -212,6 +231,10 @@ export function fetchMyTimelines(signal?: AbortSignal) {
   return apiFetch<Timeline[]>("/api/v1/timelines/mine", {}, signal);
 }
 
+export function fetchTimeline(timelineId: string, signal?: AbortSignal) {
+  return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`, {}, signal);
+}
+
 export function createTimeline(input: TimelineInput) {
   return apiFetch<Timeline>("/api/v1/timelines", {
     method: "POST",
@@ -223,6 +246,34 @@ export function updateTimeline(timelineId: string, input: TimelineInput) {
   return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`, {
     method: "PUT",
     body: JSON.stringify(input),
+  });
+}
+
+export function deleteTimeline(timelineId: string) {
+  return apiFetch<void>(`/api/v1/timelines/${timelineId}`, {
+    method: "DELETE",
+  });
+}
+
+export function duplicateTimeline(timelineId: string) {
+  return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}/duplicate`, {
+    method: "POST",
+  });
+}
+
+export function upsertTimelineMember(
+  timelineId: string,
+  input: { username: string; role: Exclude<TimelineMemberRole, "OWNER"> },
+) {
+  return apiFetch<TimelineMember>(`/api/v1/timelines/${timelineId}/members`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function removeTimelineMember(timelineId: string, memberId: string) {
+  return apiFetch<void>(`/api/v1/timelines/${timelineId}/members/${memberId}`, {
+    method: "DELETE",
   });
 }
 
@@ -304,13 +355,46 @@ export function deleteTimelineEvent(timelineId: string, eventId: string) {
 }
 
 export async function fetchRecentNotifications(signal?: AbortSignal) {
-  const page = await apiFetch<SpringPage<NotificationItem>>(
-    "/api/v1/notifications?page=0&size=6",
+  const page = await fetchNotifications({ page: 0, size: 6 }, signal);
+
+  return page.content;
+}
+
+export function fetchNotifications(query: NotificationQuery = {}, signal?: AbortSignal) {
+  const params = new URLSearchParams();
+  params.set("page", String(query.page ?? 0));
+  params.set("size", String(query.size ?? 20));
+  if (query.status) params.set("status", query.status);
+  if (query.category) params.set("category", query.category);
+  if (query.includeArchived) params.set("includeArchived", "true");
+
+  return apiFetch<SpringPage<NotificationItem>>(
+    `/api/v1/notifications?${params.toString()}`,
     {},
     signal,
   );
+}
 
-  return page.content;
+export function fetchNotificationUnreadCount(signal?: AbortSignal) {
+  return apiFetch<NotificationUnreadCount>("/api/v1/notifications/unread-count", {}, signal);
+}
+
+export function markNotificationAsRead(notificationId: string) {
+  return apiFetch<NotificationItem>(`/api/v1/notifications/${notificationId}/read`, {
+    method: "PATCH",
+  });
+}
+
+export function markAllNotificationsAsRead() {
+  return apiFetch<void>("/api/v1/notifications/read-all", {
+    method: "PATCH",
+  });
+}
+
+export function archiveNotification(notificationId: string) {
+  return apiFetch<void>(`/api/v1/notifications/${notificationId}`, {
+    method: "DELETE",
+  });
 }
 
 export function tripCoverImage(timeline: Timeline) {

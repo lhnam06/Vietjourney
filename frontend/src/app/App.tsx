@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { AuthPage } from "./components/AuthPage";
+import { CommunityPage } from "./components/CommunityPage";
 import { Explore } from "./components/Explore";
 import { ListPanel } from "./components/ListPanel";
 import { MyTrips } from "./components/MyTrips";
+import { NotificationPage } from "./components/NotificationPage";
 import { Profile } from "./components/Profile";
 import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
@@ -12,7 +14,7 @@ import { clearAuthToken, getAuthToken } from "./lib/authApi";
 import type { Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
 
-export type AppView = "explore" | "trips" | "profile" | "settings" | "timeline-editor" | "trip-map";
+export type AppView = "explore" | "trips" | "community" | "profile" | "settings" | "notifications" | "timeline-editor" | "trip-map";
 
 export interface PlaceList {
   id: string;
@@ -218,10 +220,19 @@ export default function App() {
         />
       ) : view === "trips" ? (
         <MyTrips
+          savedPlaces={savedPlaces}
           onExplore={() => setView("explore")}
+          onOpenNotifications={() => setView("notifications")}
           onEditTimeline={openTimelineEditor}
           onViewMap={openTripMap}
         />
+      ) : view === "notifications" ? (
+        <NotificationPage
+          onOpenTrips={() => setView("trips")}
+          onOpenTimeline={openTimelineEditor}
+        />
+      ) : view === "community" ? (
+        <CommunityPage onOpenTimeline={openTimelineEditor} />
       ) : view === "profile" ? (
         <Profile
           savedPlaces={savedPlaces}
