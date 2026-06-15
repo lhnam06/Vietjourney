@@ -73,6 +73,71 @@
   border-color: var(--border);
 }
 
+html {
+  scrollbar-color: oklch(0.68 0.19 270) oklch(0.94 0.035 277);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-button,
+::-webkit-scrollbar-button:single-button,
+::-webkit-scrollbar-button:start,
+::-webkit-scrollbar-button:end,
+::-webkit-scrollbar-button:decrement,
+::-webkit-scrollbar-button:increment,
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment,
+::-webkit-scrollbar-button:horizontal:start:decrement,
+::-webkit-scrollbar-button:horizontal:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+::-webkit-scrollbar-button:vertical,
+::-webkit-scrollbar-button:horizontal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, oklch(0.965 0.025 277), oklch(0.94 0.035 260));
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 3px solid oklch(0.965 0.025 277);
+  border-radius: 999px;
+  background: linear-gradient(180deg, oklch(0.74 0.15 285), oklch(0.58 0.2 268));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, oklch(0.7 0.18 285), oklch(0.52 0.22 268));
+}
+
+:root[data-theme="dark"] {
+  scrollbar-color: oklch(0.68 0.19 270) oklch(0.25 0.03 270);
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, oklch(0.24 0.025 270), oklch(0.2 0.022 270));
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  border-color: oklch(0.24 0.025 270);
+  background: linear-gradient(180deg, oklch(0.72 0.15 285), oklch(0.58 0.2 268));
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -132,8 +197,8 @@ button {
 }
 
 .auth-card-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+  scrollbar-color: oklch(0.68 0.19 270) transparent;
+  scrollbar-gutter: stable;
 }
 
 .auth-card-scroll::-webkit-scrollbar {
@@ -145,7 +210,8 @@ button {
 }
 
 .auth-card-scroll::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.35);
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, oklch(0.74 0.15 285), oklch(0.58 0.2 268)) padding-box;
   border-radius: 999px;
 }
 
