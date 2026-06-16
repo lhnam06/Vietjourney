@@ -63,6 +63,10 @@ public class CommunityService {
         User currentUser = getCurrentUser();
         String normalizedQuery = normalizeNullable(query);
         String normalizedTag = normalizeNullableTag(tag);
+        boolean queryBlank = normalizedQuery == null;
+        boolean tagBlank = normalizedTag == null;
+        String queryPattern = queryBlank ? "" : "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
+        String normalizedTagValue = tagBlank ? "" : normalizedTag.toLowerCase(Locale.ROOT);
         Page<CommunityPost> posts;
 
         if ("FOLLOWING".equalsIgnoreCase(tab)) {
@@ -75,15 +79,19 @@ public class CommunityService {
             posts = communityPostRepository.searchPublishedByAuthors(
                     CommunityPostStatus.PUBLISHED,
                     authorIds,
-                    normalizedQuery,
-                    normalizedTag,
+                    queryBlank,
+                    queryPattern,
+                    tagBlank,
+                    normalizedTagValue,
                     pageable
             );
         } else {
             posts = communityPostRepository.searchPublished(
                     CommunityPostStatus.PUBLISHED,
-                    normalizedQuery,
-                    normalizedTag,
+                    queryBlank,
+                    queryPattern,
+                    tagBlank,
+                    normalizedTagValue,
                     pageable
             );
         }
