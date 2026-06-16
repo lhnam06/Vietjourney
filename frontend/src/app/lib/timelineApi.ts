@@ -189,7 +189,8 @@ export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
       const placeIdStr = ev.place?.id ? String(ev.place.id) : null;
       const locationId = placeIdStr || `${rawCat}:${cleanId}`;
       
-      const name = ev.place?.name?.trim() || 'Hoạt động';
+      // Use place name from DB if available, fall back to notes (agent stores location there), then generic
+      const name = ev.place?.name?.trim() || ev.notes?.trim() || 'Hoạt động';
       labelByLocationId[locationId] = name;
       if (ev.place) {
         placesByLocationId[locationId] = ev.place;
