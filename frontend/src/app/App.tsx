@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AuthPage } from "./components/AuthPage";
 import { CommunityPage } from "./components/CommunityPage";
 import { Explore } from "./components/Explore";
@@ -24,6 +24,8 @@ export interface PlaceList {
 }
 
 const PLACE_LISTS_STORAGE_KEY = "vj:place-lists:v1";
+const ACTIVE_VIEW_STORAGE_KEY = "vj:active-view:v1";
+const PERSISTABLE_VIEWS: AppView[] = ["explore", "trips", "community", "profile", "settings", "notifications"];
 
 function createDefaultPlaceList(): PlaceList {
   return {
@@ -62,9 +64,24 @@ function savePlaceLists(lists: PlaceList[]) {
   window.localStorage.setItem(PLACE_LISTS_STORAGE_KEY, JSON.stringify(lists));
 }
 
+function loadActiveView(): AppView {
+  if (typeof window === "undefined") return "trips";
+
+  const storedView = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
+  return PERSISTABLE_VIEWS.includes(storedView as AppView) ? (storedView as AppView) : "trips";
+}
+
+function saveActiveView(view: AppView) {
+  if (typeof window === "undefined") return;
+
+  if (PERSISTABLE_VIEWS.includes(view)) {
+    window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
+  }
+}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
-  const [view, setView] = useState<AppView>("trips");
+  const [view, setView] = useState<AppView>(loadActiveView);
   const [editingTimeline, setEditingTimeline] = useState<Timeline | null>(null);
   const [mapTimeline, setMapTimeline] = useState<Timeline | null>(null);
   const [placeLists, setPlaceLists] = useState<PlaceList[]>(loadPlaceLists);
@@ -76,6 +93,10 @@ export default function App() {
     () => new Set(savedPlaces.map((place) => place.id)),
     [savedPlaces],
   );
+
+  useEffect(() => {
+    saveActiveView(view);
+  }, [view]);
 
   function updatePlaceLists(updater: (lists: PlaceList[]) => PlaceList[]) {
     setPlaceLists((currentLists) => {
@@ -173,6 +194,7 @@ export default function App() {
 
   function logout() {
     clearAuthToken();
+    window.localStorage.removeItem(ACTIVE_VIEW_STORAGE_KEY);
     setEditingTimeline(null);
     setMapTimeline(null);
     setView("trips");

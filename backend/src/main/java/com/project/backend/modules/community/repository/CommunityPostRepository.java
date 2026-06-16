@@ -17,24 +17,26 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, St
     @Query("""
             select distinct p from CommunityPost p
             where p.status = :status
-              and (:query is null
-                   or lower(p.caption) like lower(concat('%', :query, '%'))
-                   or lower(p.timeline.title) like lower(concat('%', :query, '%'))
+              and (:queryBlank = true
+                   or lower(p.caption) like :queryPattern
+                   or lower(p.timeline.title) like :queryPattern
                    or exists (
                        select tag from CommunityPostTag tag
                        where tag.post = p
-                         and lower(tag.tag) like lower(concat('%', :query, '%'))
+                         and lower(tag.tag) like :queryPattern
                    ))
-              and (:tag is null or exists (
+              and (:tagBlank = true or exists (
                    select tagFilter from CommunityPostTag tagFilter
                    where tagFilter.post = p
-                     and lower(tagFilter.tag) = lower(:tag)
+                     and lower(tagFilter.tag) = :normalizedTag
               ))
             """)
     Page<CommunityPost> searchPublished(
             @Param("status") CommunityPostStatus status,
-            @Param("query") String query,
-            @Param("tag") String tag,
+            @Param("queryBlank") boolean queryBlank,
+            @Param("queryPattern") String queryPattern,
+            @Param("tagBlank") boolean tagBlank,
+            @Param("normalizedTag") String normalizedTag,
             Pageable pageable
     );
 
@@ -42,25 +44,27 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, St
             select distinct p from CommunityPost p
             where p.status = :status
               and p.author.id in :authorIds
-              and (:query is null
-                   or lower(p.caption) like lower(concat('%', :query, '%'))
-                   or lower(p.timeline.title) like lower(concat('%', :query, '%'))
+              and (:queryBlank = true
+                   or lower(p.caption) like :queryPattern
+                   or lower(p.timeline.title) like :queryPattern
                    or exists (
                        select tag from CommunityPostTag tag
                        where tag.post = p
-                         and lower(tag.tag) like lower(concat('%', :query, '%'))
+                         and lower(tag.tag) like :queryPattern
                    ))
-              and (:tag is null or exists (
+              and (:tagBlank = true or exists (
                    select tagFilter from CommunityPostTag tagFilter
                    where tagFilter.post = p
-                     and lower(tagFilter.tag) = lower(:tag)
+                     and lower(tagFilter.tag) = :normalizedTag
               ))
             """)
     Page<CommunityPost> searchPublishedByAuthors(
             @Param("status") CommunityPostStatus status,
             @Param("authorIds") Collection<String> authorIds,
-            @Param("query") String query,
-            @Param("tag") String tag,
+            @Param("queryBlank") boolean queryBlank,
+            @Param("queryPattern") String queryPattern,
+            @Param("tagBlank") boolean tagBlank,
+            @Param("normalizedTag") String normalizedTag,
             Pageable pageable
     );
 
