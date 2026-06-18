@@ -4,6 +4,7 @@ import com.project.backend.modules.place.dto.PlaceSummary;
 import com.project.backend.modules.place.service.PlaceLookupService;
 import com.project.backend.modules.timeline.entity.TimelineEvent;
 import com.project.backend.modules.timeline.repository.TimelineEventRepository;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +15,7 @@ import java.util.Optional;
 
 @SpringBootTest
 // Intentionally NOT using @ActiveProfiles("test") so it connects to the real DB in application.yml
+@Disabled("Manual diagnostic test against the real database; exclude from regular backend builds.")
 public class RealDatabaseTimelinePlaceTest {
 
     @Autowired
