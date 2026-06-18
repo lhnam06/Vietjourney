@@ -4,7 +4,6 @@ import {
   Bell,
   Bookmark,
   CalendarDays,
-  Camera,
   Compass,
   Flame,
   Globe2,
@@ -29,6 +28,7 @@ import {
 } from "../lib/timelineApi";
 import { categoryLabel, placeImage, type Place } from "../lib/placesApi";
 import { cn } from "../lib/utils";
+import { UserAvatar } from "./UserAvatar";
 
 interface ProfileProps {
   savedPlaces: Place[];
@@ -186,20 +186,13 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
           />
           <div className="profile-hero-overlay absolute inset-0" />
           <div className="relative grid min-h-[320px] content-end gap-6 p-6 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-end lg:p-10">
-            <div className="relative size-32 shrink-0 sm:size-36">
-              <img
-                src="/avatar.png"
-                alt={displayName}
-                className="size-full rounded-full object-cover ring-4 ring-card shadow-[0_18px_45px_oklch(0.28_0.04_260_/_0.22)]"
-              />
-              <button
-                type="button"
-                aria-label="Đổi ảnh đại diện"
-                className="absolute bottom-2 right-1 flex size-10 items-center justify-center rounded-full border border-border bg-card text-primary shadow-lg transition hover:-translate-y-0.5"
-              >
-                <Camera className="size-5" />
-              </button>
-            </div>
+            <UserAvatar
+              name={displayName}
+              seed={user?.id || user?.username}
+              className="size-32 shrink-0 ring-4 ring-card shadow-[0_18px_45px_oklch(0.28_0.04_260_/_0.22)] sm:size-36"
+              initialsClassName="text-4xl sm:text-5xl"
+              badgeClassName="size-10"
+            />
 
             <div className="min-w-0 max-w-2xl">
               <div className="flex flex-wrap items-center gap-3">
@@ -207,7 +200,7 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
                   {displayName}
                 </h1>
                 <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-primary">
-                  Vietjourney Explorer
+                  Thành viên VietJourney
                 </span>
               </div>
               <p className="mt-2 text-sm font-semibold text-muted-foreground">{username}</p>
@@ -366,7 +359,7 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
             <aside className="space-y-4">
               <ProfilePanel title="Thành tích" action="Xem tất cả">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-2">
-                  <Achievement icon={Award} title="Explorer" subtitle={`${timelines.length} chuyến đi`} />
+                  <Achievement icon={Award} title="Người lập lịch" subtitle={`${timelines.length} chuyến đi`} />
                   <Achievement icon={Star} title="Curator" subtitle={`${savedPlaces.length} địa điểm`} tone="blue" />
                   <Achievement icon={Trophy} title="Team Planner" subtitle={`${totalMembers} lượt thành viên`} tone="sky" />
                   <Achievement icon={Flame} title="Streak" subtitle={`${totalDays} ngày đi`} tone="indigo" />

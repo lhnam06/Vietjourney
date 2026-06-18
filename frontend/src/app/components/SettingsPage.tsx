@@ -1,86 +1,86 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   Bell,
   CalendarDays,
-  Camera,
   Check,
-  ChevronRight,
-  Clock,
+  Clock3,
   Cloud,
-  Database,
+  Compass,
+  Eye,
   Globe2,
   KeyRound,
   Languages,
   Lock,
-  Mail,
-  MapPin,
+  Map,
   Moon,
   Palette,
+  Radio,
+  Route,
   ShieldCheck,
   Smartphone,
   Sun,
-  Trash2,
   UserRound,
   Users,
-  Wifi,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { changeDisplayName, changePassword } from "../lib/authApi";
-import { fetchCurrentUser, type CurrentUser } from "../lib/timelineApi";
+import {
+  fetchCurrentUser,
+  fetchNotificationPreferences,
+  updateNotificationPreference,
+  type CurrentUser,
+  type NotificationCategory,
+  type NotificationPreferenceInput,
+  type TimelineVisibility,
+} from "../lib/timelineApi";
 import { cn } from "../lib/utils";
+import { UserAvatar } from "./UserAvatar";
 
 type SettingsSection =
   | "account"
   | "security"
   | "notifications"
   | "appearance"
-  | "region"
+  | "travel"
   | "privacy"
-  | "storage"
-  | "connections"
   | "about";
 
 type ThemeChoice = "light" | "dark" | "system";
 
-interface ToggleState {
-  push: boolean;
-  tripEmail: boolean;
-  community: boolean;
-  recommendations: boolean;
+interface TravelPreferences {
+  language: "vi";
+  distanceUnit: "km" | "mi";
+  timeFormat: "24h" | "12h";
+  currency: "VND";
+  defaultVisibility: TimelineVisibility;
 }
 
 const ACCOUNT_BIO_STORAGE_KEY = "vj:account-bio:v1";
 const THEME_STORAGE_KEY = "vj:theme:v1";
+const TRAVEL_PREFERENCES_STORAGE_KEY = "vj:travel-preferences:v1";
 const defaultBio =
   "Lưu lại địa điểm hay, biến chúng thành lịch trình rõ ràng, rồi rủ bạn bè cùng chốt từng chặng đi khắp Việt Nam.";
 
-function getInitialTheme(): ThemeChoice {
-  if (typeof window === "undefined") return "light";
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return storedTheme === "dark" || storedTheme === "system" || storedTheme === "light"
-    ? storedTheme
-    : "light";
-}
+const defaultTravelPreferences: TravelPreferences = {
+  language: "vi",
+  distanceUnit: "km",
+  timeFormat: "24h",
+  currency: "VND",
+  defaultVisibility: "SHARED",
+};
 
-const settingsNav: {
+const settingsNav: Array<{
   id: SettingsSection;
   label: string;
   icon: LucideIcon;
-}[] = [
+}> = [
   { id: "account", label: "Tài khoản", icon: UserRound },
   { id: "security", label: "Bảo mật", icon: ShieldCheck },
   { id: "notifications", label: "Thông báo", icon: Bell },
   { id: "appearance", label: "Giao diện", icon: Palette },
-  { id: "region", label: "Ngôn ngữ & Khu vực", icon: Globe2 },
-  { id: "privacy", label: "Quyền riêng tư", icon: Lock },
-  { id: "storage", label: "Dữ liệu & Lưu trữ", icon: Database },
-  { id: "connections", label: "Kết nối", icon: Wifi },
+  { id: "travel", label: "Du lịch", icon: Route },
+  { id: "privacy", label: "Riêng tư", icon: Lock },
   { id: "about", label: "Về VietJourney", icon: Cloud },
 ];
 
@@ -90,14 +90,77 @@ const themeOptions = [
   { value: "system" as const, label: "Theo hệ thống", icon: Smartphone },
 ];
 
-const accentColors = [
-  { label: "Màu xanh VietJourney", className: "bg-primary" },
-  { label: "Xanh biển", className: "bg-blue-500" },
-  { label: "Xanh trời", className: "bg-sky-500" },
-  { label: "Cyan", className: "bg-cyan-500" },
-  { label: "Indigo", className: "bg-indigo-500" },
-  { label: "Slate", className: "bg-slate-400" },
+const notificationGroups: Array<{
+  category: NotificationCategory;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  {
+    category: "TIMELINE",
+    title: "Timeline",
+    description: "Nhắc về thay đổi lịch trình, hoạt động mới và cập nhật chuyến đi.",
+    icon: CalendarDays,
+  },
+  {
+    category: "COLLABORATION",
+    title: "Cộng tác",
+    description: "Lời mời, thành viên mới và chỉnh sửa từ người cùng chuyến.",
+    icon: Users,
+  },
+  {
+    category: "RECOMMENDATION",
+    title: "Gợi ý địa điểm",
+    description: "Đề xuất ăn uống, cafe và hoạt động phù hợp với kế hoạch của bạn.",
+    icon: Compass,
+  },
+  {
+    category: "SYSTEM",
+    title: "Hệ thống",
+    description: "Thông báo quan trọng về tài khoản và trạng thái ứng dụng.",
+    icon: ShieldCheck,
+  },
 ];
+
+function getInitialTheme(): ThemeChoice {
+  if (typeof window === "undefined") return "light";
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return storedTheme === "dark" || storedTheme === "system" || storedTheme === "light"
+    ? storedTheme
+    : "light";
+}
+
+function getInitialTravelPreferences(): TravelPreferences {
+  if (typeof window === "undefined") return defaultTravelPreferences;
+
+  try {
+    const raw = window.localStorage.getItem(TRAVEL_PREFERENCES_STORAGE_KEY);
+    if (!raw) return defaultTravelPreferences;
+    const parsed = JSON.parse(raw) as Partial<TravelPreferences>;
+    return {
+      language: "vi",
+      distanceUnit: parsed.distanceUnit === "mi" ? "mi" : "km",
+      timeFormat: parsed.timeFormat === "12h" ? "12h" : "24h",
+      currency: "VND",
+      defaultVisibility:
+        parsed.defaultVisibility === "PRIVATE" || parsed.defaultVisibility === "PUBLIC_READ"
+          ? parsed.defaultVisibility
+          : "SHARED",
+    };
+  } catch {
+    return defaultTravelPreferences;
+  }
+}
+
+function defaultNotificationPreferenceMap(): Record<NotificationCategory, NotificationPreferenceInput> {
+  return notificationGroups.reduce(
+    (preferences, group) => ({
+      ...preferences,
+      [group.category]: { inAppEnabled: true, realtimeEnabled: true },
+    }),
+    {} as Record<NotificationCategory, NotificationPreferenceInput>,
+  );
+}
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("account");
@@ -116,14 +179,19 @@ export function SettingsPage() {
         ? window.localStorage.getItem(ACCOUNT_BIO_STORAGE_KEY) || defaultBio
         : defaultBio,
   });
-  const [toggles, setToggles] = useState<ToggleState>({
-    push: true,
-    tripEmail: true,
-    community: true,
-    recommendations: false,
-  });
   const [selectedTheme, setSelectedTheme] = useState<ThemeChoice>(getInitialTheme);
-  const [selectedAccent, setSelectedAccent] = useState(0);
+  const [travelPreferences, setTravelPreferences] = useState<TravelPreferences>(
+    getInitialTravelPreferences,
+  );
+  const [notificationPreferences, setNotificationPreferences] = useState(
+    defaultNotificationPreferenceMap,
+  );
+  const [notificationStatus, setNotificationStatus] = useState<{
+    type: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
+  const [savingNotificationKey, setSavingNotificationKey] = useState<string | null>(null);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: "",
     newPassword: "",
@@ -157,6 +225,45 @@ export function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setIsLoadingNotifications(true);
+
+    fetchNotificationPreferences(controller.signal)
+      .then((preferences) => {
+        setNotificationPreferences((current) => {
+          const next = { ...current };
+          for (const preference of preferences) {
+            next[preference.category] = {
+              inAppEnabled: Boolean(preference.inAppEnabled),
+              realtimeEnabled: Boolean(preference.realtimeEnabled),
+            };
+          }
+          return next;
+        });
+        setNotificationStatus(null);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setNotificationStatus({
+          type: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Không tải được tuỳ chọn thông báo lúc này.",
+        });
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingNotifications(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const root = document.documentElement;
     const systemQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -175,6 +282,16 @@ export function SettingsPage() {
     return () => systemQuery.removeEventListener("change", applyTheme);
   }, [selectedTheme]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(TRAVEL_PREFERENCES_STORAGE_KEY, JSON.stringify(travelPreferences));
+  }, [travelPreferences]);
+
+  const activeMeta = useMemo(
+    () => settingsNav.find((section) => section.id === activeSection) || settingsNav[0],
+    [activeSection],
+  );
+  const ActiveIcon = activeMeta.icon;
   const displayName = user?.displayName || user?.username || "Nhà du hành";
   const username = user?.username ? `@${user.username}` : "@vietjourney";
   const passwordScore = useMemo(() => {
@@ -186,6 +303,11 @@ export function SettingsPage() {
     if (/[^a-zA-Z0-9]/.test(password)) score += 1;
     return score;
   }, [passwordForm.newPassword]);
+  const enabledRealtimeCount = notificationGroups.filter(
+    (group) => notificationPreferences[group.category]?.realtimeEnabled,
+  ).length;
+  const currentThemeLabel =
+    themeOptions.find((option) => option.value === selectedTheme)?.label || "Sáng";
 
   async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -235,10 +357,6 @@ export function SettingsPage() {
     }
   }
 
-  function updateToggle(key: keyof ToggleState) {
-    setToggles((current) => ({ ...current, [key]: !current[key] }));
-  }
-
   async function handleSaveAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAccountStatus(null);
@@ -261,7 +379,10 @@ export function SettingsPage() {
       const nextUser = await changeDisplayName({ displayName: nextDisplayName });
       window.localStorage.setItem(ACCOUNT_BIO_STORAGE_KEY, nextBio);
       setUser(nextUser);
-      setAccountForm({ displayName: nextUser.displayName || nextUser.username || nextDisplayName, bio: nextBio });
+      setAccountForm({
+        displayName: nextUser.displayName || nextUser.username || nextDisplayName,
+        bio: nextBio,
+      });
       setIsEditingAccount(false);
       setAccountStatus({
         type: "success",
@@ -287,447 +408,559 @@ export function SettingsPage() {
     setAccountStatus(null);
     setAccountForm({
       displayName: user?.displayName || user?.username || "",
-      bio: window.localStorage.getItem(ACCOUNT_BIO_STORAGE_KEY) || defaultBio,
+      bio:
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(ACCOUNT_BIO_STORAGE_KEY) || defaultBio
+          : defaultBio,
     });
+  }
+
+  function updateTravelPreference<Key extends keyof TravelPreferences>(
+    key: Key,
+    value: TravelPreferences[Key],
+  ) {
+    setTravelPreferences((current) => ({ ...current, [key]: value }));
+  }
+
+  async function toggleNotificationPreference(
+    category: NotificationCategory,
+    key: keyof NotificationPreferenceInput,
+  ) {
+    const currentPreference =
+      notificationPreferences[category] || defaultNotificationPreferenceMap()[category];
+    const nextPreference = {
+      ...currentPreference,
+      [key]: !currentPreference[key],
+    };
+    const savingKey = `${category}:${key}`;
+
+    setSavingNotificationKey(savingKey);
+    setNotificationStatus(null);
+    setNotificationPreferences((current) => ({ ...current, [category]: nextPreference }));
+
+    try {
+      const savedPreference = await updateNotificationPreference(category, nextPreference);
+      setNotificationPreferences((current) => ({
+        ...current,
+        [category]: {
+          inAppEnabled: Boolean(savedPreference.inAppEnabled),
+          realtimeEnabled: Boolean(savedPreference.realtimeEnabled),
+        },
+      }));
+      setNotificationStatus({
+        type: "success",
+        message: "Đã lưu tuỳ chọn thông báo.",
+      });
+    } catch (error) {
+      setNotificationPreferences((current) => ({ ...current, [category]: currentPreference }));
+      setNotificationStatus({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Không lưu được tuỳ chọn thông báo lúc này.",
+      });
+    } finally {
+      setSavingNotificationKey(null);
+    }
+  }
+
+  function renderSectionContent() {
+    switch (activeSection) {
+      case "account":
+        return (
+          <SectionPanel title="Tài khoản" description="Thông tin hiển thị của bạn trong VietJourney.">
+            <form onSubmit={handleSaveAccount} className="space-y-5">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+                <div className="flex items-center gap-4 rounded-lg border border-border bg-background p-4 lg:w-72 lg:flex-col lg:items-start">
+                  <UserAvatar
+                    name={displayName}
+                    seed={user?.id || user?.username}
+                    className="size-20"
+                    initialsClassName="text-2xl"
+                    badgeClassName="size-7"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
+                    <p className="mt-1 truncate text-sm text-muted-foreground">{username}</p>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                      Ảnh đại diện tạm thời được tạo từ tên tài khoản cho đến khi hệ thống hỗ trợ upload.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TextField
+                      label="Họ và tên"
+                      value={
+                        isEditingAccount
+                          ? accountForm.displayName
+                          : isLoadingUser
+                            ? "Đang tải..."
+                            : displayName
+                      }
+                      disabled={!isEditingAccount || isLoadingUser}
+                      onChange={(nextDisplayName) =>
+                        setAccountForm((current) => ({
+                          ...current,
+                          displayName: nextDisplayName,
+                        }))
+                      }
+                    />
+                    <TextField label="Tên người dùng" value={username} disabled />
+                  </div>
+
+                  <label className="block">
+                    <span className="text-sm font-bold text-foreground">Giới thiệu bản thân</span>
+                    {isEditingAccount ? (
+                      <textarea
+                        value={accountForm.bio}
+                        onChange={(event) =>
+                          setAccountForm((current) => ({ ...current, bio: event.target.value }))
+                        }
+                        maxLength={180}
+                        className="mt-2 min-h-28 w-full resize-none rounded-lg border border-border bg-background px-4 py-3 text-sm leading-6 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+                    ) : (
+                      <p className="mt-2 rounded-lg border border-border bg-background px-4 py-3 text-sm leading-6 text-muted-foreground">
+                        {accountForm.bio}
+                      </p>
+                    )}
+                    <span className="mt-2 block text-xs font-semibold text-muted-foreground">
+                      {accountForm.bio.length}/180 ký tự
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {accountStatus ? (
+                <InlineStatus status={accountStatus.type} message={accountStatus.message} />
+              ) : null}
+
+              <div className="flex flex-wrap justify-end gap-3">
+                {isEditingAccount ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={cancelAccountEdit}
+                      className="rounded-lg border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingAccount}
+                      className="rounded-lg bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSavingAccount ? "Đang lưu..." : "Lưu thay đổi"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountStatus(null);
+                      setIsEditingAccount(true);
+                    }}
+                    className="rounded-lg border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent hover:text-primary"
+                  >
+                    Chỉnh sửa tài khoản
+                  </button>
+                )}
+              </div>
+            </form>
+          </SectionPanel>
+        );
+
+      case "security":
+        return (
+          <SectionPanel
+            title="Bảo mật"
+            description="Đổi mật khẩu và giữ quyền truy cập tài khoản ở trạng thái an toàn."
+          >
+            <form onSubmit={handleChangePassword} className="space-y-5">
+              <div className="flex items-start gap-3 rounded-lg border border-border bg-background p-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                  <KeyRound className="size-5" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Mật khẩu VietJourney</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Mật khẩu bảo vệ timeline, danh sách đã lưu và lời mời tham gia chuyến đi.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                <PasswordField
+                  label="Mật khẩu hiện tại"
+                  value={passwordForm.oldPassword}
+                  autoComplete="current-password"
+                  onChange={(oldPassword) =>
+                    setPasswordForm((current) => ({ ...current, oldPassword }))
+                  }
+                />
+                <PasswordField
+                  label="Mật khẩu mới"
+                  value={passwordForm.newPassword}
+                  autoComplete="new-password"
+                  onChange={(newPassword) =>
+                    setPasswordForm((current) => ({ ...current, newPassword }))
+                  }
+                />
+                <PasswordField
+                  label="Nhập lại mật khẩu mới"
+                  value={passwordForm.confirmPassword}
+                  autoComplete="new-password"
+                  onChange={(confirmPassword) =>
+                    setPasswordForm((current) => ({ ...current, confirmPassword }))
+                  }
+                />
+              </div>
+
+              <div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[0, 1, 2, 3].map((index) => (
+                    <span
+                      key={index}
+                      className={cn(
+                        "h-2 rounded-full",
+                        index < passwordScore ? "bg-primary" : "bg-muted",
+                      )}
+                    />
+                  ))}
+                </div>
+                <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                  Tối thiểu 8 ký tự, có chữ và số. Thêm ký tự đặc biệt để tăng độ mạnh.
+                </p>
+              </div>
+
+              {passwordStatus ? (
+                <InlineStatus status={passwordStatus.type} message={passwordStatus.message} />
+              ) : null}
+
+              <div className="flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordForm({ oldPassword: "", newPassword: "", confirmPassword: "" });
+                    setPasswordStatus(null);
+                  }}
+                  className="rounded-lg border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent"
+                >
+                  Xóa nhập liệu
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="rounded-lg bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isChangingPassword ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
+                </button>
+              </div>
+            </form>
+          </SectionPanel>
+        );
+
+      case "notifications":
+        return (
+          <SectionPanel
+            title="Thông báo"
+            description="Điều chỉnh thông báo trong ứng dụng và cập nhật thời gian thực theo từng nhóm."
+          >
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3">
+              <span className="text-sm font-semibold text-foreground">
+                {enabledRealtimeCount}/{notificationGroups.length} nhóm đang bật realtime
+              </span>
+              {isLoadingNotifications ? (
+                <span className="text-sm font-semibold text-muted-foreground">Đang tải...</span>
+              ) : null}
+            </div>
+
+            <div className="divide-y divide-border rounded-lg border border-border bg-background">
+              {notificationGroups.map(({ category, title, description, icon: Icon }) => {
+                const preference = notificationPreferences[category];
+                const savingInApp = savingNotificationKey === `${category}:inAppEnabled`;
+                const savingRealtime = savingNotificationKey === `${category}:realtimeEnabled`;
+
+                return (
+                  <div key={category} className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                        <Icon className="size-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground">{title}</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <TogglePill
+                        label="Trong ứng dụng"
+                        active={preference.inAppEnabled}
+                        disabled={Boolean(savingNotificationKey)}
+                        saving={savingInApp}
+                        onClick={() => void toggleNotificationPreference(category, "inAppEnabled")}
+                      />
+                      <TogglePill
+                        label="Realtime"
+                        active={preference.realtimeEnabled}
+                        disabled={Boolean(savingNotificationKey)}
+                        saving={savingRealtime}
+                        onClick={() => void toggleNotificationPreference(category, "realtimeEnabled")}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {notificationStatus ? (
+              <div className="mt-4">
+                <InlineStatus status={notificationStatus.type} message={notificationStatus.message} />
+              </div>
+            ) : null}
+          </SectionPanel>
+        );
+
+      case "appearance":
+        return (
+          <SectionPanel title="Giao diện" description="Đồng bộ cách hiển thị với môi trường bạn đang dùng.">
+            <div className="grid gap-3 md:grid-cols-3">
+              {themeOptions.map(({ value, label, icon: Icon }) => {
+                const active = selectedTheme === value;
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSelectedTheme(value)}
+                    className={cn(
+                      "flex min-h-28 flex-col justify-between rounded-lg border p-4 text-left transition",
+                      active
+                        ? "border-primary/40 bg-primary/10"
+                        : "border-border bg-background hover:border-primary/30 hover:bg-accent/45",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <Icon className="size-5 text-primary" />
+                      <CheckMark active={active} />
+                    </div>
+                    <span className="mt-5 text-sm font-bold text-foreground">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+              Chế độ hiện tại: <span className="font-bold text-foreground">{currentThemeLabel}</span>
+            </div>
+          </SectionPanel>
+        );
+
+      case "travel":
+        return (
+          <SectionPanel
+            title="Tuỳ chọn du lịch"
+            description="Các định dạng mặc định cho bản đồ, timeline và chi phí chuyến đi."
+          >
+            <div className="divide-y divide-border rounded-lg border border-border bg-background">
+              <PreferenceRow icon={Languages} title="Ngôn ngữ" description="Giao diện VietJourney">
+                <StaticValue value="Tiếng Việt" />
+              </PreferenceRow>
+              <PreferenceRow icon={Wallet} title="Tiền tệ" description="Dùng cho dự toán và chia chi phí">
+                <StaticValue value="VND" />
+              </PreferenceRow>
+              <PreferenceRow icon={Map} title="Đơn vị khoảng cách" description="Hiển thị trong bản đồ và tuyến đường">
+                <SegmentedControl
+                  value={travelPreferences.distanceUnit}
+                  options={[
+                    { value: "km", label: "Kilometer" },
+                    { value: "mi", label: "Mile" },
+                  ]}
+                  onChange={(distanceUnit) => updateTravelPreference("distanceUnit", distanceUnit)}
+                />
+              </PreferenceRow>
+              <PreferenceRow icon={Clock3} title="Định dạng thời gian" description="Hiển thị trong timetable">
+                <SegmentedControl
+                  value={travelPreferences.timeFormat}
+                  options={[
+                    { value: "24h", label: "24 giờ" },
+                    { value: "12h", label: "12 giờ" },
+                  ]}
+                  onChange={(timeFormat) => updateTravelPreference("timeFormat", timeFormat)}
+                />
+              </PreferenceRow>
+            </div>
+          </SectionPanel>
+        );
+
+      case "privacy":
+        return (
+          <SectionPanel
+            title="Riêng tư & chia sẻ"
+            description="Đặt cách timeline mới được chia sẻ và cách VietJourney cá nhân hoá trải nghiệm."
+          >
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                    <Eye className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground">Quyền riêng tư mặc định của timeline mới</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Tuỳ chọn này được lưu trên thiết bị để dùng làm mặc định khi tạo chuyến đi mới.
+                    </p>
+                    <div className="mt-4">
+                      <SegmentedControl
+                        value={travelPreferences.defaultVisibility}
+                        options={[
+                          { value: "PRIVATE", label: "Riêng tư" },
+                          { value: "SHARED", label: "Nhóm" },
+                          { value: "PUBLIC_READ", label: "Công khai" },
+                        ]}
+                        onChange={(defaultVisibility) =>
+                          updateTravelPreference("defaultVisibility", defaultVisibility)
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                    <Radio className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Cộng đồng và gợi ý</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Bài chia sẻ cộng đồng chỉ được tạo khi bạn chọn chia sẻ một timeline. Gợi ý địa điểm dùng lịch sử lưu và tương tác trong ứng dụng.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </SectionPanel>
+        );
+
+      case "about":
+        return (
+          <SectionPanel
+            title="Về VietJourney"
+            description="Một nơi để khám phá địa điểm, lập timeline và phối hợp chuyến đi tại Việt Nam."
+          >
+            <div className="space-y-5 text-sm leading-7 text-muted-foreground">
+              <p>
+                VietJourney là nền tảng lập kế hoạch du lịch tại Việt Nam, tập trung vào khám phá địa điểm, gợi ý cá nhân hoá, timeline nhiều ngày và cộng tác theo thời gian thực.
+              </p>
+              <p>
+                Ứng dụng xoay quanh dữ liệu du lịch Việt Nam như quận huyện, tag, bản đồ, lịch trình nhóm và ngân sách để việc chuẩn bị chuyến đi rõ ràng hơn.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <FeatureRow icon={Compass} title="Khám phá" description="Lọc địa điểm ăn uống, cafe và hoạt động theo khu vực, giá, rating và tag." />
+              <FeatureRow icon={Route} title="Timeline" description="Kéo thả địa điểm vào lịch trình nhiều ngày và xem tuyến đường trên bản đồ." />
+              <FeatureRow icon={Users} title="Cộng tác" description="Mời thành viên, theo dõi thay đổi và phối hợp trên cùng một chuyến đi." />
+              <FeatureRow icon={Wallet} title="Ngân sách" description="Theo dõi chi phí và chuẩn bị cho việc chia khoản chi trong nhóm." />
+            </div>
+          </SectionPanel>
+        );
+
+      default:
+        return null;
+    }
   }
 
   return (
     <main className="min-w-0 flex-1 overflow-y-auto bg-background">
-      <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
-        <header className="border-b border-border pb-6">
+      <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
+        <header className="border-b border-border pb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             VietJourney
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
-            Cài đặt
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Quản lý tài khoản, bảo mật và những tuỳ chọn giúp trải nghiệm lập kế hoạch du lịch
-            gọn gàng hơn.
-          </p>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-normal text-foreground">Cài đặt</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Quản lý tài khoản, thông báo và các tuỳ chọn mặc định cho chuyến đi.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <ActiveIcon className="size-4 text-primary" />
+              {activeMeta.label}
+            </div>
+          </div>
         </header>
 
-        <div className="mt-6 grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)_400px]">
-          <aside className="rounded-xl border border-border bg-card p-2 xl:sticky xl:top-6 xl:h-fit">
-            {settingsNav.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveSection(id)}
-                className={cn(
-                  "flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition",
-                  activeSection === id
-                    ? "bg-accent text-primary"
-                    : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-                )}
-              >
-                <Icon className="size-5 shrink-0" />
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
+        <div className="mt-6 grid gap-6 xl:grid-cols-[230px_minmax(0,1fr)]">
+          <aside className="xl:sticky xl:top-6 xl:h-fit">
+            <nav className="space-y-1 rounded-lg border border-border bg-card p-1.5">
+              {settingsNav.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveSection(id)}
+                  className={cn(
+                    "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold transition",
+                    activeSection === id
+                      ? "bg-accent text-primary"
+                      : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span className="truncate">{label}</span>
+                </button>
+              ))}
+            </nav>
           </aside>
 
-          <section className="space-y-5">
-            <SettingsCard title="Thông tin tài khoản">
-              <form onSubmit={handleSaveAccount}>
-                <div className="grid gap-6 lg:grid-cols-[140px_minmax(0,1fr)]">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="relative">
-                      <img
-                        src="/avatar.png"
-                        alt={displayName}
-                        className="size-28 rounded-full object-cover ring-4 ring-accent"
-                      />
-                      <button
-                        type="button"
-                        aria-label="Đổi ảnh đại diện"
-                        onClick={() =>
-                          setAccountStatus({
-                            type: "info",
-                            message: "Ảnh đại diện sẽ được bật khi backend hỗ trợ upload hồ sơ.",
-                          })
-                        }
-                        className="absolute bottom-1 right-0 flex size-9 items-center justify-center rounded-full border border-border bg-card text-primary shadow-sm transition hover:-translate-y-0.5"
-                      >
-                        <Camera className="size-4" />
-                      </button>
-                    </div>
-                    <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-primary">
-                      Explorer
-                    </span>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <TextField
-                        label="Họ và tên"
-                        value={
-                          isEditingAccount
-                            ? accountForm.displayName
-                            : isLoadingUser
-                              ? "Đang tải..."
-                              : displayName
-                        }
-                        disabled={!isEditingAccount || isLoadingUser}
-                        onChange={(displayName) =>
-                          setAccountForm((current) => ({ ...current, displayName }))
-                        }
-                      />
-                      <TextField label="Tên người dùng" value={username} disabled />
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <ReadonlyFact
-                        label="Trạng thái"
-                        value="Tài khoản VietJourney"
-                        badge="Đã đăng nhập"
-                      />
-                      <ReadonlyFact label="Ngày tham gia" value="Thành viên hiện tại" />
-                    </div>
-
-                    <label className="block rounded-2xl border border-border bg-background p-4">
-                      <span className="text-sm font-bold text-foreground">Giới thiệu bản thân</span>
-                      {isEditingAccount ? (
-                        <textarea
-                          value={accountForm.bio}
-                          onChange={(event) =>
-                            setAccountForm((current) => ({ ...current, bio: event.target.value }))
-                          }
-                          maxLength={180}
-                          className="mt-3 min-h-28 w-full resize-none rounded-xl border border-border bg-card px-4 py-3 text-sm leading-6 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                      ) : (
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                          {accountForm.bio}
-                        </p>
-                      )}
-                      <span className="mt-2 block text-xs font-semibold text-muted-foreground">
-                        {accountForm.bio.length}/180 ký tự
-                      </span>
-                    </label>
-
-                    {accountStatus ? (
-                      <div
-                        className={cn(
-                          "rounded-xl border p-3 text-sm font-semibold",
-                          accountStatus.type === "success" &&
-                            "border-primary/25 bg-primary/10 text-primary",
-                          accountStatus.type === "info" &&
-                            "border-border bg-accent text-primary",
-                          accountStatus.type === "error" &&
-                            "border-destructive/30 bg-destructive/10 text-destructive",
-                        )}
-                      >
-                        {accountStatus.message}
-                      </div>
-                    ) : null}
-
-                    <div className="flex flex-wrap justify-end gap-3">
-                      {isEditingAccount ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={cancelAccountEdit}
-                            className="rounded-xl border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent"
-                          >
-                            Hủy
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={isSavingAccount}
-                            className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-[0_14px_30px_oklch(0.515_0.22_277_/_0.22)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isSavingAccount ? "Đang lưu..." : "Lưu thay đổi"}
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAccountStatus(null);
-                            setIsEditingAccount(true);
-                          }}
-                          className="rounded-xl border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent hover:text-primary"
-                        >
-                          Chỉnh sửa tài khoản
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </SettingsCard>
-
-            <SettingsCard title="Bảo mật tài khoản" id="security">
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div className="flex items-start gap-3 rounded-2xl bg-accent/45 p-4">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card text-primary">
-                    <KeyRound className="size-5" />
-                  </span>
-                  <div>
-                    <h3 className="font-semibold text-foreground">Đổi mật khẩu</h3>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Dùng mật khẩu mạnh để bảo vệ timeline, danh sách đã lưu và lời mời chuyến đi
-                      của bạn.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-3">
-                  <PasswordField
-                    label="Mật khẩu hiện tại"
-                    value={passwordForm.oldPassword}
-                    autoComplete="current-password"
-                    onChange={(oldPassword) =>
-                      setPasswordForm((current) => ({ ...current, oldPassword }))
-                    }
-                  />
-                  <PasswordField
-                    label="Mật khẩu mới"
-                    value={passwordForm.newPassword}
-                    autoComplete="new-password"
-                    onChange={(newPassword) =>
-                      setPasswordForm((current) => ({ ...current, newPassword }))
-                    }
-                  />
-                  <PasswordField
-                    label="Nhập lại mật khẩu mới"
-                    value={passwordForm.confirmPassword}
-                    autoComplete="new-password"
-                    onChange={(confirmPassword) =>
-                      setPasswordForm((current) => ({ ...current, confirmPassword }))
-                    }
-                  />
-                </div>
-
-                <div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[0, 1, 2, 3].map((index) => (
-                      <span
-                        key={index}
-                        className={cn(
-                          "h-2 rounded-full",
-                          index < passwordScore ? "bg-primary" : "bg-muted",
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs font-semibold text-muted-foreground">
-                    Tối thiểu 8 ký tự, có chữ và số. Thêm ký tự đặc biệt để tăng độ mạnh.
-                  </p>
-                </div>
-
-                {passwordStatus ? (
-                  <div
-                    className={cn(
-                      "rounded-xl border p-3 text-sm font-semibold",
-                      passwordStatus.type === "success"
-                        ? "border-primary/25 bg-primary/10 text-primary"
-                        : "border-destructive/30 bg-destructive/10 text-destructive",
-                    )}
-                  >
-                    {passwordStatus.message}
-                  </div>
-                ) : null}
-
-                <div className="flex flex-wrap justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPasswordForm({ oldPassword: "", newPassword: "", confirmPassword: "" });
-                      setPasswordStatus(null);
-                    }}
-                    className="rounded-xl border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent"
-                  >
-                    Xoá nhập liệu
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isChangingPassword}
-                    className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-[0_14px_30px_oklch(0.515_0.22_277_/_0.22)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isChangingPassword ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
-                  </button>
-                </div>
-              </form>
-            </SettingsCard>
-
-            <SettingsCard title="Tuỳ chọn tài khoản">
-              <ActionRow
-                icon={Mail}
-                title="Email liên kết"
-                description="Quản lý email dùng để đăng nhập khi backend hỗ trợ."
-              />
-              <ActionRow
-                icon={Users}
-                title="Quyền riêng tư chuyến đi"
-                description="Chọn mặc định riêng tư, chia sẻ hoặc công khai cho timeline mới."
-              />
-              <ActionRow
-                icon={Trash2}
-                title="Xoá tài khoản"
-                description="Xoá vĩnh viễn tài khoản và toàn bộ dữ liệu."
-                danger
-              />
-            </SettingsCard>
-
-            <SettingsCard title="Tuỳ chọn ứng dụng">
-              <PreferenceRow label="Đơn vị khoảng cách" value="Kilometer (km)" />
-              <PreferenceRow label="Đơn vị nhiệt độ" value="Celsius (°C)" />
-              <PreferenceRow label="Múi giờ" value="(GMT+07:00) Bangkok, Hanoi, Jakarta" />
-            </SettingsCard>
-          </section>
-
-          <aside className="space-y-5">
-            <SettingsCard title="Giao diện">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Chế độ hiển thị</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Chọn giao diện phù hợp với môi trường sử dụng.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-border bg-background p-1">
-                {themeOptions.map(({ value, label, icon: Icon }) => {
-                  const active = selectedTheme === value;
-
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setSelectedTheme(value)}
-                      className={cn(
-                        "group flex min-h-24 flex-col items-center justify-center rounded-lg px-3 py-3 text-center text-sm transition",
-                        active
-                          ? "bg-card text-primary shadow-sm ring-1 ring-border"
-                          : "text-muted-foreground hover:bg-card/70 hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="size-6" strokeWidth={active ? 2.4 : 2} />
-                      <span className="mt-2 block max-w-20 font-semibold leading-tight">
-                        {label}
-                      </span>
-                      <span
-                        className={cn(
-                          "mt-2 flex size-4 items-center justify-center rounded-full border transition",
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border group-hover:border-primary/40",
-                        )}
-                      >
-                        {active ? <Check className="size-3.5" strokeWidth={3} /> : null}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6 border-t border-border pt-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Màu chủ đạo</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Dùng để nhấn mạnh nút, liên kết và trạng thái đang chọn.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {accentColors.map((color, index) => (
-                    <button
-                      key={color.label}
-                      type="button"
-                      aria-label={color.label}
-                      onClick={() => setSelectedAccent(index)}
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-full transition hover:scale-105",
-                        color.className,
-                        selectedAccent === index && "ring-4 ring-primary/20 ring-offset-2 ring-offset-card",
-                      )}
-                    >
-                      {selectedAccent === index ? (
-                        <Check className="size-3.5 text-primary-foreground" strokeWidth={3} />
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs font-semibold text-primary">
-                  {accentColors[selectedAccent].label}
-                </p>
-              </div>
-            </SettingsCard>
-
-            <SettingsCard title="Thông báo">
-              <div className="space-y-1">
-                <ToggleRow
-                  icon={Bell}
-                  title="Thông báo đẩy"
-                  description="Nhận thông báo trên thiết bị"
-                  active={toggles.push}
-                  onClick={() => updateToggle("push")}
-                />
-                <ToggleRow
-                  icon={Mail}
-                  title="Email về chuyến đi"
-                  description="Nhận email cập nhật chuyến đi"
-                  active={toggles.tripEmail}
-                  onClick={() => updateToggle("tripEmail")}
-                />
-                <ToggleRow
-                  icon={Users}
-                  title="Hoạt động từ cộng đồng"
-                  description="Thông báo khi có tương tác mới"
-                  active={toggles.community}
-                  onClick={() => updateToggle("community")}
-                />
-                <ToggleRow
-                  icon={MapPin}
-                  title="Khuyến nghị địa điểm"
-                  description="Gợi ý địa điểm phù hợp sở thích"
-                  active={toggles.recommendations}
-                  onClick={() => updateToggle("recommendations")}
-                />
-              </div>
-              <button className="mt-4 flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-bold text-primary transition hover:bg-accent">
-                Quản lý cài đặt thông báo
-                <ChevronRight className="size-4" />
-              </button>
-            </SettingsCard>
-
-            <SettingsCard title="Ngôn ngữ & Khu vực">
-              <PreferenceRow icon={Languages} label="Ngôn ngữ" value="Tiếng Việt" />
-              <PreferenceRow icon={Globe2} label="Quốc gia/Khu vực" value="Việt Nam" />
-              <PreferenceRow icon={CalendarDays} label="Định dạng ngày" value="DD/MM/YYYY" />
-              <PreferenceRow icon={Clock} label="Định dạng thời gian" value="24 giờ" />
-            </SettingsCard>
-          </aside>
+          <section className="min-w-0">{renderSectionContent()}</section>
         </div>
-
-        <footer className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs font-semibold text-muted-foreground">
-          <span>VietJourney © 2026. All rights reserved.</span>
-          <button className="text-primary">Điều khoản sử dụng</button>
-          <button className="text-primary">Chính sách bảo mật</button>
-        </footer>
       </div>
     </main>
   );
 }
 
-function SettingsCard({
+function SectionPanel({
   title,
-  id,
+  description,
   children,
 }: {
   title: string;
-  id?: string;
+  description: string;
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="border-b border-border pb-4">
+        <h2 className="text-lg font-bold tracking-normal text-foreground">{title}</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
       <div className="mt-5">{children}</div>
     </section>
+  );
+}
+
+function InlineStatus({
+  status,
+  message,
+}: {
+  status: "success" | "error" | "info";
+  message: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3 text-sm font-semibold",
+        status === "success" && "border-primary/25 bg-primary/10 text-primary",
+        status === "info" && "border-border bg-accent text-primary",
+        status === "error" && "border-destructive/30 bg-destructive/10 text-destructive",
+      )}
+    >
+      {message}
+    </div>
   );
 }
 
@@ -750,35 +983,11 @@ function TextField({
         disabled={disabled}
         onChange={(event) => onChange?.(event.target.value)}
         className={cn(
-          "mt-2 h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20",
+          "mt-2 h-11 w-full rounded-lg border border-border bg-background px-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20",
           disabled && "cursor-not-allowed bg-muted/50 text-muted-foreground",
         )}
       />
     </label>
-  );
-}
-
-function ReadonlyFact({
-  label,
-  value,
-  badge,
-}: {
-  label: string;
-  value: string;
-  badge?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-background p-4">
-      <p className="text-xs font-bold text-muted-foreground">{label}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-foreground">{value}</span>
-        {badge ? (
-          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-            {badge}
-          </span>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -801,108 +1010,148 @@ function PasswordField({
         value={value}
         autoComplete={autoComplete}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 h-12 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+        className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
     </label>
   );
 }
 
-function ActionRow({
-  icon: Icon,
-  title,
-  description,
-  danger = false,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  danger?: boolean;
-}) {
+function CheckMark({ active }: { active: boolean }) {
   return (
-    <button className="flex w-full items-center gap-4 rounded-xl px-2 py-3 text-left transition hover:bg-accent/70">
-      <span
-        className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-xl",
-          danger ? "bg-destructive/10 text-destructive" : "bg-accent text-primary",
-        )}
-      >
-        <Icon className="size-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className={cn("block text-sm font-semibold", danger ? "text-destructive" : "text-foreground")}>
-          {title}
-        </span>
-        <span className={cn("mt-1 block text-xs", danger ? "text-destructive" : "text-muted-foreground")}>
-          {description}
-        </span>
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-    </button>
+    <span
+      className={cn(
+        "flex size-5 items-center justify-center rounded-full border transition",
+        active ? "border-primary bg-primary text-primary-foreground" : "border-border text-transparent",
+      )}
+    >
+      <Check className="size-3.5" strokeWidth={3} />
+    </span>
   );
 }
 
-function ToggleRow({
-  icon: Icon,
-  title,
-  description,
+function TogglePill({
+  label,
   active,
+  saving,
+  disabled,
   onClick,
 }: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
+  label: string;
   active: boolean;
+  saving?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition hover:bg-accent/70"
+      className={cn(
+        "inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-sm font-bold transition disabled:cursor-wait disabled:opacity-70",
+        active
+          ? "border-primary/35 bg-primary/10 text-primary"
+          : "border-border bg-card text-muted-foreground hover:bg-accent",
+      )}
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
-        <Icon className="size-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-foreground">{title}</span>
-        <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
-      </span>
       <span
         className={cn(
-          "flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition",
-          active ? "bg-primary" : "bg-muted",
+          "size-2 rounded-full",
+          active ? "bg-primary" : "bg-muted-foreground/45",
+          saving && "animate-pulse",
         )}
-      >
-        <span
-          className={cn(
-            "size-5 rounded-full bg-card shadow-sm transition",
-            active && "translate-x-5",
-          )}
-        />
-      </span>
+      />
+      {label}
     </button>
+  );
+}
+
+function StaticValue({ value }: { value: string }) {
+  return (
+    <span className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-bold text-foreground">
+      {value}
+    </span>
   );
 }
 
 function PreferenceRow({
   icon: Icon,
-  label,
-  value,
+  title,
+  description,
+  children,
 }: {
-  icon?: LucideIcon;
-  label: string;
-  value: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  children: ReactNode;
 }) {
   return (
-    <button className="flex w-full items-center gap-3 border-b border-border py-4 text-left last:border-b-0">
-      {Icon ? (
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
-          <Icon className="size-4" />
+    <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <div className="flex min-w-0 gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+          <Icon className="size-5" />
         </span>
-      ) : null}
-      <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{label}</span>
-      <span className="truncate text-right text-sm font-semibold text-muted-foreground">{value}</span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-    </button>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-foreground">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function SegmentedControl<Value extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: Value;
+  options: Array<{ value: Value; label: string }>;
+  onChange: (value: Value) => void;
+}) {
+  return (
+    <div className="inline-flex flex-wrap rounded-lg border border-border bg-card p-1">
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "min-h-8 rounded-md px-3 text-sm font-bold transition",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FeatureRow({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-border bg-background p-4">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+        <Icon className="size-5" />
+      </span>
+      <div>
+        <p className="text-sm font-bold text-foreground">{title}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+    </div>
   );
 }
