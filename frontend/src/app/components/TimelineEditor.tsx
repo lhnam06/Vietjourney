@@ -8,6 +8,7 @@ import {
   ChevronRight,
   GripVertical,
   Loader2,
+  MessageSquare,
   Plus,
   Sparkles,
   Trash2,
@@ -41,6 +42,7 @@ import {
 import { cn } from "../lib/utils";
 import { useTimelineSocket } from "../hooks/useTimelineSocket";
 import { AgentPanel } from "./AgentPanel";
+import { ChatPanel } from "./ChatPanel";
 import { NewListModal } from "./Popups";
 import { listIcon } from "./ListPanel";
 
@@ -147,11 +149,14 @@ export function TimelineEditor({
   const [deleteZoneActive, setDeleteZoneActive] = useState(false);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [pendingProposals, setPendingProposals] = useState<TimelineProposal[]>([]);
   const [proposalActionId, setProposalActionId] = useState<string | null>(null);
   const edgeSwitchRef = useRef<number | null>(null);
   const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
+  const dropPreviewFrameRef = useRef<number | null>(null);
+  const pendingDropPreviewRef = useRef<DropPreview | null>(null);
   const authToken = useMemo(() => getAuthToken(), []);
   const { isConnected: isRealtimeConnected, lastMessage: realtimeMessage } = useTimelineSocket(timeline.id, authToken);
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
@@ -307,6 +312,7 @@ export function TimelineEditor({
       if (realtimeRefreshTimerRef.current) {
         window.clearTimeout(realtimeRefreshTimerRef.current);
       }
+      clearDropPreviewFrame();
     },
     [],
   );
@@ -426,6 +432,40 @@ export function TimelineEditor({
     setEdgeHint(null);
   }
 
+  function clearDropPreviewFrame() {
+    if (dropPreviewFrameRef.current) {
+      window.cancelAnimationFrame(dropPreviewFrameRef.current);
+      dropPreviewFrameRef.current = null;
+    }
+    pendingDropPreviewRef.current = null;
+  }
+
+  function clearDropPreview() {
+    clearDropPreviewFrame();
+    setDropPreview(null);
+  }
+
+  function queueDropPreview(next: DropPreview) {
+    pendingDropPreviewRef.current = next;
+    if (dropPreviewFrameRef.current) return;
+
+    dropPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      dropPreviewFrameRef.current = null;
+      const pending = pendingDropPreviewRef.current;
+      pendingDropPreviewRef.current = null;
+      if (!pending) return;
+
+      setDropPreview((current) =>
+        current &&
+        current.dayKey === pending.dayKey &&
+        current.start.getTime() === pending.start.getTime() &&
+        current.end.getTime() === pending.end.getTime()
+          ? current
+          : pending,
+      );
+    });
+  }
+
   function handleDragStart(event: DragEvent, payload: DragPayload) {
     if (payload.kind === "event" && !canEditTimeline) {
       event.preventDefault();
@@ -435,7 +475,10 @@ export function TimelineEditor({
 
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = payload.kind === "place" ? "copyMove" : "move";
-    setCardDragImage(event);
+    setCardDragImage(event, payload, {
+      place: payload.kind === "place" ? placeById.get(payload.placeId) : undefined,
+      timelineEvent: payload.kind === "event" ? eventById.get(payload.eventId) : undefined,
+    });
 
     window.setTimeout(() => {
       if (payload.kind === "place") {
@@ -445,7 +488,7 @@ export function TimelineEditor({
         setDraggedEventId(payload.eventId);
         setDraggedPlaceId(null);
       }
-      setDropPreview(null);
+      clearDropPreview();
     }, 0);
   }
 
@@ -453,7 +496,7 @@ export function TimelineEditor({
     setDraggedPlaceId(null);
     setDraggedEventId(null);
     setDeleteZoneActive(false);
-    setDropPreview(null);
+    clearDropPreview();
     clearEdgeSwitchTimer();
   }
 
@@ -485,7 +528,7 @@ export function TimelineEditor({
     edgeSwitchDirectionRef.current = direction;
     edgeSwitchRef.current = window.setTimeout(() => {
       changeWeek(direction === "previous" ? -1 : 1);
-      setDropPreview(null);
+      clearDropPreview();
       edgeSwitchRef.current = null;
       edgeSwitchDirectionRef.current = null;
       setEdgeHint(null);
@@ -506,7 +549,7 @@ export function TimelineEditor({
     const next = event.relatedTarget as Node | null;
     if (next && event.currentTarget.contains(next)) return;
     clearEdgeSwitchTimer();
-    setDropPreview(null);
+    clearDropPreview();
   }
 
   function dropWindowFor(day: Date, target: HTMLElement, clientY: number, durationMinutes: number) {
@@ -536,14 +579,7 @@ export function TimelineEditor({
     const next = dropWindowFor(day, event.currentTarget, event.clientY, duration);
     const dayKey = day.toISOString();
 
-    setDropPreview((current) =>
-      current &&
-      current.dayKey === dayKey &&
-      current.start.getTime() === next.start.getTime() &&
-      current.end.getTime() === next.end.getTime()
-        ? current
-        : { dayKey, ...next },
-    );
+    queueDropPreview({ dayKey, ...next });
   }
 
   async function requestAddPlace(place: Place, day: Date, startTime: string, endTime: string) {
@@ -586,7 +622,7 @@ export function TimelineEditor({
 
     if (!isWithinTimeline(new Date(start), new Date(end), timelineStart, timelineEnd)) {
       setError("Khung giờ nằm ngoài thời gian của chuyến đi.");
-      setDropPreview(null);
+      clearDropPreview();
       return;
     }
 
@@ -619,7 +655,7 @@ export function TimelineEditor({
         setEvents((current) => [...current, created]);
         setDraggedPlaceId(null);
         setDeleteZoneActive(false);
-        setDropPreview(null);
+        clearDropPreview();
         return;
       }
 
@@ -637,10 +673,10 @@ export function TimelineEditor({
       await moveEvent(source, start, end, dayEvents(day).length);
       setDraggedEventId(null);
       setDeleteZoneActive(false);
-      setDropPreview(null);
+      clearDropPreview();
     } catch (dropError) {
       setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
-      setDropPreview(null);
+      clearDropPreview();
       await reloadEvents();
     }
   }
@@ -659,7 +695,7 @@ export function TimelineEditor({
 
     setDraggedEventId(null);
     setDeleteZoneActive(false);
-    setDropPreview(null);
+    clearDropPreview();
     await removeEvent(eventId);
   }
 
@@ -1179,6 +1215,7 @@ export function TimelineEditor({
                           ? (event) => {
                               const next = event.relatedTarget as Node | null;
                               if (next && event.currentTarget.contains(next)) return;
+                              clearDropPreviewFrame();
                               setDropPreview((current) =>
                                 current?.dayKey === day.toISOString() ? null : current,
                               );
@@ -1260,13 +1297,23 @@ export function TimelineEditor({
                 <Sparkles className="size-5" />
                 <span className="font-bold">Gợi ý lịch trình cho bạn</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAgentOpen(true)}
-                className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5"
-              >
-                Tạo lịch tự động
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary/20 bg-background px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/5"
+                >
+                  <MessageSquare className="size-4" />
+                  Trò chuyện
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAgentOpen(true)}
+                  className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5"
+                >
+                  Tạo lịch tự động
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -1286,6 +1333,11 @@ export function TimelineEditor({
         timelineId={timeline.id}
         startDate={timeline.startDate}
         onTimelineUpdated={() => void reloadEvents()}
+      />
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        timelineId={timeline.id}
       />
     </main>
   );
@@ -1452,10 +1504,10 @@ function DropPreviewCard({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute left-2 right-2 z-30 overflow-hidden rounded-2xl border bg-card/95 text-xs shadow-2xl ring-2 ring-primary/20 backdrop-blur",
+        "pointer-events-none absolute left-2 right-2 z-30 overflow-hidden rounded-2xl border bg-card/95 text-xs shadow-2xl ring-2 ring-primary/20 backdrop-blur transition-[top,height,opacity,transform] duration-75 ease-out",
         tone.card,
       )}
-      style={{ top: `${preview.topPct}%`, height }}
+      style={{ top: `${preview.topPct}%`, height, transform: "translateZ(0)" }}
     >
       <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", tone.accent)} />
       <div className={cn("flex size-full min-w-0 flex-col pl-4 pr-2", compact ? "justify-center py-2" : "py-2")}>
@@ -1493,13 +1545,87 @@ function parseDragPayload(event: DragEvent): DragPayload | null {
   }
 }
 
-function setCardDragImage(event: DragEvent) {
-  const target = event.currentTarget;
-  if (!(target instanceof HTMLElement)) return;
+function setCardDragImage(
+  event: DragEvent,
+  payload: DragPayload,
+  source: { place?: Place; timelineEvent?: TimelineEvent },
+) {
+  if (typeof document === "undefined") return;
 
-  const offsetX = Math.min(target.clientWidth / 2, 120);
-  const offsetY = Math.min(target.clientHeight / 2, 60);
-  event.dataTransfer.setDragImage(target, offsetX, offsetY);
+  const isPlace = payload.kind === "place";
+  const category = source.timelineEvent?.category || toEventCategory(source.place?.category);
+  const tone = eventCategoryTone[category] || eventCategoryTone.ACTIVITY;
+  const title = source.timelineEvent?.place?.name || source.place?.name || "Địa điểm";
+  const area =
+    source.timelineEvent?.place?.district ||
+    source.timelineEvent?.place?.address ||
+    source.place?.district ||
+    source.place?.address ||
+    categoryLabel(category);
+  const start = source.timelineEvent ? new Date(source.timelineEvent.startTime) : null;
+  const end = source.timelineEvent ? new Date(source.timelineEvent.endTime) : null;
+  const defaultHours = Math.floor(defaultDropDurationMinutes / 60);
+  const defaultMinutes = defaultDropDurationMinutes % 60;
+  const timeText = start && end
+    ? `${formatTime(start)} - ${formatTime(end)}`
+    : `+ ${defaultHours}h${defaultMinutes ? String(defaultMinutes).padStart(2, "0") : ""}`;
+
+  const dragImage = document.createElement("div");
+  dragImage.className = "rounded-2xl border border-border bg-card text-xs shadow-2xl ring-2 ring-primary/20";
+  dragImage.style.position = "fixed";
+  dragImage.style.left = "-1000px";
+  dragImage.style.top = "-1000px";
+  dragImage.style.width = isPlace ? "154px" : "144px";
+  dragImage.style.minHeight = isPlace ? "88px" : "76px";
+  dragImage.style.padding = "10px 12px 10px 14px";
+  dragImage.style.overflow = "hidden";
+  dragImage.style.pointerEvents = "none";
+  dragImage.style.opacity = "0.98";
+  dragImage.style.transform = "translateZ(0)";
+
+  const accent = document.createElement("span");
+  accent.className = tone.accent;
+  accent.style.position = "absolute";
+  accent.style.left = "0";
+  accent.style.top = "10px";
+  accent.style.bottom = "10px";
+  accent.style.width = "2px";
+  accent.style.borderRadius = "999px";
+
+  const titleEl = document.createElement("div");
+  titleEl.textContent = title;
+  titleEl.style.fontSize = "12px";
+  titleEl.style.fontWeight = "800";
+  titleEl.style.lineHeight = "1.15";
+  titleEl.style.color = "var(--foreground)";
+  titleEl.style.display = "-webkit-box";
+  titleEl.style.setProperty("-webkit-line-clamp", "2");
+  titleEl.style.setProperty("-webkit-box-orient", "vertical");
+  titleEl.style.overflow = "hidden";
+
+  const timeEl = document.createElement("div");
+  timeEl.textContent = timeText;
+  timeEl.style.marginTop = "6px";
+  timeEl.style.fontSize = "11px";
+  timeEl.style.fontWeight = "800";
+  timeEl.style.lineHeight = "1";
+  timeEl.style.color = "var(--primary)";
+
+  const areaEl = document.createElement("div");
+  areaEl.textContent = area;
+  areaEl.style.marginTop = "6px";
+  areaEl.style.fontSize = "10.5px";
+  areaEl.style.fontWeight = "600";
+  areaEl.style.lineHeight = "1.1";
+  areaEl.style.color = "var(--muted-foreground)";
+  areaEl.style.whiteSpace = "nowrap";
+  areaEl.style.overflow = "hidden";
+  areaEl.style.textOverflow = "ellipsis";
+
+  dragImage.append(accent, titleEl, timeEl, areaEl);
+  document.body.appendChild(dragImage);
+  event.dataTransfer.setDragImage(dragImage, 24, 24);
+  window.setTimeout(() => dragImage.remove(), 0);
 }
 
 function toEventCategory(category?: Place["category"] | null): TimelineEventCategory {

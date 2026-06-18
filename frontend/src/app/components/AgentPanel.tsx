@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertCircle, CheckCircle2, Loader2, Send, Sparkles, X } from "lucide-react";
+import { AlertCircle, CalendarDays, CheckCircle2, Loader2, Send, Sparkles, X } from "lucide-react";
 import {
   callHuggingFaceAgent,
   executeAgentPlan,
@@ -31,6 +31,7 @@ export function AgentPanel({
   onTimelineUpdated,
 }: AgentPanelProps) {
   const [prompt, setPrompt] = useState("");
+  const [selectedDate, setSelectedDate] = useState(startDate);
   const [sessionId] = useState(() => `vj-agent-${Date.now()}`);
   const [plan, setPlan] = useState<HfPlanResponse | null>(null);
   const [execution, setExecution] = useState<ExecutePlanResponse | null>(null);
@@ -40,6 +41,7 @@ export function AgentPanel({
   useEffect(() => {
     if (!isOpen) return;
     setPrompt("");
+    setSelectedDate(startDate);
     setPlan(null);
     setExecution(null);
     setStatus("idle");
@@ -64,7 +66,7 @@ export function AgentPanel({
     setExecution(null);
 
     try {
-      const response = await callHuggingFaceAgent(message, startDate, 1, sessionId);
+      const response = await callHuggingFaceAgent(message, selectedDate, 1, sessionId);
       setPlan(response);
       if (response.status === "chat") {
         setPrompt(response.itinerary_markdown || "");
@@ -88,7 +90,7 @@ export function AgentPanel({
       const response = await executeAgentPlan({
         timeline: plan.timeline,
         timelineId,
-        startDate,
+        startDate: selectedDate,
         mode,
       });
       setExecution(response);
@@ -209,7 +211,18 @@ export function AgentPanel({
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex flex-wrap justify-end gap-3">
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="size-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">Thêm vào ngày:</span>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                    <div className="flex gap-3">
                     <button
                       type="button"
                       onClick={() => void execute("PROPOSAL")}
@@ -227,6 +240,7 @@ export function AgentPanel({
                       {status === "executing" ? <Loader2 className="size-4 animate-spin" /> : null}
                       Thêm vào timeline
                     </button>
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -234,15 +248,39 @@ export function AgentPanel({
           ) : null}
 
           {execution ? (
-            <div className="mt-5 rounded-xl border border-primary/25 bg-primary/10 p-4">
+            <div className={cn(
+              "mt-5 rounded-xl border p-4 shadow-sm",
+              execution.successCount > 0 
+                ? "border-emerald-500/30 bg-emerald-500/10" 
+                : "border-destructive/30 bg-destructive/10"
+            )}>
               <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
+                {execution.successCount > 0 ? (
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" />
+                ) : (
+                  <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" />
+                )}
                 <div>
-                  <p className="text-sm font-black text-foreground">Đã xử lý kế hoạch AI</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Thành công {execution.successCount}/{execution.totalEvents}, bỏ qua {execution.skippedCount},
-                    lỗi {execution.errorCount}.
+                  <p className={cn(
+                    "text-sm font-black",
+                    execution.successCount > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"
+                  )}>
+                    {execution.successCount > 0 ? "Cập nhật lịch trình thành công!" : "Không thể thêm vào lịch trình"}
                   </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">
+                    Đã thêm thành công <strong>{execution.successCount}</strong>/{execution.totalEvents} hoạt động.
+                    {execution.skippedCount > 0 ? ` Bỏ qua ${execution.skippedCount}.` : ""}
+                    {execution.errorCount > 0 ? ` Bị xung đột thời gian: ${execution.errorCount}.` : ""}
+                  </p>
+                  {execution.successCount > 0 && (
+                    <button 
+                      onClick={onClose}
+                      type="button"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-500/30 dark:text-emerald-300"
+                    >
+                      Đóng cửa sổ và xem lịch trình &rarr;
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
