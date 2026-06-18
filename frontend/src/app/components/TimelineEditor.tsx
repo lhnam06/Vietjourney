@@ -32,6 +32,7 @@ import {
   type TimelineEventCategory,
 } from "../lib/timelineApi";
 import { cn } from "../lib/utils";
+import { AgentPanel } from "./AgentPanel";
 import { NewListModal } from "./Popups";
 import { listIcon } from "./ListPanel";
 
@@ -121,6 +122,7 @@ export function TimelineEditor({
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
   const [deleteZoneActive, setDeleteZoneActive] = useState(false);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
+  const [isAgentOpen, setIsAgentOpen] = useState(false);
   const edgeSwitchRef = useRef<number | null>(null);
   const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
@@ -853,7 +855,11 @@ export function TimelineEditor({
                 <Sparkles className="size-5" />
                 <span className="font-bold">Gợi ý lịch trình cho bạn</span>
               </div>
-              <button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">
+              <button
+                type="button"
+                onClick={() => setIsAgentOpen(true)}
+                className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5"
+              >
                 Tạo lịch tự động
               </button>
             </div>
@@ -869,6 +875,13 @@ export function TimelineEditor({
           onClose={() => setIsNewListOpen(false)}
         />
       ) : null}
+      <AgentPanel
+        isOpen={isAgentOpen}
+        onClose={() => setIsAgentOpen(false)}
+        timelineId={timeline.id}
+        startDate={timeline.startDate}
+        onTimelineUpdated={() => void reloadEvents()}
+      />
     </main>
   );
 }
