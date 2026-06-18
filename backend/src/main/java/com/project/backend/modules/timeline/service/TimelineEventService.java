@@ -23,11 +23,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import com.project.backend.modules.timeline.messaging.TimelineEventPublisher;
@@ -172,6 +175,45 @@ public class TimelineEventService {
     }
 
     private void publishRealtimeEvent(String timelineId, String type, Object data) {
+        String actorUsername = timelineSecurityService.getCurrentUsername();
+        Map<String, Object> detailPayload = new HashMap<>();
+        detailPayload.put("timelineId", timelineId);
+        detailPayload.put("changeType", type);
+        detailPayload.put("refetch", true);
+        detailPayload.put("data", data);
+        if (actorUsername != null) {
+            detailPayload.put("actor", actorUsername);
+        }
+
+        Map<String, Object> refetchPayload = new HashMap<>();
+        refetchPayload.put("timelineId", timelineId);
+        refetchPayload.put("sourceType", type);
+        refetchPayload.put("refetch", true);
+        if (actorUsername != null) {
+            refetchPayload.put("actor", actorUsername);
+        }
+
+        publishRealtimeEventAfterCommit(timelineId, type, detailPayload);
+        publishRealtimeEventAfterCommit(timelineId, "TIMELINE_EVENTS_CHANGED", refetchPayload);
+    }
+
+    private void publishRealtimeEventAfterCommit(String timelineId, String type, Object data) {
+        Runnable publishTask = () -> publishRealtimeEventNow(timelineId, type, data);
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishTask.run();
+                }
+            });
+            return;
+        }
+
+        publishTask.run();
+    }
+
+    private void publishRealtimeEventNow(String timelineId, String type, Object data) {
         try {
             timelineEventPublisher.publishEvent(timelineId, type, data);
         } catch (RuntimeException exception) {

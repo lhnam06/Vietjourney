@@ -7,8 +7,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Map;
 
@@ -19,7 +20,7 @@ import java.util.Map;
 public class TimelineEventListener {
     TimelineEventPublisher timelineEventPublisher;
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleTimelineChanged(TimelineChangedEvent event) {
         log.info("Handling timeline changed event for real-time broadcast: {} - {}", event.getTimelineId(), event.getChangeType());
         
@@ -35,7 +36,7 @@ public class TimelineEventListener {
         );
     }
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleMemberInvited(TimelineMemberInvitedEvent event) {
         log.info("Handling member invited event for real-time broadcast: {} to {}", event.getTimelineId(), event.getInvitedUsername());
         

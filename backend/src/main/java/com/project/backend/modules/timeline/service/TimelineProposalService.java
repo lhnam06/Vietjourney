@@ -17,8 +17,11 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 import com.project.backend.modules.timeline.messaging.TimelineEventPublisher;
@@ -36,9 +39,16 @@ public class TimelineProposalService {
     ObjectMapper objectMapper;
 
     @Transactional
-    @PreAuthorize("@timelineSecurity.canEditTimeline(#timelineId)")
+    @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
     public TimelineProposal submitProposal(String timelineId, String changeType, Map<String, Object> payload, Integer baseVersion) {
-        timelineSecurityService.requireEditAccess(timelineId);
+        timelineSecurityService.requireViewAccess(timelineId);
+        String normalizedChangeType = changeType == null ? "" : changeType.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!List.of("ADD", "MOVE", "DELETE").contains(normalizedChangeType)) {
+            throw new AppException(ErrorCode.INVALID_PROPOSAL_DATA);
+        }
+        if (!timelineSecurityService.canEditTimeline(timelineId) && !"ADD".equals(normalizedChangeType)) {
+            throw new AppException(ErrorCode.TIMELINE_ACCESS_DENIED);
+        }
         Timeline timeline = timelineRepository.findById(timelineId)
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_NOT_EXIST));
 
@@ -47,24 +57,41 @@ public class TimelineProposalService {
                 .author(userRepository.findByUsername(timelineSecurityService.getCurrentUsername())
                         .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST)))
                 .baseVersion(baseVersion)
-                .changeType(changeType)
+                .changeType(normalizedChangeType)
                 .payload(payload)
                 .status(TimelineProposalStatus.PENDING)
                 .build();
 
-        return timelineProposalRepository.save(proposal);
+        TimelineProposal savedProposal = timelineProposalRepository.save(proposal);
+        publishProposalEventAfterCommit(timelineId, "PROPOSAL_CREATED", proposalPayload(
+                timelineId,
+                savedProposal.getId(),
+                savedProposal.getStatus().name()
+        ));
+        return savedProposal;
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
     public List<TimelineProposal> getPendingProposals(String timelineId) {
+        timelineSecurityService.requireViewAccess(timelineId);
+        if (!timelineSecurityService.canEditTimeline(timelineId)) {
+            return timelineProposalRepository.findAllByTimelineIdAndStatusAndAuthorUsername(
+                    timelineId,
+                    TimelineProposalStatus.PENDING,
+                    timelineSecurityService.getCurrentUsername()
+            );
+        }
         return timelineProposalRepository.findAllByTimelineIdAndStatus(timelineId, TimelineProposalStatus.PENDING);
     }
 
     @Transactional
-    @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
+    @PreAuthorize("@timelineSecurity.canEditTimeline(#timelineId)")
     public void decideProposal(String timelineId, String proposalId, TimelineProposalStatus status) {
-        timelineSecurityService.requireOwnerAccess(timelineId);
+        timelineSecurityService.requireEditAccess(timelineId);
+        if (status == TimelineProposalStatus.PENDING) {
+            throw new AppException(ErrorCode.INVALID_PROPOSAL_DATA);
+        }
         TimelineProposal proposal = timelineProposalRepository.findById(proposalId)
                 .filter(p -> p.getTimeline().getId().equals(timelineId))
                 .orElseThrow(() -> new AppException(ErrorCode.PROPOSAL_NOT_FOUND));
@@ -81,10 +108,40 @@ public class TimelineProposalService {
         timelineProposalRepository.save(proposal);
 
         // Broadcast decision to clear shadow object on all clients
-        timelineEventPublisher.publishEvent(timelineId, "PROPOSAL_DECIDED", Map.of(
-                "id", proposalId,
-                "status", status.name()
+        publishProposalEventAfterCommit(timelineId, "PROPOSAL_DECIDED", proposalPayload(
+                timelineId,
+                proposalId,
+                status.name()
         ));
+    }
+
+    private Map<String, Object> proposalPayload(String timelineId, String proposalId, String status) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("timelineId", timelineId);
+        payload.put("id", proposalId);
+        payload.put("status", status);
+        payload.put("refetch", true);
+        String actorUsername = timelineSecurityService.getCurrentUsername();
+        if (actorUsername != null) {
+            payload.put("actor", actorUsername);
+        }
+        return payload;
+    }
+
+    private void publishProposalEventAfterCommit(String timelineId, String type, Object data) {
+        Runnable publishTask = () -> timelineEventPublisher.publishEvent(timelineId, type, data);
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishTask.run();
+                }
+            });
+            return;
+        }
+
+        publishTask.run();
     }
 
     private void applyProposal(TimelineProposal proposal) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent
 import {
   ArrowLeft,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -10,8 +11,10 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 import type { PlaceList } from "../App";
+import { getAuthToken } from "../lib/authApi";
 import {
   categoryFilter,
   categoryLabel,
@@ -21,15 +24,22 @@ import {
 } from "../lib/placesApi";
 import {
   createTimelineEvent,
+  decideTimelineProposal,
   deleteTimelineEvent,
+  fetchPendingTimelineProposals,
   fetchTimelineEvents,
   moveTimelineEvent,
   resizeTimelineEvent,
+  submitTimelineProposal,
+  type CurrentUser,
   type Timeline,
   type TimelineEvent,
   type TimelineEventCategory,
+  type TimelineMemberRole,
+  type TimelineProposal,
 } from "../lib/timelineApi";
 import { cn } from "../lib/utils";
+import { useTimelineSocket } from "../hooks/useTimelineSocket";
 import { AgentPanel } from "./AgentPanel";
 import { NewListModal } from "./Popups";
 import { listIcon } from "./ListPanel";
@@ -45,6 +55,19 @@ const edgeSwitchZone = 50;
 const edgeSwitchDelay = 500;
 const defaultDropDurationMinutes = 90;
 const snapMinutes = 15;
+const realtimeRefreshTypes = new Set([
+  "TIMELINE_EVENTS_CHANGED",
+  "TIMELINE_UPDATED",
+  "EVENT_ADDED",
+  "EVENT_MOVED",
+  "EVENT_RESIZED",
+  "EVENT_REORDERED",
+  "EVENT_DELETED",
+  "PROPOSAL_CREATED",
+  "PROPOSAL_DECIDED",
+]);
+const proposalRefreshTypes = new Set(["PROPOSAL_CREATED", "PROPOSAL_DECIDED"]);
+const realtimeFallbackPollMs = 3000;
 
 const eventCategoryTone: Record<TimelineEventCategory, {
   accent: string;
@@ -92,6 +115,7 @@ interface DropPreview {
 
 interface TimelineEditorProps {
   timeline: Timeline;
+  currentUser: CurrentUser | null;
   placeLists: PlaceList[];
   activeListId: string;
   onSelectList: (listId: string) => void;
@@ -101,6 +125,7 @@ interface TimelineEditorProps {
 
 export function TimelineEditor({
   timeline,
+  currentUser,
   placeLists,
   activeListId,
   onSelectList,
@@ -112,6 +137,7 @@ export function TimelineEditor({
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [edgeHint, setEdgeHint] = useState<"previous" | "next" | null>(null);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [isNewListOpen, setIsNewListOpen] = useState(false);
@@ -121,8 +147,13 @@ export function TimelineEditor({
   const [deleteZoneActive, setDeleteZoneActive] = useState(false);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [pendingProposals, setPendingProposals] = useState<TimelineProposal[]>([]);
+  const [proposalActionId, setProposalActionId] = useState<string | null>(null);
   const edgeSwitchRef = useRef<number | null>(null);
   const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
+  const authToken = useMemo(() => getAuthToken(), []);
+  const { isConnected: isRealtimeConnected, lastMessage: realtimeMessage } = useTimelineSocket(timeline.id, authToken);
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
   const ActiveListIcon = listIcon(activeList?.icon);
 
@@ -144,6 +175,43 @@ export function TimelineEditor({
     () => new Map(savedPlaceCards.map((place) => [place.id, place])),
     [savedPlaceCards],
   );
+  const currentRole = useMemo<TimelineMemberRole | null>(() => {
+    if (!currentUser) return null;
+    if (timeline.ownerId === currentUser.id || timeline.ownerUsername === currentUser.username) {
+      return "OWNER";
+    }
+
+    return (
+      timeline.members.find(
+        (member) => member.userId === currentUser.id || member.username === currentUser.username,
+      )?.role || null
+    );
+  }, [currentUser, timeline.members, timeline.ownerId, timeline.ownerUsername]);
+  const canEditTimeline = currentRole === "OWNER" || currentRole === "EDITOR";
+  const canRequestAdditions = currentRole === "VIEWER";
+  const canReviewProposals = canEditTimeline;
+  const proposalBaseVersion = useMemo(
+    () => Math.max(1, ...events.map((event) => event.version || 1)),
+    [events],
+  );
+  const roleLabel =
+    currentRole === "OWNER"
+      ? "Chủ chuyến đi"
+      : currentRole === "EDITOR"
+        ? "Có quyền chỉnh sửa"
+        : currentRole === "VIEWER"
+          ? "Chỉ gửi yêu cầu"
+          : "Đang kiểm tra quyền";
+  const permissionHint = canEditTimeline
+    ? "Bạn có thể thêm, di chuyển, đổi thời lượng và xóa hoạt động trực tiếp."
+    : canRequestAdditions
+      ? "Bạn có thể kéo địa điểm vào lịch để gửi yêu cầu cho chủ chuyến đi hoặc biên tập viên duyệt."
+      : "Bạn chưa có quyền chỉnh sửa lịch trình này.";
+  const roleBadgeClass = canEditTimeline
+    ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+    : canRequestAdditions
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+      : "border-border bg-muted text-muted-foreground";
   const draggedEvent = draggedEventId ? eventById.get(draggedEventId) : null;
   const draggedPlace = draggedPlaceId ? placeById.get(draggedPlaceId) : null;
   const dropPreviewCategory = draggedEvent?.category || toEventCategory(draggedPlace?.category);
@@ -180,6 +248,25 @@ export function TimelineEditor({
   }, [rangeEnd, rangeStart, timeline.id]);
 
   useEffect(() => {
+    if (!currentRole) {
+      setPendingProposals([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    fetchPendingTimelineProposals(timeline.id, controller.signal)
+      .then(setPendingProposals)
+      .catch(() => {
+        if (!controller.signal.aborted && canReviewProposals) {
+          setNotice("Không tải được danh sách yêu cầu đang chờ.");
+        }
+      });
+
+    return () => controller.abort();
+  }, [canReviewProposals, currentRole, timeline.id]);
+
+  useEffect(() => {
     if (!resizeState) return undefined;
 
     function onPointerMove(event: globalThis.PointerEvent) {
@@ -214,12 +301,108 @@ export function TimelineEditor({
     };
   }, [eventById, resizeState]);
 
-  useEffect(() => () => clearEdgeSwitchTimer(), []);
+  useEffect(
+    () => () => {
+      clearEdgeSwitchTimer();
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+    },
+    [],
+  );
 
   async function reloadEvents() {
     const nextEvents = await fetchTimelineEvents(timeline.id, rangeStart, rangeEnd);
     setEvents(nextEvents);
   }
+
+  async function reloadProposals() {
+    if (!currentRole) return;
+    const proposals = await fetchPendingTimelineProposals(timeline.id);
+    setPendingProposals(proposals);
+  }
+
+  async function refreshTimelineFromDatabase(options: {
+    includeProposals?: boolean;
+    actor?: string | null;
+    showNotice?: boolean;
+  } = {}) {
+    await reloadEvents();
+    if (options.includeProposals) {
+      await reloadProposals();
+    }
+    if (options.showNotice && options.actor && options.actor !== currentUser?.username) {
+      setNotice("Timeline vừa được cập nhật bởi thành viên khác. Dữ liệu mới nhất đã được tải lại.");
+    }
+  }
+
+  useEffect(() => {
+    if (!realtimeMessage) return;
+
+    const message = realtimeMessage as Record<string, unknown>;
+    const messageData = message.data && typeof message.data === "object" ? message.data as Record<string, unknown> : {};
+    const messageType =
+      typeof message.type === "string"
+        ? message.type
+        : typeof messageData.type === "string"
+          ? messageData.type
+          : typeof messageData.changeType === "string"
+            ? messageData.changeType
+            : "";
+    if (!realtimeRefreshTypes.has(messageType)) return;
+
+    const messageTimelineId =
+      typeof messageData.timelineId === "string"
+        ? messageData.timelineId
+        : typeof message.timelineId === "string"
+          ? message.timelineId
+          : null;
+    if (messageTimelineId && messageTimelineId !== timeline.id) return;
+
+    if (realtimeRefreshTimerRef.current) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+    }
+
+    realtimeRefreshTimerRef.current = window.setTimeout(() => {
+      realtimeRefreshTimerRef.current = null;
+      void (async () => {
+        try {
+          const actor =
+            typeof messageData.actor === "string"
+              ? messageData.actor
+              : typeof message.actor === "string"
+                ? message.actor
+                : null;
+          await refreshTimelineFromDatabase({
+            actor,
+            includeProposals: proposalRefreshTypes.has(messageType) || messageType === "TIMELINE_EVENTS_CHANGED",
+            showNotice: true,
+          });
+        } catch (refreshError) {
+          setError(refreshError instanceof Error ? refreshError.message : "Không đồng bộ được timeline mới nhất.");
+        }
+      })();
+    }, 180);
+  }, [currentUser?.username, realtimeMessage, timeline.id]);
+
+  useEffect(() => {
+    if (isRealtimeConnected) return undefined;
+
+    let refreshing = false;
+    const intervalId = window.setInterval(() => {
+      if (refreshing) return;
+      refreshing = true;
+      void refreshTimelineFromDatabase({ includeProposals: true })
+        .catch((refreshError) => {
+          setError(refreshError instanceof Error ? refreshError.message : "Không đồng bộ được timeline mới nhất.");
+        })
+        .finally(() => {
+          refreshing = false;
+        });
+    }, realtimeFallbackPollMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [isRealtimeConnected, rangeEnd, rangeStart, timeline.id, currentRole]);
 
   function changeWeek(offset: number) {
     const nextStart = addDays(weekStart, offset * 7);
@@ -244,6 +427,12 @@ export function TimelineEditor({
   }
 
   function handleDragStart(event: DragEvent, payload: DragPayload) {
+    if (payload.kind === "event" && !canEditTimeline) {
+      event.preventDefault();
+      setNotice("Bạn chỉ có quyền xem timeline này. Hãy gửi yêu cầu nếu muốn thêm địa điểm mới.");
+      return;
+    }
+
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = payload.kind === "place" ? "copyMove" : "move";
     setCardDragImage(event);
@@ -305,6 +494,10 @@ export function TimelineEditor({
 
   function handleCalendarDragOver(event: DragEvent) {
     event.preventDefault();
+    if (draggedEventId && !canEditTimeline) {
+      event.dataTransfer.dropEffect = "none";
+      return;
+    }
     event.dataTransfer.dropEffect = draggedEventId ? "move" : "copy";
     scheduleEdgeWeekSwitch(event.clientX, event.currentTarget);
   }
@@ -353,6 +546,28 @@ export function TimelineEditor({
     );
   }
 
+  async function requestAddPlace(place: Place, day: Date, startTime: string, endTime: string) {
+    const payload = {
+      externalPlaceId: place.id,
+      category: toEventCategory(place.category),
+      startTime,
+      endTime,
+      orderIndex: dayEvents(day).length,
+      status: "PLANNED",
+    };
+
+    const proposal = await submitTimelineProposal(timeline.id, {
+      changeType: "ADD",
+      payload,
+      baseVersion: proposalBaseVersion,
+    });
+
+    setPendingProposals((current) =>
+      current.some((item) => item.id === proposal.id) ? current : [proposal, ...current],
+    );
+    setNotice(`Đã gửi yêu cầu thêm "${place.name}" cho người có quyền chỉnh sửa.`);
+  }
+
   async function handleColumnDrop(event: DragEvent, day: Date) {
     event.preventDefault();
     clearEdgeSwitchTimer();
@@ -380,6 +595,19 @@ export function TimelineEditor({
       if (payload.kind === "place") {
         const place = placeById.get(payload.placeId);
         if (!place) return;
+
+        if (!canEditTimeline) {
+          if (canRequestAdditions) {
+            await requestAddPlace(place, day, start, end);
+          } else {
+            setNotice("Bạn chưa có quyền thêm địa điểm vào timeline này.");
+          }
+          setDraggedPlaceId(null);
+          setDeleteZoneActive(false);
+          setDropPreview(null);
+          return;
+        }
+
         const created = await createTimelineEvent(timeline.id, {
           externalPlaceId: place.id,
           category: toEventCategory(place.category),
@@ -392,6 +620,11 @@ export function TimelineEditor({
         setDraggedPlaceId(null);
         setDeleteZoneActive(false);
         setDropPreview(null);
+        return;
+      }
+
+      if (!canEditTimeline) {
+        setNotice("Bạn chỉ có quyền xem timeline này, không thể di chuyển hoạt động.");
         return;
       }
 
@@ -416,6 +649,10 @@ export function TimelineEditor({
     event.preventDefault();
     event.stopPropagation();
     clearEdgeSwitchTimer();
+    if (!canEditTimeline) {
+      setNotice("Bạn chỉ có quyền xem timeline này, không thể xóa hoạt động.");
+      return;
+    }
     const payload = parseDragPayload(event);
     const eventId = payload?.kind === "event" ? payload.eventId : draggedEventId;
     if (!eventId) return;
@@ -447,6 +684,14 @@ export function TimelineEditor({
       if (payload.kind === "place") {
         const place = placeById.get(payload.placeId);
         if (!place) return;
+        if (!canEditTimeline) {
+          if (canRequestAdditions) {
+            await requestAddPlace(place, day, start, end);
+          } else {
+            setNotice("Bạn chưa có quyền thêm địa điểm vào timeline này.");
+          }
+          return;
+        }
         const created = await createTimelineEvent(timeline.id, {
           externalPlaceId: place.id,
           category: toEventCategory(place.category),
@@ -456,6 +701,11 @@ export function TimelineEditor({
           status: "PLANNED",
         });
         setEvents((current) => [...current, created]);
+        return;
+      }
+
+      if (!canEditTimeline) {
+        setNotice("Bạn chỉ có quyền xem timeline này, không thể di chuyển hoạt động.");
         return;
       }
 
@@ -471,6 +721,10 @@ export function TimelineEditor({
   }
 
   async function moveEvent(source: TimelineEvent, startTime: string, endTime: string, orderIndex?: number) {
+    if (!canEditTimeline) {
+      setNotice("Bạn chỉ có quyền xem timeline này, không thể di chuyển hoạt động.");
+      return;
+    }
     setSavingId(source.id);
     try {
       const updated = await moveTimelineEvent(timeline.id, source.id, {
@@ -485,6 +739,10 @@ export function TimelineEditor({
   }
 
   async function resizeEvent(source: TimelineEvent, nextEnd: Date) {
+    if (!canEditTimeline) {
+      setNotice("Bạn chỉ có quyền xem timeline này, không thể đổi thời lượng.");
+      return;
+    }
     setSavingId(source.id);
     try {
       const updated = await resizeTimelineEvent(timeline.id, source.id, {
@@ -501,6 +759,10 @@ export function TimelineEditor({
   }
 
   async function removeEvent(eventId: string) {
+    if (!canEditTimeline) {
+      setNotice("Bạn chỉ có quyền xem timeline này, không thể xóa hoạt động.");
+      return;
+    }
     setSavingId(eventId);
     try {
       await deleteTimelineEvent(timeline.id, eventId);
@@ -518,8 +780,51 @@ export function TimelineEditor({
       .sort((first, second) => first.orderIndex - second.orderIndex);
   }
 
+  async function decidePendingProposal(proposal: TimelineProposal, status: "ACCEPTED" | "REJECTED") {
+    if (!canReviewProposals) return;
+
+    setProposalActionId(proposal.id);
+    setError(null);
+    setNotice(null);
+
+    try {
+      await decideTimelineProposal(timeline.id, proposal.id, status);
+      setPendingProposals((current) => current.filter((item) => item.id !== proposal.id));
+      if (status === "ACCEPTED") {
+        await reloadEvents();
+        setNotice("Đã chấp nhận yêu cầu và cập nhật lịch trình.");
+      } else {
+        setNotice("Đã từ chối yêu cầu thay đổi.");
+      }
+    } catch (proposalError) {
+      setError(proposalError instanceof Error ? proposalError.message : "Không xử lý được yêu cầu.");
+      await reloadProposals();
+    } finally {
+      setProposalActionId(null);
+    }
+  }
+
+  function proposalPlaceName(proposal: TimelineProposal) {
+    const placeId = typeof proposal.payload.externalPlaceId === "string" ? proposal.payload.externalPlaceId : "";
+    return placeById.get(placeId)?.name || (placeId ? `Địa điểm ${placeId}` : "Địa điểm mới");
+  }
+
+  function proposalTimeRange(proposal: TimelineProposal) {
+    const startTime = typeof proposal.payload.startTime === "string" ? proposal.payload.startTime : "";
+    const endTime = typeof proposal.payload.endTime === "string" ? proposal.payload.endTime : "";
+    if (!startTime || !endTime) return "Chưa có thời gian";
+
+    const startDate = new Date(startTime);
+    const endDate = new Date(endTime);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return "Chưa có thời gian";
+    }
+
+    return `${formatDateTimeCompact(startDate)} - ${formatTime(endDate)}`;
+  }
+
   function canDropOnDay(day: Date) {
-    return isTimelineDay(day, timelineStart, timelineEnd);
+    return isTimelineDay(day, timelineStart, timelineEnd) && (canEditTimeline || canRequestAdditions);
   }
 
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
@@ -553,6 +858,16 @@ export function TimelineEditor({
             <p className="mt-1 text-sm text-muted-foreground">
               {formatShortDate(timelineStart)} - {formatShortDate(timelineEnd)}
             </p>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-border bg-background/80 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Quyền của bạn</p>
+              <span className={cn("rounded-full border px-3 py-1 text-xs font-bold", roleBadgeClass)}>
+                {roleLabel}
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">{permissionHint}</p>
           </div>
 
           <div className="relative mt-4">
@@ -630,8 +945,20 @@ export function TimelineEditor({
                 Kéo địa điểm vào khung giờ, kéo card để đổi ngày hoặc kéo mép dưới để đổi thời lượng.
               </p>
             </div>
-            <div className="rounded-xl border border-primary/20 bg-accent px-4 py-2 text-sm font-semibold text-primary">
-              Mẹo sử dụng
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-xs font-bold",
+                  isRealtimeConnected
+                    ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-border bg-muted text-muted-foreground",
+                )}
+              >
+                {isRealtimeConnected ? "Đồng bộ trực tiếp" : "Đang kết nối realtime"}
+              </span>
+              <div className={cn("rounded-xl border px-4 py-2 text-sm font-semibold", roleBadgeClass)}>
+                {roleLabel}
+              </div>
             </div>
           </header>
 
@@ -666,6 +993,76 @@ export function TimelineEditor({
           {error ? (
             <div className="mt-4 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-sm text-destructive">
               {error}
+            </div>
+          ) : null}
+
+          {notice ? (
+            <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
+              {notice}
+            </div>
+          ) : null}
+
+          {pendingProposals.length ? (
+            <div className="mt-4 rounded-2xl border border-border bg-background p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-foreground">Yêu cầu đang chờ</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {canReviewProposals
+                      ? "Duyệt các đề xuất thêm địa điểm trước khi cập nhật lịch trình chung."
+                      : "Các đề xuất của bạn đang chờ chủ chuyến đi hoặc biên tập viên duyệt."}
+                  </p>
+                </div>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                  {pendingProposals.length} yêu cầu
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {pendingProposals.map((proposal) => (
+                  <article
+                    key={proposal.id}
+                    className="rounded-xl border border-border bg-card p-3 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-foreground">{proposalPlaceName(proposal)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {proposal.authorUsername} · {proposalTimeRange(proposal)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                        Chờ duyệt
+                      </span>
+                    </div>
+                    {canReviewProposals ? (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          disabled={proposalActionId === proposal.id}
+                          onClick={() => void decidePendingProposal(proposal, "ACCEPTED")}
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {proposalActionId === proposal.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Check className="size-3.5" />
+                          )}
+                          Chấp nhận
+                        </button>
+                        <button
+                          type="button"
+                          disabled={proposalActionId === proposal.id}
+                          onClick={() => void decidePendingProposal(proposal, "REJECTED")}
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <X className="size-3.5" />
+                          Từ chối
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -816,6 +1213,7 @@ export function TimelineEditor({
                       saving={savingId === event.id}
                       resizing={resizeState?.eventId === event.id ? resizeState.previewEnd : null}
                       isDragging={draggedEventId === event.id}
+                      editable={canEditTimeline}
                       onDragStart={(dragEvent) => handleDragStart(dragEvent, { kind: "event", eventId: event.id })}
                       onDragEnd={handleDragEnd}
                       onResizeStart={(pointerEvent) => {
@@ -933,6 +1331,7 @@ function TimelineCard({
   saving,
   resizing,
   isDragging,
+  editable,
   onDragStart,
   onDragEnd,
   onResizeStart,
@@ -943,6 +1342,7 @@ function TimelineCard({
   saving: boolean;
   resizing: Date | null;
   isDragging: boolean;
+  editable: boolean;
   onDragStart: (event: DragEvent) => void;
   onDragEnd: () => void;
   onResizeStart: (event: PointerEvent) => void;
@@ -961,11 +1361,12 @@ function TimelineCard({
   const placeArea = event.place?.district || event.place?.address || categoryLabel(event.category);
   return (
     <article
-      draggable={!resizing}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      draggable={editable && !resizing}
+      onDragStart={editable ? onDragStart : undefined}
+      onDragEnd={editable ? onDragEnd : undefined}
       className={cn(
-        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-2xl border bg-card text-xs shadow-xl ring-1 ring-border/60 transition hover:z-30 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-2xl active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 overflow-hidden rounded-2xl border bg-card text-xs shadow-xl ring-1 ring-border/60 transition hover:z-30 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-2xl",
+        editable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
         tone.card,
         tone.glow,
         saving ? "opacity-60" : "",
@@ -1009,21 +1410,25 @@ function TimelineCard({
           ) : null}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onDelete}
-        className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-lg bg-background/90 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-      >
-        <Trash2 className="size-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Đổi thời lượng"
-        onPointerDown={onResizeStart}
-        className="absolute bottom-1 left-1/2 flex h-2 w-9 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-muted-foreground/25 opacity-70 shadow-sm transition hover:bg-primary/45 group-hover:opacity-100"
-      >
-        <span className="h-0.5 w-4 rounded-full bg-background/90" />
-      </button>
+      {editable ? (
+        <>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-lg bg-background/90 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Đổi thời lượng"
+            onPointerDown={onResizeStart}
+            className="absolute bottom-1 left-1/2 flex h-2 w-9 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-muted-foreground/25 opacity-70 shadow-sm transition hover:bg-primary/45 group-hover:opacity-100"
+          >
+            <span className="h-0.5 w-4 rounded-full bg-background/90" />
+          </button>
+        </>
+      ) : null}
     </article>
   );
 }
@@ -1173,6 +1578,11 @@ function isWithinTimeline(start: Date, end: Date, timelineStart: Date, timelineE
 
 function formatShortDate(date: Date) {
   return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatDateTimeCompact(date: Date) {
+  if (Number.isNaN(date.getTime())) return "Chưa có thời gian";
+  return `${formatShortDate(date)} ${formatTime(date)}`;
 }
 
 function formatTime(date: Date) {
