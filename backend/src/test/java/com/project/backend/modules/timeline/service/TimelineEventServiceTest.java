@@ -101,8 +101,8 @@ class TimelineEventServiceTest {
         doNothing().when(timelineSecurityService).requireEditAccess(TEST_TIMELINE_ID);
         when(timelineRepository.findByIdForUpdate(TEST_TIMELINE_ID)).thenReturn(Optional.of(mockTimeline));
         doNothing().when(placeLookupService).assertPlaceExists(any(), any());
-        when(timelineEventRepository.existsOverlappingEvent(eq(TEST_TIMELINE_ID), any(), any(), any(), any()))
-                .thenReturn(false);
+        when(timelineEventRepository.findOverlappingEvents(eq(TEST_TIMELINE_ID), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
         when(timelineEventRepository.save(any(TimelineEvent.class))).thenReturn(savedEvent);
         when(timelineEventRepository.findById(TEST_EVENT_ID)).thenReturn(Optional.of(savedEvent));
         when(timelineEventRepository.findDayEventsForUpdate(eq(TEST_TIMELINE_ID), any(), any(), any()))
@@ -142,8 +142,8 @@ class TimelineEventServiceTest {
         doNothing().when(timelineSecurityService).requireEditAccess(TEST_TIMELINE_ID);
         when(timelineRepository.findByIdForUpdate(TEST_TIMELINE_ID)).thenReturn(Optional.of(mockTimeline));
         doNothing().when(placeLookupService).assertPlaceExists(any(), any());
-        when(timelineEventRepository.existsOverlappingEvent(eq(TEST_TIMELINE_ID), any(), any(), any(), any()))
-                .thenReturn(false);
+        when(timelineEventRepository.findOverlappingEvents(eq(TEST_TIMELINE_ID), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
         when(timelineEventRepository.save(any(TimelineEvent.class))).thenReturn(savedEvent);
         when(timelineEventRepository.findById(TEST_EVENT_ID)).thenReturn(Optional.of(savedEvent));
         when(timelineEventRepository.findDayEventsForUpdate(eq(TEST_TIMELINE_ID), any(), any(), any()))

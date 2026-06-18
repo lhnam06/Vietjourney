@@ -19,6 +19,7 @@ import com.project.backend.modules.timeline.repository.TimelineRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import com.project.backend.modules.timeline.messaging.TimelineEventPublisher;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -78,7 +80,7 @@ public class TimelineEventService {
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_ADDED);
         TimelineEventResponse response = timelineService.toEventResponse(timelineEventRepository.findById(event.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.TIMELINE_EVENT_NOT_EXIST)));
-        timelineEventPublisher.publishEvent(timelineId, "EVENT_ADDED", response);
+        publishRealtimeEvent(timelineId, "EVENT_ADDED", response);
 
         return response;
     }
@@ -104,7 +106,7 @@ public class TimelineEventService {
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_MOVED);
 
         TimelineEventResponse response = timelineService.toEventResponse(event);
-        timelineEventPublisher.publishEvent(timelineId, "EVENT_MOVED", response);
+        publishRealtimeEvent(timelineId, "EVENT_MOVED", response);
         return response;
     }
 
@@ -130,7 +132,7 @@ public class TimelineEventService {
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_RESIZED);
 
         TimelineEventResponse response = timelineService.toEventResponse(event);
-        timelineEventPublisher.publishEvent(timelineId, "EVENT_RESIZED", response);
+        publishRealtimeEvent(timelineId, "EVENT_RESIZED", response);
         return response;
     }
 
@@ -147,7 +149,7 @@ public class TimelineEventService {
         // Gộp cả 2 Event: Notification (GitHub) và Websocket (Local)
         timelineService.publishTimelineChangedEvent(event.getTimeline(), TimelineChangeType.EVENT_REORDERED);
         TimelineEventResponse response = timelineService.toEventResponse(getEventOrThrow(timelineId, eventId));
-        timelineEventPublisher.publishEvent(timelineId, "EVENT_REORDERED", response);
+        publishRealtimeEvent(timelineId, "EVENT_REORDERED", response);
 
         return response;
     }
@@ -166,7 +168,16 @@ public class TimelineEventService {
 
         // Gộp cả 2 Event: Notification (GitHub) và Websocket (Local)
         timelineService.publishTimelineChangedEvent(timeline, TimelineChangeType.EVENT_DELETED);
-        timelineEventPublisher.publishEvent(timelineId, "EVENT_DELETED", Map.of("eventId", eventId));
+        publishRealtimeEvent(timelineId, "EVENT_DELETED", Map.of("eventId", eventId));
+    }
+
+    private void publishRealtimeEvent(String timelineId, String type, Object data) {
+        try {
+            timelineEventPublisher.publishEvent(timelineId, type, data);
+        } catch (RuntimeException exception) {
+            log.warn("Skipped realtime timeline event publish for timeline {} and type {}: {}",
+                    timelineId, type, exception.getMessage());
+        }
     }
 
     private TimelineEvent getEventOrThrow(String timelineId, String eventId) {
