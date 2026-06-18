@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(exclude = "timeline")
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class TimelineEvent {
     @Id
