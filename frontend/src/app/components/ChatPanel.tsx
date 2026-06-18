@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router';
-import { Send, XCircle } from 'lucide-react';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { ScrollArea } from './ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { useAuth } from '../context/AuthContext';
+import { Send, X, MessageSquare } from 'lucide-react';
 import { getChatHistory, sendChatMessage, type ChatMessage } from '../lib/chatApi';
 import { useTimelineSocket } from '../hooks/useTimelineSocket';
 import { ChatBubble } from './ChatBubble';
-import { toast } from 'sonner';
+import { getAuthToken } from '../lib/authApi';
+import { fetchCurrentUser, type CurrentUser } from '../lib/timelineApi';
 
 interface ChatPanelProps {
   isOpen: boolean;
@@ -18,25 +13,19 @@ interface ChatPanelProps {
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, timelineId }) => {
-  const { user, token } = useAuth();
+  const token = getAuthToken() || '';
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const { lastMessage } = useTimelineSocket(timelineId, token);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Track IDs we already have to avoid duplicate lookups in effects
   const messageIdsRef = useRef<Set<string>>(new Set());
 
-  // Helper: add one-or-many messages, deduping by id
-  const addMessages = useCallback((incoming: ChatMessage[]) => {
-    setMessages((prev) => {
-      const ids = new Set(prev.map((m) => m.id));
-      const fresh = incoming.filter((m) => !ids.has(m.id));
-      if (fresh.length === 0) return prev;
-      fresh.forEach((m) => ids.add(m.id));
-      messageIdsRef.current = ids;
-      return [...prev, ...fresh];
-    });
-  }, []);
+  useEffect(() => {
+    if (isOpen && !currentUser) {
+      fetchCurrentUser().then(setCurrentUser).catch(console.error);
+    }
+  }, [isOpen, currentUser]);
 
   const fetchMessages = useCallback(async () => {
     if (token) {
@@ -46,7 +35,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, timelineI
         messageIdsRef.current = new Set(history.map((m) => m.id));
       } catch (error) {
         console.error('Failed to fetch chat history:', error);
-        toast.error('Không tải được lịch sử trò chuyện.');
       }
     }
   }, [timelineId, token]);
@@ -57,7 +45,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, timelineI
     }
   }, [isOpen, fetchMessages]);
 
-  // Incoming real-time messages from WebSocket (sent by other users)
   useEffect(() => {
     if (lastMessage?.type === 'CHAT_MESSAGE') {
       const msg = lastMessage.data as ChatMessage;
@@ -74,11 +61,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, timelineI
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !token || !user) return;
+    if (newMessage.trim() === '' || !token || !currentUser) return;
 
     try {
-      // POST the message and optimistically add it to the UI from the API response
-      // This way it shows immediately regardless of WebSocket health
       const savedMessage = await sendChatMessage(timelineId, token, newMessage);
       if (savedMessage?.id && !messageIdsRef.current.has(savedMessage.id)) {
         messageIdsRef.current.add(savedMessage.id);
@@ -87,43 +72,60 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, timelineI
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
-      toast.error('Không gửi được tin nhắn.');
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] h-[80vh] flex flex-col p-0">
-        <DialogHeader className="p-4 border-b border-slate-200">
-          <DialogTitle>Trò chuyện nhóm</DialogTitle>
-          <button onClick={onClose} className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-            <XCircle className="h-6 w-6 text-slate-500 hover:text-slate-700" />
-            <span className="sr-only">Close</span>
-          </button>
-        </DialogHeader>
-        <ScrollArea className="flex-1 p-4">
-          <div className="flex flex-col gap-4">
-            {messages.map((msg) => (
-              <ChatBubble
-                key={msg.id}
-                message={{ ...msg, isOwnMessage: msg.senderId === user?.id, timestamp: msg.timestamp }}
-              />
-            ))}
-            <div ref={messagesEndRef} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 px-4 py-6 backdrop-blur-sm">
+      <section className="flex h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_80px_oklch(0.23_0.04_260_/_0.35)]">
+        <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <MessageSquare className="size-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-black text-foreground">Trò chuyện nhóm</h2>
+            </div>
           </div>
-        </ScrollArea>
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-4 border-t border-slate-200">
-          <Input
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground"
+            aria-label="Đóng"
+          >
+            <X className="size-5" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((msg) => (
+            <ChatBubble
+              key={msg.id}
+              message={{ ...msg, isOwnMessage: msg.senderId === currentUser?.id, timestamp: msg.timestamp }}
+            />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2 border-t border-border p-4 bg-accent/30">
+          <input
+            type="text"
             placeholder="Nhập tin nhắn..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-1"
+            className="flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-          <Button type="submit" size="icon" disabled={newMessage.trim() === ''}>
-            <Send className="h-4 w-4" />
-          </Button>
+          <button 
+            type="submit" 
+            disabled={newMessage.trim() === ''}
+            className="inline-flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Send className="size-5" />
+          </button>
         </form>
-      </DialogContent>
-    </Dialog>
+      </section>
+    </div>
   );
 };

@@ -7,6 +7,7 @@ import {
   ChevronRight,
   GripVertical,
   Loader2,
+  MessageSquare,
   Plus,
   Sparkles,
   Trash2,
@@ -31,6 +32,7 @@ import {
 } from "../lib/timelineApi";
 import { cn } from "../lib/utils";
 import { AgentPanel } from "./AgentPanel";
+import { ChatPanel } from "./ChatPanel";
 import { NewListModal } from "./Popups";
 import { listIcon } from "./ListPanel";
 
@@ -121,6 +123,7 @@ export function TimelineEditor({
   const [deleteZoneActive, setDeleteZoneActive] = useState(false);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const edgeSwitchRef = useRef<number | null>(null);
   const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
   const dropPreviewFrameRef = useRef<number | null>(null);
@@ -898,13 +901,23 @@ export function TimelineEditor({
                 <Sparkles className="size-5" />
                 <span className="font-bold">Gợi ý lịch trình cho bạn</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAgentOpen(true)}
-                className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5"
-              >
-                Tạo lịch tự động
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary/20 bg-background px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/5"
+                >
+                  <MessageSquare className="size-4" />
+                  Trò chuyện
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAgentOpen(true)}
+                  className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5"
+                >
+                  Tạo lịch tự động
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -924,6 +937,11 @@ export function TimelineEditor({
         timelineId={timeline.id}
         startDate={timeline.startDate}
         onTimelineUpdated={() => void reloadEvents()}
+      />
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        timelineId={timeline.id}
       />
     </main>
   );
