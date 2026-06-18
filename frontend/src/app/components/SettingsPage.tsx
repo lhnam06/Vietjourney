@@ -122,6 +122,42 @@ const notificationGroups: Array<{
   },
 ];
 
+const profileChecklist = [
+  "Tên hiển thị xuất hiện trong hồ sơ, lời mời chuyến đi và hoạt động cộng đồng.",
+  "Tên người dùng hiện dùng để nhận diện tài khoản và chưa thể đổi từ giao diện này.",
+  "Phần giới thiệu được lưu trên thiết bị để tránh tạo dữ liệu giả khi backend chưa hỗ trợ bio.",
+];
+
+const passwordGuidelines = [
+  "Dùng mật khẩu riêng cho VietJourney, không dùng lại mật khẩu email hoặc mạng xã hội.",
+  "Ưu tiên cụm từ dài, có chữ và số; thêm ký tự đặc biệt nếu bạn chia sẻ máy với người khác.",
+  "Sau khi đổi mật khẩu, hãy đăng nhập lại trên thiết bị khác nếu bạn từng dùng tài khoản ở nơi công cộng.",
+];
+
+const notificationNotes = [
+  "Trong ứng dụng: hiện trong trang Thông báo và các badge khi bạn đang dùng VietJourney.",
+  "Realtime: cập nhật ngay khi backend gửi sự kiện mới cho timeline, cộng tác hoặc hệ thống.",
+  "Email và push chưa hiển thị ở đây vì backend hiện chưa có tuỳ chọn tương ứng.",
+];
+
+const themeDetails = [
+  "Sáng phù hợp khi lập kế hoạch ban ngày hoặc dùng ngoài trời.",
+  "Tối giảm chói khi chỉnh timeline buổi tối.",
+  "Theo hệ thống sẽ tự đổi theo chế độ của thiết bị.",
+];
+
+const travelUseCases = [
+  "Timetable dùng định dạng giờ bạn chọn để đọc các khung ăn uống, di chuyển và check-in.",
+  "Đơn vị khoảng cách áp dụng cho bản đồ, tuyến đường và mô tả di chuyển.",
+  "VND được giữ cố định vì dữ liệu giá và ngân sách hiện tập trung cho chuyến đi tại Việt Nam.",
+];
+
+const privacyNotes = [
+  "Riêng tư: chỉ bạn xem timeline cho đến khi chủ động mời người khác.",
+  "Nhóm: phù hợp với chuyến đi có bạn bè hoặc gia đình cùng chỉnh lịch trình.",
+  "Công khai: dùng khi bạn muốn chia sẻ lịch trình như một gợi ý cho cộng đồng.",
+];
+
 function getInitialTheme(): ThemeChoice {
   if (typeof window === "undefined") return "light";
   const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -468,92 +504,34 @@ export function SettingsPage() {
       case "account":
         return (
           <SectionPanel title="Tài khoản" description="Thông tin hiển thị của bạn trong VietJourney.">
-            <form onSubmit={handleSaveAccount} className="space-y-5">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-                <div className="flex items-center gap-4 rounded-lg border border-border bg-background p-4 lg:w-72 lg:flex-col lg:items-start">
-                  <UserAvatar
-                    name={displayName}
-                    seed={user?.id || user?.username}
-                    className="size-20"
-                    initialsClassName="text-2xl"
-                    badgeClassName="size-7"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
-                    <p className="mt-1 truncate text-sm text-muted-foreground">{username}</p>
-                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                      Ảnh đại diện tạm thời được tạo từ tên tài khoản cho đến khi hệ thống hỗ trợ upload.
-                    </p>
-                  </div>
+            <form
+              onSubmit={handleSaveAccount}
+              className="overflow-hidden rounded-xl border border-border bg-background"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Thông tin tài khoản</h3>
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                    Cập nhật cách bạn xuất hiện trong hồ sơ, chuyến đi chung và hoạt động cộng đồng.
+                  </p>
                 </div>
-
-                <div className="min-w-0 flex-1 space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <TextField
-                      label="Họ và tên"
-                      value={
-                        isEditingAccount
-                          ? accountForm.displayName
-                          : isLoadingUser
-                            ? "Đang tải..."
-                            : displayName
-                      }
-                      disabled={!isEditingAccount || isLoadingUser}
-                      onChange={(nextDisplayName) =>
-                        setAccountForm((current) => ({
-                          ...current,
-                          displayName: nextDisplayName,
-                        }))
-                      }
-                    />
-                    <TextField label="Tên người dùng" value={username} disabled />
-                  </div>
-
-                  <label className="block">
-                    <span className="text-sm font-bold text-foreground">Giới thiệu bản thân</span>
-                    {isEditingAccount ? (
-                      <textarea
-                        value={accountForm.bio}
-                        onChange={(event) =>
-                          setAccountForm((current) => ({ ...current, bio: event.target.value }))
-                        }
-                        maxLength={180}
-                        className="mt-2 min-h-28 w-full resize-none rounded-lg border border-border bg-background px-4 py-3 text-sm leading-6 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      />
-                    ) : (
-                      <p className="mt-2 rounded-lg border border-border bg-background px-4 py-3 text-sm leading-6 text-muted-foreground">
-                        {accountForm.bio}
-                      </p>
-                    )}
-                    <span className="mt-2 block text-xs font-semibold text-muted-foreground">
-                      {accountForm.bio.length}/180 ký tự
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              {accountStatus ? (
-                <InlineStatus status={accountStatus.type} message={accountStatus.message} />
-              ) : null}
-
-              <div className="flex flex-wrap justify-end gap-3">
                 {isEditingAccount ? (
-                  <>
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={cancelAccountEdit}
-                      className="rounded-lg border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent"
+                      className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground transition hover:bg-accent"
                     >
                       Hủy
                     </button>
                     <button
                       type="submit"
                       disabled={isSavingAccount}
-                      className="rounded-lg bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSavingAccount ? "Đang lưu..." : "Lưu thay đổi"}
                     </button>
-                  </>
+                  </div>
                 ) : (
                   <button
                     type="button"
@@ -561,11 +539,102 @@ export function SettingsPage() {
                       setAccountStatus(null);
                       setIsEditingAccount(true);
                     }}
-                    className="rounded-lg border border-border px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent hover:text-primary"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5"
                   >
-                    Chỉnh sửa tài khoản
+                    Chỉnh sửa
                   </button>
                 )}
+              </div>
+
+              <div className="flex flex-col gap-5 border-b border-border px-5 py-6 md:flex-row md:items-center">
+                <UserAvatar
+                  name={displayName}
+                  seed={user?.id || user?.username}
+                  className="size-24"
+                  initialsClassName="text-3xl"
+                  badgeClassName="size-8"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xl font-black tracking-tight text-foreground">{displayName}</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-primary">{username}</p>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    {accountForm.bio}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-5">
+                <h4 className="text-sm font-bold text-foreground">Thông tin cá nhân</h4>
+                <div className="mt-4 divide-y divide-border border-y border-border">
+                  <AccountInfoRow label="Họ và tên">
+                    {isEditingAccount ? (
+                      <input
+                        value={accountForm.displayName}
+                        disabled={isLoadingUser}
+                        onChange={(event) =>
+                          setAccountForm((current) => ({
+                            ...current,
+                            displayName: event.target.value,
+                          }))
+                        }
+                        className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm font-semibold text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-muted/50"
+                      />
+                    ) : (
+                      <span>{isLoadingUser ? "Đang tải..." : displayName}</span>
+                    )}
+                  </AccountInfoRow>
+                  <AccountInfoRow label="Tên người dùng">
+                    <span>{username}</span>
+                  </AccountInfoRow>
+                  <AccountInfoRow label="Ảnh đại diện">
+                    <span>Được tạo tự động từ tên tài khoản</span>
+                  </AccountInfoRow>
+                  <AccountInfoRow label="Giới thiệu bản thân" alignTop>
+                    {isEditingAccount ? (
+                      <div className="w-full">
+                        <textarea
+                          value={accountForm.bio}
+                          onChange={(event) =>
+                            setAccountForm((current) => ({ ...current, bio: event.target.value }))
+                          }
+                          maxLength={180}
+                          className="min-h-24 w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        />
+                        <span className="mt-2 block text-xs font-semibold text-muted-foreground">
+                          {accountForm.bio.length}/180 ký tự
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="leading-6">{accountForm.bio}</span>
+                    )}
+                  </AccountInfoRow>
+                  <AccountInfoRow label="Trạng thái tài khoản">
+                    <span className="rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-300">
+                      Hoạt động
+                    </span>
+                  </AccountInfoRow>
+                </div>
+
+                <div className="border-b border-border py-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {profileChecklist.map((item) => (
+                      <div key={item} className="rounded-lg bg-muted/45 p-3 text-xs font-semibold leading-5 text-muted-foreground">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {accountStatus ? (
+                  <div className="mt-4">
+                    <InlineStatus status={accountStatus.type} message={accountStatus.message} />
+                  </div>
+                ) : null}
+
+                <p className="pt-4 text-sm leading-6 text-muted-foreground">
+                  Cập nhật thông tin cá nhân và quản lý cách tài khoản của bạn xuất hiện trong VietJourney.
+                  Ảnh upload và đồng bộ bio đa thiết bị sẽ được thêm khi backend hỗ trợ.
+                </p>
               </div>
             </form>
           </SectionPanel>
@@ -632,6 +701,25 @@ export function SettingsPage() {
                 <p className="mt-2 text-xs font-semibold text-muted-foreground">
                   Tối thiểu 8 ký tự, có chữ và số. Thêm ký tự đặc biệt để tăng độ mạnh.
                 </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoList title="Gợi ý bảo vệ tài khoản" items={passwordGuidelines} />
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                      <ShieldCheck className="size-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">Phạm vi hiện tại</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        VietJourney hiện hỗ trợ đổi mật khẩu bằng API có sẵn. Các mục như xác thực hai lớp,
+                        lịch sử phiên đăng nhập và đăng xuất khỏi mọi thiết bị chưa được thêm để tránh tạo
+                        điều khiển không hoạt động.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {passwordStatus ? (
@@ -714,6 +802,29 @@ export function SettingsPage() {
               })}
             </div>
 
+            <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <InfoList title="Cách VietJourney gửi thông báo" items={notificationNotes} />
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="text-sm font-bold text-foreground">Nhóm ưu tiên</p>
+                <div className="mt-4 space-y-3 text-sm">
+                  {notificationGroups.map(({ category, title }) => {
+                    const preference = notificationPreferences[category];
+                    const enabledCount =
+                      Number(preference.inAppEnabled) + Number(preference.realtimeEnabled);
+
+                    return (
+                      <div key={category} className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-muted-foreground">{title}</span>
+                        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-bold text-foreground">
+                          {enabledCount}/2 bật
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             {notificationStatus ? (
               <div className="mt-4">
                 <InlineStatus status={notificationStatus.type} message={notificationStatus.message} />
@@ -753,6 +864,47 @@ export function SettingsPage() {
             <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
               Chế độ hiện tại: <span className="font-bold text-foreground">{currentThemeLabel}</span>
             </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <InfoList title="Khi nào nên dùng từng chế độ?" items={themeDetails} />
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                    <Palette className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Màu chủ đạo</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      VietJourney đang giữ màu xanh làm nhận diện chính để đồng bộ với bản đồ, timetable
+                      và các hành động lập kế hoạch. Tuỳ biến màu riêng sẽ phù hợp hơn khi có hệ thống theme hoàn chỉnh.
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                      {["bg-primary", "bg-sky-500", "bg-cyan-500", "bg-slate-400"].map((color) => (
+                        <span key={color} className={cn("size-7 rounded-full ring-2 ring-card", color)} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoList title="Cách hiểu quyền hiển thị" items={privacyNotes} />
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                      <Lock className="size-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">Dữ liệu và kiểm soát</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        Xuất dữ liệu, xoá tài khoản và quản lý phiên đăng nhập chưa có API trong lần này,
+                        nên VietJourney chỉ hiển thị các thiết lập đang có tác dụng thật. Khi backend hỗ trợ,
+                        các hành động dữ liệu nên nằm ở đây thay vì trong Account.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </SectionPanel>
         );
 
@@ -789,6 +941,23 @@ export function SettingsPage() {
                   onChange={(timeFormat) => updateTravelPreference("timeFormat", timeFormat)}
                 />
               </PreferenceRow>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+              <InfoList title="Những tuỳ chọn này ảnh hưởng gì?" items={travelUseCases} />
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                    <Map className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Mặc định cho chuyến đi mới</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Các lựa chọn này được lưu cục bộ và sẽ là nền cho trải nghiệm lập timeline,
+                      xem tuyến đường và đọc chi phí trước khi có API đồng bộ thiết bị.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionPanel>
         );
@@ -1130,6 +1299,53 @@ function SegmentedControl<Value extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function AccountInfoRow({
+  label,
+  alignTop,
+  children,
+}: {
+  label: string;
+  alignTop?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid gap-2 py-4 text-sm md:grid-cols-[180px_minmax(0,1fr)]",
+        alignTop ? "md:items-start" : "md:items-center",
+      )}
+    >
+      <span className="font-semibold text-muted-foreground">{label}</span>
+      <div className="min-w-0 font-semibold text-foreground">{children}</div>
+    </div>
+  );
+}
+
+function InfoList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <p className="text-sm font-bold text-foreground">{title}</p>
+      <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <Check className="mt-1 size-4 shrink-0 text-primary" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-muted/55 p-3">
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-bold leading-5 text-foreground">{value}</p>
     </div>
   );
 }
