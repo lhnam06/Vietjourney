@@ -5,8 +5,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   GripVertical,
   Loader2,
+  MapPin,
   Plus,
   Sparkles,
   Trash2,
@@ -35,15 +37,41 @@ import { listIcon } from "./ListPanel";
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const hours = Array.from({ length: 24 }, (_, index) => index);
-const hourHeight = 44;
-const calendarHeaderHeight = 74;
-const timeColumnWidth = 78;
+const hourHeight = 56;
+const calendarHeaderHeight = 88;
+const timeColumnWidth = 86;
 const dayColumnWidth = "minmax(0,1fr)";
-const eventCardInset = 4;
+const eventCardInset = 7;
 const edgeSwitchZone = 50;
 const edgeSwitchDelay = 500;
 const defaultDropDurationMinutes = 90;
 const snapMinutes = 15;
+
+const eventCategoryTone: Record<TimelineEventCategory, {
+  accent: string;
+  card: string;
+  glow: string;
+  pill: string;
+}> = {
+  FOOD: {
+    accent: "bg-emerald-400",
+    card: "from-emerald-500/28 via-emerald-500/14 to-card",
+    glow: "shadow-emerald-950/20",
+    pill: "bg-emerald-400/15 text-emerald-300",
+  },
+  DRINK: {
+    accent: "bg-sky-400",
+    card: "from-sky-500/28 via-sky-500/14 to-card",
+    glow: "shadow-sky-950/20",
+    pill: "bg-sky-400/15 text-sky-300",
+  },
+  ACTIVITY: {
+    accent: "bg-orange-400",
+    card: "from-orange-500/30 via-orange-500/14 to-card",
+    glow: "shadow-orange-950/20",
+    pill: "bg-orange-400/15 text-orange-300",
+  },
+};
 
 type DragPayload =
   | { kind: "place"; placeId: string }
@@ -106,6 +134,7 @@ export function TimelineEditor({
   const rangeEnd = toDateTimeInput(addDays(weekDays[6], 1), 0, 0);
   const timelineStart = dateOnly(timeline.startDate);
   const timelineEnd = dateOnly(timeline.endDate);
+  const today = dateOnly(new Date());
   const eventById = useMemo(
     () => new Map(events.map((event) => [event.id, event])),
     [events],
@@ -631,7 +660,7 @@ export function TimelineEditor({
           ) : null}
 
           <div
-            className="relative mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-background"
+            className="relative mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-3xl border border-border bg-[radial-gradient(circle_at_top_left,oklch(0.68_0.19_270_/_0.12),transparent_34%),linear-gradient(180deg,var(--card),var(--background))] shadow-inner"
             onDragOver={handleCalendarDragOver}
             onDragLeave={handleDragLeave}
           >
@@ -653,27 +682,36 @@ export function TimelineEditor({
               }}
             >
               <div
-                className="sticky left-0 top-0 z-20 flex items-center border-b border-r border-border bg-card px-5 text-sm font-semibold text-primary"
+                className="sticky left-0 top-0 z-20 flex items-center border-b border-r border-border bg-card/95 px-5 text-sm font-semibold text-primary shadow-sm backdrop-blur"
                 style={{ height: calendarHeaderHeight }}
               >
-                Giờ
+                <span className="rounded-full bg-primary/10 px-3 py-1.5">Giờ</span>
               </div>
               {weekDays.map((day, index) => {
                 const available = canDropOnDay(day);
+                const isToday = sameDate(day, today);
 
                 return (
                   <div
                     key={day.toISOString()}
                     className={cn(
-                      "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-r border-border px-4 text-center",
-                      available ? "bg-card" : "bg-muted text-muted-foreground",
+                      "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-r border-border px-3 text-center shadow-sm backdrop-blur",
+                      available ? "bg-card/95" : "bg-muted/90 text-muted-foreground",
+                      isToday && "bg-primary/15",
                     )}
                     style={{ height: calendarHeaderHeight }}
                   >
-                    <p className={cn("font-semibold", available ? "text-foreground" : "text-muted-foreground")}>
+                    <p className={cn("text-sm font-bold", available ? "text-foreground" : "text-muted-foreground")}>
                       {dayLabels[index]}
                     </p>
-                    <p className="mt-1 text-sm text-muted-foreground">{formatShortDate(day)}</p>
+                    <p className={cn("mt-1 text-sm font-medium", isToday ? "text-primary" : "text-muted-foreground")}>
+                      {formatShortDate(day)}
+                    </p>
+                    {isToday ? (
+                      <span className="mt-2 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-primary-foreground">
+                        Hôm nay
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}
@@ -681,7 +719,7 @@ export function TimelineEditor({
               {hours.map((hour) => (
                 <div key={`row-${hour}`} className="contents">
                   <div
-                    className="sticky left-0 z-10 border-b border-r border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground"
+                    className="sticky left-0 z-10 border-b border-r border-border bg-card/95 px-3 py-2 text-xs font-semibold tabular-nums text-muted-foreground backdrop-blur"
                     style={{ height: hourHeight }}
                   >
                     {hour === 23 ? "23:00 - 23:59" : `${String(hour).padStart(2, "0")}:00`}
@@ -693,9 +731,9 @@ export function TimelineEditor({
                       <div
                         key={`${day.toISOString()}-${hour}`}
                         className={cn(
-                          "relative border-b border-r border-dashed border-border/75 transition",
+                          "relative border-b border-r border-dashed border-border/70 transition after:absolute after:left-3 after:right-3 after:top-1/2 after:h-px after:bg-border/25 after:content-['']",
                           available
-                            ? "bg-card hover:bg-accent/30"
+                            ? "bg-card/35 hover:bg-accent/35"
                             : "cursor-not-allowed bg-muted/80",
                         )}
                         style={{ height: hourHeight }}
@@ -896,7 +934,14 @@ function TimelineCard({
   const height = Math.max(38, differenceMinutes(end, start) * (hourHeight / 60));
   const width = `calc((100% / 7) - ${eventCardInset * 2}px)`;
   const left = `calc(${dayIndex} * (100% / 7) + ${eventCardInset}px)`;
-  const compact = height < 58;
+  const compact = height < 70;
+  const roomy = height >= 92;
+  const tone = eventCategoryTone[event.category] || eventCategoryTone.ACTIVITY;
+  const placeName = event.place?.name || "Địa điểm";
+  const placeArea = event.place?.district || event.place?.address || categoryLabel(event.category);
+  const imageUrl =
+    event.place?.imageUrl ||
+    `https://picsum.photos/seed/${encodeURIComponent(event.externalPlaceId || event.id)}/96/96`;
 
   return (
     <article
@@ -904,24 +949,68 @@ function TimelineCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group pointer-events-auto absolute z-20 flex cursor-grab items-center justify-center overflow-hidden rounded-xl border border-primary/45 bg-primary/30 px-2 py-1.5 text-center text-xs shadow-md shadow-primary/15 ring-1 ring-primary/15 transition hover:z-30 hover:border-primary/60 hover:bg-primary/35 hover:shadow-lg active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-1 text-xs shadow-xl ring-1 ring-white/10 transition hover:z-30 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-2xl active:cursor-grabbing",
+        tone.card,
+        tone.glow,
         saving ? "opacity-60" : "",
-        isDragging ? "opacity-75 ring-2 ring-primary/35" : "",
+        isDragging ? "scale-[0.98] opacity-75 ring-2 ring-primary/40" : "",
       )}
       style={{ left, top, width, height }}
     >
-      <div className="min-w-0 px-4">
-        <h3 className={cn("font-bold leading-tight text-foreground", compact ? "truncate" : "line-clamp-2")}>
-          {event.place?.name || "Địa điểm"}
-        </h3>
-        <p className={cn("text-[11px] font-semibold text-primary/80", compact ? "mt-0.5" : "mt-1")}>
-          {formatTime(start)} - {formatTime(end)}
-        </p>
+      <div
+        className={cn(
+          "relative flex size-full min-w-0 overflow-hidden rounded-[14px] bg-card/78 backdrop-blur",
+          compact ? "items-center px-3" : "gap-2 p-2",
+        )}
+      >
+        <span className={cn("absolute inset-y-2 left-0 w-1 rounded-full", tone.accent)} />
+        {roomy ? (
+          <img
+            src={imageUrl}
+            alt={placeName}
+            className="h-full max-h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+          />
+        ) : null}
+        <div className={cn("min-w-0 flex-1", roomy ? "pr-7" : "px-2 pr-6")}>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className={cn("size-2 shrink-0 rounded-full", tone.accent)} />
+            <h3
+              className={cn(
+                "min-w-0 flex-1 font-extrabold leading-tight text-foreground",
+                compact ? "truncate" : "line-clamp-2",
+              )}
+            >
+              {placeName}
+            </h3>
+          </div>
+          <div
+            className={cn(
+              "mt-1 flex items-center gap-1.5 font-bold tabular-nums text-primary",
+              compact ? "text-[10px]" : "text-[11px]",
+            )}
+          >
+            <Clock3 className="size-3" />
+            <span>
+              {formatTime(start)} - {formatTime(end)}
+            </span>
+          </div>
+          {roomy ? (
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+              <MapPin className="size-3 shrink-0" />
+              <span className="truncate">{placeArea}</span>
+            </div>
+          ) : null}
+          {!compact ? (
+            <span className={cn("mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold", tone.pill)}>
+              {categoryLabel(event.category)}
+            </span>
+          ) : null}
+        </div>
       </div>
       <button
         type="button"
         onClick={onDelete}
-        className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-80 hover:bg-red-50 hover:text-destructive group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-lg bg-card/70 text-muted-foreground opacity-80 shadow-sm backdrop-blur transition hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
       >
         <Trash2 className="size-3.5" />
       </button>
@@ -929,7 +1018,7 @@ function TimelineCard({
         type="button"
         aria-label="Đổi thời lượng"
         onPointerDown={onResizeStart}
-        className="absolute bottom-1 left-1/2 flex h-2.5 w-9 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-primary/45 opacity-75 transition hover:bg-primary/70 group-hover:opacity-100"
+        className="absolute bottom-1 left-1/2 flex h-2.5 w-10 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-primary/55 opacity-75 shadow-sm transition hover:bg-primary/80 group-hover:opacity-100"
       >
         <span className="h-0.5 w-5 rounded-full bg-primary-foreground/90" />
       </button>
