@@ -84,15 +84,25 @@ html {
 }
 
 ::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button,
 ::-webkit-scrollbar-button:single-button,
+*::-webkit-scrollbar-button:single-button,
 ::-webkit-scrollbar-button:start,
 ::-webkit-scrollbar-button:end,
 ::-webkit-scrollbar-button:decrement,
 ::-webkit-scrollbar-button:increment,
+*::-webkit-scrollbar-button:start,
+*::-webkit-scrollbar-button:end,
+*::-webkit-scrollbar-button:decrement,
+*::-webkit-scrollbar-button:increment,
 ::-webkit-scrollbar-button:vertical:start:decrement,
 ::-webkit-scrollbar-button:vertical:end:increment,
 ::-webkit-scrollbar-button:horizontal:start:decrement,
-::-webkit-scrollbar-button:horizontal:end:increment {
+::-webkit-scrollbar-button:horizontal:end:increment,
+*::-webkit-scrollbar-button:vertical:start:decrement,
+*::-webkit-scrollbar-button:vertical:end:increment,
+*::-webkit-scrollbar-button:horizontal:start:decrement,
+*::-webkit-scrollbar-button:horizontal:end:increment {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
@@ -103,7 +113,9 @@ html {
 }
 
 ::-webkit-scrollbar-button:vertical,
-::-webkit-scrollbar-button:horizontal {
+::-webkit-scrollbar-button:horizontal,
+*::-webkit-scrollbar-button:vertical,
+*::-webkit-scrollbar-button:horizontal {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
@@ -143,6 +155,43 @@ body {
   min-width: 320px;
   background: var(--background);
   color: var(--foreground);
+}
+
+.timeline-invalid-header {
+  background: #e0e6eb;
+  box-shadow:
+    inset 0 0 0 1px rgba(100, 116, 139, 0.14),
+    0 8px 18px rgba(15, 23, 42, 0.08);
+  color: #64748b;
+}
+
+.timeline-invalid-cell {
+  background: #f4f6f5;
+  box-shadow:
+    inset 0 0 0 1px rgba(100, 116, 139, 0.1),
+    inset 0 0 36px rgba(148, 163, 184, 0.1);
+  color: #64748b;
+}
+
+.timeline-invalid-cell::after {
+  background: rgba(100, 116, 139, 0.18) !important;
+}
+
+:root[data-theme="dark"] .timeline-invalid-header {
+  background: oklch(1 0 0 / 0.1);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1);
+  color: oklch(0.82 0.02 270);
+}
+
+:root[data-theme="dark"] .timeline-invalid-cell {
+  background-color: oklch(1 0 0 / 0.08);
+  background-image: none;
+  box-shadow: none;
+  color: oklch(0.82 0.02 270);
+}
+
+:root[data-theme="dark"] .timeline-invalid-cell::after {
+  background: oklch(1 0 0 / 0.15) !important;
 }
 
 button,
