@@ -5,10 +5,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   GripVertical,
   Loader2,
-  MapPin,
   Plus,
   Sparkles,
   Trash2,
@@ -55,22 +53,22 @@ const eventCategoryTone: Record<TimelineEventCategory, {
   pill: string;
 }> = {
   FOOD: {
-    accent: "bg-emerald-400",
-    card: "from-emerald-500/44 via-emerald-500/24 to-card",
-    glow: "shadow-emerald-950/20",
-    pill: "bg-emerald-400/15 text-emerald-300",
+    accent: "bg-cyan-500",
+    card: "border-border/70",
+    glow: "shadow-slate-950/10",
+    pill: "text-muted-foreground",
   },
   DRINK: {
-    accent: "bg-sky-400",
-    card: "from-sky-500/44 via-sky-500/24 to-card",
-    glow: "shadow-sky-950/20",
-    pill: "bg-sky-400/15 text-sky-300",
+    accent: "bg-sky-500",
+    card: "border-border/70",
+    glow: "shadow-slate-950/10",
+    pill: "text-muted-foreground",
   },
   ACTIVITY: {
-    accent: "bg-orange-400",
-    card: "from-orange-500/46 via-orange-500/24 to-card",
-    glow: "shadow-orange-950/20",
-    pill: "bg-orange-400/15 text-orange-300",
+    accent: "bg-amber-500",
+    card: "border-border/70",
+    glow: "shadow-slate-950/10",
+    pill: "text-muted-foreground",
   },
 };
 
@@ -146,6 +144,16 @@ export function TimelineEditor({
     () => new Map(savedPlaceCards.map((place) => [place.id, place])),
     [savedPlaceCards],
   );
+  const draggedEvent = draggedEventId ? eventById.get(draggedEventId) : null;
+  const draggedPlace = draggedPlaceId ? placeById.get(draggedPlaceId) : null;
+  const dropPreviewCategory = draggedEvent?.category || toEventCategory(draggedPlace?.category);
+  const dropPreviewTitle = draggedEvent?.place?.name || draggedPlace?.name || "Địa điểm";
+  const dropPreviewArea =
+    draggedEvent?.place?.district ||
+    draggedEvent?.place?.address ||
+    draggedPlace?.district ||
+    draggedPlace?.address ||
+    categoryLabel(dropPreviewCategory);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -783,15 +791,12 @@ export function TimelineEditor({
                       onDrop={available ? (event) => handleColumnDrop(event, day) : undefined}
                     >
                       {preview ? (
-                        <div
-                          className="pointer-events-none absolute left-2 right-2 z-20 flex -translate-y-1/2 items-center gap-2"
-                          style={{ top: `${preview.topPct}%` }}
-                        >
-                          <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-bold tabular-nums text-primary-foreground shadow-md">
-                            {formatTime(preview.start)} - {formatTime(preview.end)}
-                          </span>
-                          <span className="h-0.5 flex-1 rounded-full bg-primary/60 shadow-[0_0_0_3px_oklch(0.515_0.22_277_/_0.12)]" />
-                        </div>
+                        <DropPreviewCard
+                          preview={preview}
+                          title={dropPreviewTitle}
+                          area={dropPreviewArea}
+                          category={dropPreviewCategory}
+                        />
                       ) : null}
                     </div>
                   );
@@ -960,7 +965,7 @@ function TimelineCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-1 text-xs shadow-xl ring-1 ring-white/10 transition hover:z-30 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-2xl active:cursor-grabbing",
+        "group pointer-events-auto absolute z-20 cursor-grab overflow-hidden rounded-2xl border bg-card text-xs shadow-xl ring-1 ring-border/60 transition hover:z-30 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-2xl active:cursor-grabbing",
         tone.card,
         tone.glow,
         saving ? "opacity-60" : "",
@@ -970,42 +975,35 @@ function TimelineCard({
     >
       <div
         className={cn(
-          "relative flex size-full min-w-0 overflow-hidden rounded-[14px] bg-card/92 backdrop-blur",
-          compact ? "items-center px-3" : "p-2",
+          "relative flex size-full min-w-0 flex-col overflow-hidden bg-card",
+          compact ? "justify-center px-2.5 py-2" : "px-2.5 py-2",
         )}
       >
-        <span className={cn("absolute inset-y-2 left-0 w-1 rounded-full", tone.accent)} />
-        <div className={cn("min-w-0 flex-1", roomy ? "pr-7" : "px-2 pr-6")}>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className={cn("size-2 shrink-0 rounded-full", tone.accent)} />
-            <h3
-              className={cn(
-                "min-w-0 flex-1 font-extrabold leading-tight text-foreground",
-                compact ? "truncate" : "line-clamp-2",
-              )}
-            >
-              {placeName}
-            </h3>
-          </div>
+        <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", tone.accent)} />
+        <div className={cn("flex h-full min-w-0 flex-col pl-2", compact ? "justify-center" : "justify-start")}>
+          <h3
+            className={cn(
+              "min-w-0 text-[12px] font-extrabold leading-[1.15] text-foreground",
+              compact ? "truncate" : "line-clamp-2",
+            )}
+          >
+            {placeName}
+          </h3>
           <div
             className={cn(
-              "mt-1 flex items-center gap-1.5 font-bold tabular-nums text-primary",
+              "mt-1 min-w-0 truncate font-bold leading-none tabular-nums text-primary",
               compact ? "text-[10px]" : "text-[11px]",
             )}
           >
-            <Clock3 className="size-3" />
-            <span>
-              {formatTime(start)} - {formatTime(end)}
-            </span>
+            {formatTime(start)} - {formatTime(end)}
           </div>
-          {roomy ? (
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-              <MapPin className="size-3 shrink-0" />
-              <span className="truncate">{placeArea}</span>
-            </div>
-          ) : null}
           {!compact ? (
-            <span className={cn("mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold", tone.pill)}>
+            <p className="mt-1 min-w-0 truncate text-[10.5px] font-semibold leading-tight text-muted-foreground">
+              {placeArea}
+            </p>
+          ) : null}
+          {roomy ? (
+            <span className={cn("mt-1.5 block truncate text-[10px] font-bold uppercase leading-none", tone.pill)}>
               {categoryLabel(event.category)}
             </span>
           ) : null}
@@ -1014,7 +1012,7 @@ function TimelineCard({
       <button
         type="button"
         onClick={onDelete}
-        className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-lg bg-card/70 text-muted-foreground opacity-80 shadow-sm backdrop-blur transition hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-lg bg-background/90 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
       >
         <Trash2 className="size-3.5" />
       </button>
@@ -1022,11 +1020,63 @@ function TimelineCard({
         type="button"
         aria-label="Đổi thời lượng"
         onPointerDown={onResizeStart}
-        className="absolute bottom-1 left-1/2 flex h-2.5 w-10 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-primary/55 opacity-75 shadow-sm transition hover:bg-primary/80 group-hover:opacity-100"
+        className="absolute bottom-1 left-1/2 flex h-2 w-9 -translate-x-1/2 cursor-ns-resize items-center justify-center rounded-full bg-muted-foreground/25 opacity-70 shadow-sm transition hover:bg-primary/45 group-hover:opacity-100"
       >
-        <span className="h-0.5 w-5 rounded-full bg-primary-foreground/90" />
+        <span className="h-0.5 w-4 rounded-full bg-background/90" />
       </button>
     </article>
+  );
+}
+
+function DropPreviewCard({
+  preview,
+  title,
+  area,
+  category,
+}: {
+  preview: DropPreview;
+  title: string;
+  area: string;
+  category: TimelineEventCategory;
+}) {
+  const height = Math.max(42, differenceMinutes(preview.end, preview.start) * (hourHeight / 60));
+  const compact = height < 70;
+  const roomy = height >= 92;
+  const tone = eventCategoryTone[category] || eventCategoryTone.ACTIVITY;
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute left-2 right-2 z-30 overflow-hidden rounded-2xl border bg-card/95 text-xs shadow-2xl ring-2 ring-primary/20 backdrop-blur",
+        tone.card,
+      )}
+      style={{ top: `${preview.topPct}%`, height }}
+    >
+      <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", tone.accent)} />
+      <div className={cn("flex size-full min-w-0 flex-col pl-4 pr-2", compact ? "justify-center py-2" : "py-2")}>
+        <h4
+          className={cn(
+            "min-w-0 text-[12px] font-extrabold leading-[1.15] text-foreground",
+            compact ? "truncate" : "line-clamp-2",
+          )}
+        >
+          {title}
+        </h4>
+        <p className={cn("mt-1 truncate font-bold leading-none tabular-nums text-primary", compact ? "text-[10px]" : "text-[11px]")}>
+          {formatTime(preview.start)} - {formatTime(preview.end)}
+        </p>
+        {!compact ? (
+          <p className="mt-1 truncate text-[10.5px] font-semibold leading-tight text-muted-foreground">
+            {area}
+          </p>
+        ) : null}
+        {roomy ? (
+          <p className="mt-1.5 truncate text-[10px] font-bold uppercase leading-none text-muted-foreground">
+            {categoryLabel(category)}
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
