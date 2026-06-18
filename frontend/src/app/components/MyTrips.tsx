@@ -2043,6 +2043,7 @@ function InviteTripModal({
   onGenerated: (result: InviteCodeResult) => void;
 }) {
   const [invite, setInvite] = useState<InviteCodeResult | null>(initialInvite);
+  const [role, setRole] = useState<Exclude<TimelineMemberRole, "OWNER">>("VIEWER");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2051,7 +2052,7 @@ function InviteTripModal({
     setError(null);
     try {
       const result = await resetTimelineInviteCode(timeline.id, {
-        role: "EDITOR",
+        role,
         maxUses: 20,
         expiresInHours: 72,
       });
@@ -2068,6 +2069,17 @@ function InviteTripModal({
     <ModalFrame title="Mã tham gia" subtitle={timeline.title} onClose={onClose} className="max-w-md">
       <div className="mt-6 space-y-4">
         {error ? <div className="rounded-xl bg-red-50 p-3 text-sm text-destructive">{error}</div> : null}
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <Segmented
+            label="Quyền khi tham gia"
+            values={["VIEWER", "EDITOR"]}
+            value={role}
+            onChange={(value) => setRole(value as Exclude<TimelineMemberRole, "OWNER">)}
+          />
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Viewer có thể xem và gửi yêu cầu thêm địa điểm. Editor có thể chỉnh sửa lịch trình trực tiếp.
+          </p>
+        </div>
         <div className="rounded-2xl border border-border bg-background p-5 text-center">
           <p className="text-sm text-muted-foreground">Mã tham gia hiện tại</p>
           <p className="mt-2 text-3xl font-bold tracking-wide text-foreground">

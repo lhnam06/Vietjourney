@@ -4,6 +4,7 @@ export type TimelineEventCategory = "FOOD" | "DRINK" | "ACTIVITY";
 export type TimelineEventStatus = "PLANNED" | "CONFIRMED" | "CANCELLED";
 export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
 export type NotificationCategory = "TIMELINE" | "COLLABORATION" | "SYSTEM" | "RECOMMENDATION";
+export type TimelineProposalStatus = "PENDING" | "ACCEPTED" | "REJECTED";
 
 interface ApiResponse<T> {
   code: number;
@@ -154,6 +155,24 @@ export interface InviteCodeResult {
 export interface JoinByCodeResult {
   timelineId: string;
   role: TimelineMemberRole;
+}
+
+export interface TimelineProposal {
+  id: string;
+  timelineId: string;
+  authorId: string;
+  authorUsername: string;
+  baseVersion: number;
+  changeType: string;
+  payload: Record<string, unknown>;
+  status: TimelineProposalStatus;
+  createdAt: string;
+}
+
+export interface SubmitTimelineProposalInput {
+  changeType: string;
+  payload: Record<string, unknown>;
+  baseVersion: number;
 }
 
 const tokenKeys = [
@@ -363,6 +382,28 @@ export function deleteTimelineEvent(timelineId: string, eventId: string) {
   return apiFetch<void>(`/api/v1/timelines/${timelineId}/events/${eventId}`, {
     method: "DELETE",
   });
+}
+
+export function submitTimelineProposal(timelineId: string, input: SubmitTimelineProposalInput) {
+  return apiFetch<TimelineProposal>(`/api/v1/timelines/${timelineId}/proposals`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function fetchPendingTimelineProposals(timelineId: string, signal?: AbortSignal) {
+  return apiFetch<TimelineProposal[]>(`/api/v1/timelines/${timelineId}/proposals`, {}, signal);
+}
+
+export function decideTimelineProposal(
+  timelineId: string,
+  proposalId: string,
+  status: Exclude<TimelineProposalStatus, "PENDING">,
+) {
+  return apiFetch<void>(
+    `/api/v1/timelines/${timelineId}/proposals/${proposalId}/decide?status=${status}`,
+    { method: "PATCH" },
+  );
 }
 
 export async function fetchRecentNotifications(signal?: AbortSignal) {

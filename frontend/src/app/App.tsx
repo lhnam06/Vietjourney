@@ -297,6 +297,7 @@ export default function App() {
       {view === "timeline-editor" && editingTimeline ? (
         <TimelineEditor
           timeline={editingTimeline}
+          currentUser={currentUser}
           placeLists={placeLists}
           activeListId={activeList?.id || ""}
           onSelectList={setActiveListId}
