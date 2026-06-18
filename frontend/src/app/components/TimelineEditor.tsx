@@ -56,19 +56,19 @@ const eventCategoryTone: Record<TimelineEventCategory, {
 }> = {
   FOOD: {
     accent: "bg-emerald-400",
-    card: "from-emerald-500/28 via-emerald-500/14 to-card",
+    card: "from-emerald-500/44 via-emerald-500/24 to-card",
     glow: "shadow-emerald-950/20",
     pill: "bg-emerald-400/15 text-emerald-300",
   },
   DRINK: {
     accent: "bg-sky-400",
-    card: "from-sky-500/28 via-sky-500/14 to-card",
+    card: "from-sky-500/44 via-sky-500/24 to-card",
     glow: "shadow-sky-950/20",
     pill: "bg-sky-400/15 text-sky-300",
   },
   ACTIVITY: {
     accent: "bg-orange-400",
-    card: "from-orange-500/30 via-orange-500/14 to-card",
+    card: "from-orange-500/46 via-orange-500/24 to-card",
     glow: "shadow-orange-950/20",
     pill: "bg-orange-400/15 text-orange-300",
   },
@@ -238,7 +238,7 @@ export function TimelineEditor({
   function handleDragStart(event: DragEvent, payload: DragPayload) {
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = payload.kind === "place" ? "copyMove" : "move";
-    setTransparentDragImage(event);
+    setCardDragImage(event);
 
     window.setTimeout(() => {
       if (payload.kind === "place") {
@@ -669,8 +669,8 @@ export function TimelineEditor({
             {edgeHint ? (
               <div
                 className={cn(
-                  "pointer-events-none absolute top-1/2 z-40 flex h-24 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-primary/30 bg-primary text-center text-[10px] font-bold text-primary-foreground shadow-lg shadow-primary/20 backdrop-blur [writing-mode:vertical-rl]",
-                  edgeHint === "previous" ? "left-2" : "right-2",
+                  "pointer-events-none sticky top-4 z-[90] -mb-14 flex w-fit items-center gap-2 rounded-2xl border border-primary/35 bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground shadow-2xl shadow-primary/25 backdrop-blur",
+                  edgeHint === "previous" ? "ml-4 mr-auto" : "ml-auto mr-4",
                 )}
               >
                 {edgeHint === "previous" ? "Tuần trước" : "Tuần tiếp theo"}
@@ -684,7 +684,7 @@ export function TimelineEditor({
               }}
             >
               <div
-                className="sticky left-0 top-0 z-20 flex items-center border-b border-r border-border bg-card/95 px-5 text-sm font-semibold text-primary shadow-sm backdrop-blur"
+                className="sticky left-0 top-0 z-[85] flex items-center border-b border-r border-border bg-card px-5 text-sm font-semibold text-primary shadow-md"
                 style={{ height: calendarHeaderHeight }}
               >
                 <span className="rounded-full bg-primary/10 px-3 py-1.5">Giờ</span>
@@ -697,8 +697,10 @@ export function TimelineEditor({
                   <div
                     key={day.toISOString()}
                     className={cn(
-                      "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-r border-border px-3 text-center shadow-sm backdrop-blur",
-                      available ? "bg-card/95" : "bg-muted/90 text-muted-foreground",
+                      "sticky top-0 z-[80] flex flex-col items-center justify-center border-b border-r border-border px-3 text-center shadow-md",
+                      available
+                        ? "bg-card text-foreground"
+                        : "timeline-invalid-header",
                       isToday && "bg-primary/15",
                     )}
                     style={{ height: calendarHeaderHeight }}
@@ -736,7 +738,7 @@ export function TimelineEditor({
                           "relative border-b border-r border-dashed border-border/70 transition after:absolute after:left-3 after:right-3 after:top-1/2 after:h-px after:bg-border/25 after:content-['']",
                           available
                             ? "bg-card/35 hover:bg-accent/35"
-                            : "cursor-not-allowed bg-muted/80",
+                            : "timeline-invalid-cell cursor-not-allowed",
                         )}
                         style={{ height: hourHeight }}
                       />
@@ -900,7 +902,7 @@ function PlaceCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className="group flex cursor-grab items-center gap-3 rounded-2xl border border-primary/15 bg-muted/70 p-2.5 shadow-sm ring-1 ring-border/60 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-accent/50 hover:shadow-md active:cursor-grabbing"
+      className="group flex cursor-grab items-center gap-3 rounded-2xl border border-primary/15 bg-muted/70 p-3 shadow-sm ring-1 ring-border/60 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-accent/50 hover:shadow-md active:cursor-grabbing"
     >
       <img src={placeImage(place)} alt={place.name} className="size-20 rounded-xl object-cover" />
       <div className="min-w-0 flex-1">
@@ -952,10 +954,6 @@ function TimelineCard({
   const tone = eventCategoryTone[event.category] || eventCategoryTone.ACTIVITY;
   const placeName = event.place?.name || "Địa điểm";
   const placeArea = event.place?.district || event.place?.address || categoryLabel(event.category);
-  const imageUrl =
-    event.place?.imageUrl ||
-    `https://picsum.photos/seed/${encodeURIComponent(event.externalPlaceId || event.id)}/96/96`;
-
   return (
     <article
       draggable={!resizing}
@@ -972,18 +970,11 @@ function TimelineCard({
     >
       <div
         className={cn(
-          "relative flex size-full min-w-0 overflow-hidden rounded-[14px] bg-card/78 backdrop-blur",
-          compact ? "items-center px-3" : "gap-2 p-2",
+          "relative flex size-full min-w-0 overflow-hidden rounded-[14px] bg-card/92 backdrop-blur",
+          compact ? "items-center px-3" : "p-2",
         )}
       >
         <span className={cn("absolute inset-y-2 left-0 w-1 rounded-full", tone.accent)} />
-        {roomy ? (
-          <img
-            src={imageUrl}
-            alt={placeName}
-            className="h-full max-h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
-          />
-        ) : null}
         <div className={cn("min-w-0 flex-1", roomy ? "pr-7" : "px-2 pr-6")}>
           <div className="flex min-w-0 items-center gap-1.5">
             <span className={cn("size-2 shrink-0 rounded-full", tone.accent)} />
@@ -1047,19 +1038,13 @@ function parseDragPayload(event: DragEvent): DragPayload | null {
   }
 }
 
-function setTransparentDragImage(event: DragEvent) {
-  if (typeof document === "undefined") return;
+function setCardDragImage(event: DragEvent) {
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return;
 
-  const dragImage = document.createElement("div");
-  dragImage.style.position = "fixed";
-  dragImage.style.left = "-100px";
-  dragImage.style.top = "-100px";
-  dragImage.style.width = "1px";
-  dragImage.style.height = "1px";
-  dragImage.style.opacity = "0";
-  document.body.appendChild(dragImage);
-  event.dataTransfer.setDragImage(dragImage, 0, 0);
-  window.setTimeout(() => dragImage.remove(), 0);
+  const offsetX = Math.min(target.clientWidth / 2, 120);
+  const offsetY = Math.min(target.clientHeight / 2, 60);
+  event.dataTransfer.setDragImage(target, offsetX, offsetY);
 }
 
 function toEventCategory(category?: Place["category"] | null): TimelineEventCategory {
