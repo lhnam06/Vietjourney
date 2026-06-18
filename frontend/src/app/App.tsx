@@ -11,7 +11,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { TripMapPage } from "./components/TripMapPage";
 import { clearAuthToken, getAuthToken } from "./lib/authApi";
-import type { Timeline } from "./lib/timelineApi";
+import { fetchCurrentUser, type CurrentUser, type Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
 
 export type AppView = "explore" | "trips" | "community" | "profile" | "settings" | "notifications" | "timeline-editor" | "trip-map";
@@ -26,6 +26,7 @@ export interface PlaceList {
 const PLACE_LISTS_STORAGE_KEY = "vj:place-lists:v1";
 const ACTIVE_VIEW_STORAGE_KEY = "vj:active-view:v1";
 const PERSISTABLE_VIEWS: AppView[] = ["explore", "trips", "community", "profile", "settings", "notifications"];
+const PROTECTED_VIEWS: AppView[] = ["trips", "profile", "settings", "notifications", "timeline-editor", "trip-map"];
 
 function createDefaultPlaceList(): PlaceList {
   return {
@@ -80,8 +81,12 @@ function saveActiveView(view: AppView) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
-  const [view, setView] = useState<AppView>(loadActiveView);
+  const [hasInitialToken] = useState(() => Boolean(getAuthToken()));
+  const [isAuthenticated, setIsAuthenticated] = useState(hasInitialToken);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(hasInitialToken);
+  const [showAuthPage, setShowAuthPage] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [view, setView] = useState<AppView>(() => (hasInitialToken ? loadActiveView() : "explore"));
   const [editingTimeline, setEditingTimeline] = useState<Timeline | null>(null);
   const [mapTimeline, setMapTimeline] = useState<Timeline | null>(null);
   const [placeLists, setPlaceLists] = useState<PlaceList[]>(loadPlaceLists);
@@ -97,6 +102,36 @@ export default function App() {
   useEffect(() => {
     saveActiveView(view);
   }, [view]);
+
+  useEffect(() => {
+    if (!hasInitialToken) return;
+
+    const controller = new AbortController();
+
+    fetchCurrentUser(controller.signal)
+      .then((user) => {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+
+        clearAuthToken();
+        window.localStorage.removeItem(ACTIVE_VIEW_STORAGE_KEY);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        setEditingTimeline(null);
+        setMapTimeline(null);
+        setView("explore");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsCheckingAuth(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [hasInitialToken]);
 
   function updatePlaceLists(updater: (lists: PlaceList[]) => PlaceList[]) {
     setPlaceLists((currentLists) => {
@@ -195,10 +230,38 @@ export default function App() {
   function logout() {
     clearAuthToken();
     window.localStorage.removeItem(ACTIVE_VIEW_STORAGE_KEY);
+    setCurrentUser(null);
     setEditingTimeline(null);
     setMapTimeline(null);
-    setView("trips");
+    setShowAuthPage(false);
+    setView("explore");
     setIsAuthenticated(false);
+  }
+
+  function openLogin() {
+    setShowAuthPage(true);
+  }
+
+  function navigate(nextView: AppView) {
+    if (!isAuthenticated && PROTECTED_VIEWS.includes(nextView)) {
+      setShowAuthPage(true);
+      return;
+    }
+
+    setView(nextView);
+  }
+
+  async function completeAuthentication() {
+    setIsAuthenticated(true);
+    setShowAuthPage(false);
+    setView("trips");
+
+    try {
+      const user = await fetchCurrentUser();
+      setCurrentUser(user);
+    } catch {
+      setCurrentUser(null);
+    }
   }
 
   function openTimelineEditor(timeline: Timeline) {
@@ -213,13 +276,24 @@ export default function App() {
     setView("trip-map");
   }
 
-  if (!isAuthenticated) {
-    return <AuthPage onAuthenticated={() => setIsAuthenticated(true)} />;
+  if (showAuthPage) {
+    return <AuthPage onAuthenticated={() => void completeAuthentication()} />;
+  }
+
+  if (isCheckingAuth) {
+    return <AuthLoading />;
   }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <Sidebar activeView={view} onNavigate={setView} onLogout={logout} />
+      <Sidebar
+        activeView={view}
+        currentUser={currentUser}
+        isAuthenticated={isAuthenticated}
+        onNavigate={navigate}
+        onLogin={openLogin}
+        onLogout={logout}
+      />
       {view === "timeline-editor" && editingTimeline ? (
         <TimelineEditor
           timeline={editingTimeline}
@@ -283,5 +357,16 @@ export default function App() {
         </>
       )}
     </div>
+  );
+}
+
+function AuthLoading() {
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-background text-foreground">
+      <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 text-sm font-medium text-muted-foreground shadow-sm">
+        <span className="size-3 animate-pulse rounded-full bg-primary" />
+        Đang kiểm tra đăng nhập...
+      </div>
+    </main>
   );
 }

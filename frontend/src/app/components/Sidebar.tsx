@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   Compass,
+  LogIn,
   LogOut,
   Map,
   Navigation,
@@ -13,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { AppView } from "../App";
-import { fetchNotificationUnreadCount } from "../lib/timelineApi";
+import { fetchNotificationUnreadCount, type CurrentUser } from "../lib/timelineApi";
 import { cn } from "../lib/utils";
 
 const navItems = [
@@ -24,15 +25,26 @@ const navItems = [
 
 interface SidebarProps {
   activeView: AppView;
+  currentUser: CurrentUser | null;
+  isAuthenticated: boolean;
   onNavigate: (view: AppView) => void;
+  onLogin: () => void;
   onLogout: () => void;
 }
 
-export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
+export function Sidebar({
+  activeView,
+  currentUser,
+  isAuthenticated,
+  onNavigate,
+  onLogin,
+  onLogout,
+}: SidebarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayName = currentUser?.displayName || currentUser?.username || "Tài khoản";
 
   function clearCloseTimer() {
     if (closeTimerRef.current) {
@@ -64,13 +76,18 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
   useEffect(() => clearCloseTimer, []);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
+
     const controller = new AbortController();
     fetchNotificationUnreadCount(controller.signal)
       .then((result) => setUnreadCount(result.unreadCount))
       .catch(() => setUnreadCount(0));
 
     return () => controller.abort();
-  }, [activeView]);
+  }, [activeView, isAuthenticated]);
 
   return (
     <div className="hidden h-screen w-[72px] shrink-0 lg:block">
@@ -285,78 +302,109 @@ export function Sidebar({ activeView, onNavigate, onLogout }: SidebarProps) {
         </div>
 
         <div className={cn("relative mt-4", isMenuOpen ? "w-full" : "self-center")}>
-          <button
-            type="button"
-            aria-label="Menu người dùng"
-            aria-expanded={isAccountMenuOpen}
-            aria-controls="account-menu"
-            onClick={() => {
-              openMenu();
-              setIsAccountMenuOpen((current) => !current);
-            }}
-            className={cn(
-              "group flex h-12 items-center rounded-[18px] text-sm font-semibold text-foreground transition-all duration-[250ms] ease-out hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
-              isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
-            )}
-          >
-            <img
-              src="/avatar.png"
-              alt="Ảnh đại diện"
-              className="size-10 shrink-0 rounded-full object-cover ring-2 ring-card shadow-sm transition-transform duration-200 group-hover:scale-105"
-            />
-            <span
+          {isAuthenticated ? (
+            <>
+              <button
+                type="button"
+                aria-label="Menu người dùng"
+                aria-expanded={isAccountMenuOpen}
+                aria-controls="account-menu"
+                onClick={() => {
+                  openMenu();
+                  setIsAccountMenuOpen((current) => !current);
+                }}
+                className={cn(
+                  "group flex h-12 items-center rounded-[18px] text-sm font-semibold text-foreground transition-all duration-[250ms] ease-out hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
+                  isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
+                )}
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold uppercase text-primary-foreground ring-2 ring-card shadow-sm transition-transform duration-200 group-hover:scale-105">
+                  {userInitial(displayName)}
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 overflow-hidden truncate whitespace-nowrap text-left transition-all duration-200",
+                    isMenuOpen
+                      ? "max-w-44 translate-x-0 opacity-100 delay-100"
+                      : "pointer-events-none w-0 max-w-0 -translate-x-2 opacity-0",
+                  )}
+                >
+                  {displayName}
+                </span>
+              </button>
+
+              <div
+                id="account-menu"
+                className={cn(
+                  "fixed z-50 w-56 overflow-hidden rounded-[18px] border border-border/80 bg-card/98 p-1.5 shadow-[0_20px_60px_oklch(0.22_0.02_270_/_0.18)] backdrop-blur-xl transition-all duration-200",
+                  isMenuOpen ? "bottom-[78px] left-5" : "bottom-[78px] left-[76px]",
+                  isAccountMenuOpen
+                    ? "translate-y-0 opacity-100"
+                    : "pointer-events-none translate-y-2 opacity-0",
+                )}
+              >
+                <AccountMenuButton
+                  icon={UserRound}
+                  label="Hồ sơ"
+                  onClick={() => {
+                    onNavigate("profile");
+                    closeMenu();
+                  }}
+                />
+                <AccountMenuButton
+                  icon={Settings}
+                  label="Cài đặt"
+                  onClick={() => {
+                    onNavigate("settings");
+                    closeMenu();
+                  }}
+                />
+                <div className="my-1 h-px bg-border/70" />
+                <AccountMenuButton
+                  icon={LogOut}
+                  label="Đăng xuất"
+                  danger
+                  onClick={() => {
+                    closeMenu();
+                    onLogout();
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              aria-label="Đăng nhập"
+              onClick={() => {
+                closeMenu();
+                onLogin();
+              }}
               className={cn(
-                "min-w-0 overflow-hidden truncate whitespace-nowrap text-left transition-all duration-200",
-                isMenuOpen
-                  ? "max-w-44 translate-x-0 opacity-100 delay-100"
-                  : "pointer-events-none w-0 max-w-0 -translate-x-2 opacity-0",
+                "group flex h-12 items-center rounded-[18px] text-sm font-semibold text-primary transition-all duration-[250ms] ease-out hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]",
+                isMenuOpen ? "w-full gap-4 px-4" : "w-12 justify-center px-0",
               )}
             >
-              Huỳnh Vĩnh An
-            </span>
-          </button>
-
-          <div
-            id="account-menu"
-            className={cn(
-              "fixed z-50 w-56 overflow-hidden rounded-[18px] border border-border/80 bg-card/98 p-1.5 shadow-[0_20px_60px_oklch(0.22_0.02_270_/_0.18)] backdrop-blur-xl transition-all duration-200",
-              isMenuOpen ? "bottom-[78px] left-5" : "bottom-[78px] left-[76px]",
-              isAccountMenuOpen
-                ? "translate-y-0 opacity-100"
-                : "pointer-events-none translate-y-2 opacity-0",
-            )}
-          >
-            <AccountMenuButton
-              icon={UserRound}
-              label="Hồ sơ"
-              onClick={() => {
-                onNavigate("profile");
-                closeMenu();
-              }}
-            />
-            <AccountMenuButton
-              icon={Settings}
-              label="Cài đặt"
-              onClick={() => {
-                onNavigate("settings");
-                closeMenu();
-              }}
-            />
-            <div className="my-1 h-px bg-border/70" />
-            <AccountMenuButton
-              icon={LogOut}
-              label="Đăng xuất"
-              danger
-              onClick={() => {
-                closeMenu();
-                onLogout();
-              }}
-            />
-          </div>
+              <LogIn className="size-5 shrink-0 transition-transform duration-200 group-hover:scale-105" />
+              <span
+                className={cn(
+                  "min-w-0 overflow-hidden truncate whitespace-nowrap text-left transition-all duration-200",
+                  isMenuOpen
+                    ? "max-w-44 translate-x-0 opacity-100 delay-100"
+                    : "pointer-events-none w-0 max-w-0 -translate-x-2 opacity-0",
+                )}
+              >
+                Đăng nhập
+              </span>
+            </button>
+          )}
         </div>
       </aside>
     </div>
   );
+}
+
+function userInitial(name: string) {
+  return name.trim().charAt(0) || "U";
 }
 
 function AccountMenuButton({
