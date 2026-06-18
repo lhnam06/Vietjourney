@@ -11,4 +11,9 @@ import java.util.List;
 public interface TimelineProposalRepository extends JpaRepository<TimelineProposal, String> {
     List<TimelineProposal> findAllByTimelineId(String timelineId);
     List<TimelineProposal> findAllByTimelineIdAndStatus(String timelineId, TimelineProposalStatus status);
+    List<TimelineProposal> findAllByTimelineIdAndStatusAndAuthorUsername(
+            String timelineId,
+            TimelineProposalStatus status,
+            String username
+    );
 }

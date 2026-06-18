@@ -1,11 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { buildWsUrl } from '../lib/wsConfig';
-
-type SocketCallback = (message: any) => void;
 
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_RETRIES = 10;
+
+function parseSocketPayload(raw: string) {
+  try {
+    return unwrapRedisPayload(JSON.parse(raw));
+  } catch (error) {
+    console.error('[TimelineSocket] Failed to parse message:', error);
+    return null;
+  }
+}
+
+function unwrapRedisPayload(value: unknown): unknown {
+  if (typeof value === 'string') {
+    try {
+      return unwrapRedisPayload(JSON.parse(value));
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 2 && typeof value[0] === 'string') {
+      return unwrapRedisPayload(value[1]);
+    }
+    return value.map(unwrapRedisPayload);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, unwrapRedisPayload(entry)]),
+    );
+  }
+
+  return value;
+}
 
 export function useTimelineSocket(tripId: string, token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
@@ -44,12 +75,10 @@ export function useTimelineSocket(tripId: string, token: string | null) {
 
     socket.onmessage = (event) => {
       if (!mountedRef.current) return;
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[TimelineSocket] Received event:', data.type);
+      const data = parseSocketPayload(event.data);
+      if (data && typeof data === 'object') {
+        console.log('[TimelineSocket] Received event:', (data as { type?: string }).type);
         setLastMessage(data);
-      } catch (error) {
-        console.error('[TimelineSocket] Failed to parse message:', error);
       }
     };
 
@@ -71,7 +100,6 @@ export function useTimelineSocket(tripId: string, token: string | null) {
         }, delay);
       } else {
         console.warn('[TimelineSocket] Max reconnection attempts reached');
-        toast.error('Mất kết nối thời gian thực. Vui lòng tải lại trang.');
       }
     };
 
@@ -130,7 +158,6 @@ export function useTimelineSocket(tripId: string, token: string | null) {
       }));
     } else {
       console.warn("[Socket] Cannot send proposal: Not connected", { isConnected, hasWs: !!ws.current });
-      toast.error("Mất kết nối với máy chủ đồng bộ. Vui lòng thử lại sau giây lát.");
     }
   };
 
