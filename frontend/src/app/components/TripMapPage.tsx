@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Bus,
+  BarChart3,
   CalendarDays,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  ChevronsRight,
   Clock3,
+  Copy,
   Info,
+  Layers,
+  List,
   Loader2,
   MapPinned,
   MoreHorizontal,
-  Navigation,
+  Pencil,
   Route,
-  Rocket,
-  Sparkles,
+  Share2,
+  Trash2,
+  X,
 } from "lucide-react";
 import L, { type LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -42,7 +45,7 @@ interface TripMapPageProps {
   onBack: () => void;
 }
 
-type MapLayer = "street" | "satellite";
+type MapLayer = "street" | "satellite" | "terrain" | "traffic";
 
 interface MappedEvent extends TimelineEvent {
   coordinate: [number, number];
@@ -90,7 +93,45 @@ const tileLayers: Record<MapLayer, { url: string; attribution: string }> = {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attribution: "Tiles &copy; Esri",
   },
+  terrain: {
+    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenTopoMap",
+  },
+  traffic: {
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    attribution: "&copy; OpenStreetMap &copy; CARTO",
+  },
 };
+
+const layerOptions: Array<{
+  value: MapLayer;
+  label: string;
+  preview: string;
+}> = [
+  {
+    value: "street",
+    label: "Mặc định",
+    preview:
+      "https://a.basemaps.cartocdn.com/light_all/14/13046/7624.png",
+  },
+  {
+    value: "satellite",
+    label: "Vệ tinh",
+    preview:
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/7624/13046",
+  },
+  {
+    value: "terrain",
+    label: "Địa hình",
+    preview: "https://a.tile.opentopomap.org/14/13046/7624.png",
+  },
+  {
+    value: "traffic",
+    label: "Giao thông",
+    preview:
+      "https://a.basemaps.cartocdn.com/rastertiles/voyager/14/13046/7624.png",
+  },
+];
 
 const osrmRouteEndpoint = "https://router.project-osrm.org/route/v1/driving";
 
@@ -118,11 +159,11 @@ function dayCount(startDate: string, endDate: string) {
   return Math.max(1, Math.round((end - start) / 86400000) + 1);
 }
 
-function formatDayLabel(date: Date, index: number) {
-  return `Ngày ${index + 1} - ${new Intl.DateTimeFormat("vi-VN", {
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
-  }).format(date)}`;
+  }).format(date);
 }
 
 function formatTime(value: string) {
@@ -161,10 +202,10 @@ function markerIcon(index: number) {
   return L.divIcon({
     html: `<span>${index + 1}</span>`,
     className: "vj-map-marker",
-    iconSize: [42, 50],
-    iconAnchor: [21, 44],
-    popupAnchor: [0, -42],
-    tooltipAnchor: [0, -36],
+    iconSize: [32, 40],
+    iconAnchor: [16, 34],
+    popupAnchor: [0, -34],
+    tooltipAnchor: [0, -30],
   });
 }
 
@@ -265,11 +306,45 @@ function FitRoute({ points }: { points: LatLngExpression[] }) {
   return null;
 }
 
+function MapResizeWatcher({ layoutKey }: { layoutKey: string }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            map.invalidateSize({ animate: true });
+          });
+
+    observer?.observe(container);
+
+    const timeouts = [0, 120, 320].map((delay) =>
+      window.setTimeout(() => {
+        map.invalidateSize({ animate: true });
+      }, delay),
+    );
+
+    return () => {
+      observer?.disconnect();
+      timeouts.forEach(window.clearTimeout);
+    };
+  }, [layoutKey, map]);
+
+  return null;
+}
+
 export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
   const [events, setEvents] = useState<TimelineEvent[]>(timeline.events);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [layer, setLayer] = useState<MapLayer>("street");
   const [showPlaces, setShowPlaces] = useState(true);
+  const [tripPanelCollapsed, setTripPanelCollapsed] = useState(false);
+  const [tripMenuOpen, setTripMenuOpen] = useState(false);
+  const [tipsOpen, setTipsOpen] = useState(false);
+  const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+  const [routeSummaryOpen, setRouteSummaryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [routeState, setRouteState] = useState<RouteState>({
@@ -297,6 +372,22 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
   const totalDistance = routeState.distanceKm || distanceKm(routePoints);
   const travelMinutes = routeState.durationMinutes || estimateTravelMinutes(totalDistance);
   const currentTileLayer = tileLayers[layer];
+  const collapsedDayIndexes = useMemo(() => {
+    const visibleDayCount = 3;
+    const totalDays = days.length;
+
+    if (totalDays <= visibleDayCount) {
+      return days.map((_, index) => index);
+    }
+
+    const maxStartIndex = totalDays - visibleDayCount;
+    const startIndex = Math.min(
+      Math.max(selectedDayIndex - 1, 0),
+      maxStartIndex,
+    );
+
+    return Array.from({ length: visibleDayCount }, (_, index) => startIndex + index);
+  }, [days, selectedDayIndex]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -374,14 +465,10 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
     return () => controller.abort();
   }, [routePoints]);
 
-  function shiftDay(direction: -1 | 1) {
-    setSelectedDayIndex((current) => Math.min(Math.max(current + direction, 0), days.length - 1));
-  }
-
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-background px-5 py-6 lg:px-8">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
+    <main className="h-dvh min-w-0 flex-1 overflow-hidden bg-background px-4 py-4 lg:px-6">
+      <div className="mx-auto flex h-full max-w-[1500px] flex-col">
+        <header className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
@@ -398,121 +485,211 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-sm sm:flex">
-              <Info className="size-4 text-primary" />
-              Mẹo sử dụng
-            </button>
-            <div className="flex rounded-2xl border border-border bg-card p-1 shadow-sm">
-              <button className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm">
-                Bản đồ
-              </button>
-              <button className="rounded-xl px-6 py-3 text-sm font-semibold text-muted-foreground">
-                Lộ trình
-              </button>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setTipsOpen(true)}
+            className="hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 sm:flex"
+          >
+            <Info className="size-4 text-primary" />
+            Mẹo sử dụng
+          </button>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
-          <aside className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Chuyến đi</label>
-              <div className="mt-2 flex gap-3">
-                <button className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-left font-medium text-foreground shadow-sm">
-                  <span className="truncate">{timeline.title || "VietJourney"}</span>
-                  <ChevronDown className="size-4 text-muted-foreground" />
-                </button>
-                <button className="flex size-12 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm">
-                  <MoreHorizontal className="size-5" />
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Ngày</label>
-              <div className="mt-2 grid grid-cols-[48px_minmax(0,1fr)_48px] gap-3">
-                <button
-                  type="button"
-                  onClick={() => shiftDay(-1)}
-                  disabled={selectedDayIndex === 0}
-                  className="flex size-12 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <ChevronLeft className="size-5" />
-                </button>
-                <button className="flex min-w-0 items-center justify-center gap-3 rounded-xl border border-border bg-card px-3 py-3 font-semibold text-foreground shadow-sm">
-                  <CalendarDays className="size-5 text-muted-foreground" />
-                  <span className="truncate">{formatDayLabel(selectedDay, selectedDayIndex)}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => shiftDay(1)}
-                  disabled={selectedDayIndex === days.length - 1}
-                  className="flex size-12 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <ChevronRight className="size-5" />
-                </button>
-              </div>
-            </div>
-
-            {error ? (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            ) : null}
-
-            <section>
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-muted-foreground">
-                  Lộ trình trong ngày ({mappedEvents.length})
-                </h2>
-                {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {mappedEvents.length ? (
-                  mappedEvents.map((event, index) => (
-                    <RouteListItem key={event.id} event={event} index={index} />
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-primary/30 bg-accent/30 p-6 text-center">
-                    <MapPinned className="mx-auto size-8 text-primary" />
-                    <p className="mt-3 font-semibold text-foreground">Chưa có địa điểm trong ngày này</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Thêm hoạt động ở Timeline để bản đồ tự tạo lộ trình.
-                    </p>
-                  </div>
+        <div
+          className={cn(
+            "grid min-h-0 flex-1 gap-4 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            tripPanelCollapsed
+              ? "xl:grid-cols-[104px_minmax(0,1fr)]"
+              : "xl:grid-cols-[minmax(440px,500px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(500px,560px)_minmax(0,1fr)]",
+          )}
+        >
+          <aside
+            className={cn(
+              "trip-panel-scroll relative min-h-0 overflow-hidden rounded-[24px] border border-border bg-card shadow-[0_24px_70px_rgba(15,23,42,0.08)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              tripPanelCollapsed ? "p-3" : "space-y-4 overflow-y-auto p-4",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setTripPanelCollapsed((current) => !current)}
+              aria-label={tripPanelCollapsed ? "Mở rộng thanh chuyến đi" : "Thu hẹp thanh chuyến đi"}
+              aria-expanded={!tripPanelCollapsed}
+              className={cn(
+                "absolute z-20 flex size-12 items-center justify-center bg-transparent text-primary transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-110 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                tripPanelCollapsed
+                  ? "left-1/2 top-6 -translate-x-1/2"
+                  : "right-2 top-2",
+              )}
+            >
+              <ChevronsRight
+                className={cn(
+                  "size-6 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  tripPanelCollapsed ? "rotate-0" : "rotate-180",
                 )}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-muted/35 p-4">
-              <h3 className="text-sm font-semibold text-foreground">Tổng quan chuyến đi trong ngày</h3>
-              <div className="mt-4 space-y-3 text-sm">
-                <SummaryRow icon={Route} label="Tổng quãng đường" value={`${totalDistance.toFixed(1)} km`} />
-                <SummaryRow icon={Clock3} label="Tổng thời gian di chuyển" value={`${travelMinutes} phút`} />
-                <SummaryRow icon={Bus} label="Phương tiện" value="Đi bộ + Taxi" />
-              </div>
-              {routeState.loading ? (
-                <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Đang tính tuyến đường theo OpenStreetMap...
-                </p>
-              ) : routeState.error ? (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Router tạm thời không phản hồi, đang hiển thị tuyến nối nhanh.
-                </p>
-              ) : null}
-            </section>
-
-            <button className="flex w-full items-center justify-center gap-3 rounded-xl bg-primary px-5 py-4 font-semibold text-primary-foreground shadow-[0_14px_32px_oklch(0.515_0.22_277_/_0.24)] transition-all hover:-translate-y-0.5">
-              <Sparkles className="size-5" />
-              Tối ưu tuyến đường
+              />
             </button>
+
+            {tripPanelCollapsed ? (
+              <div className="trip-panel-content-in flex h-full flex-col items-center px-2 pb-4 pt-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
+                <div className="trip-panel-scroll flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-auto overflow-x-visible py-1">
+                  {collapsedDayIndexes.map((dayIndex) => {
+                    const selected = dayIndex === selectedDayIndex;
+                    return (
+                      <button
+                        key={dayIndex}
+                        type="button"
+                        onClick={() => setSelectedDayIndex(dayIndex)}
+                        aria-label={`Ngày ${dayIndex + 1}`}
+                        className={cn(
+                          "relative flex shrink-0 items-center justify-center rounded-full text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                          selected
+                            ? "size-[72px] bg-primary/12 text-primary shadow-[0_14px_28px_rgba(91,77,241,0.18)]"
+                            : "size-14 bg-card text-muted-foreground shadow-[0_10px_22px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 hover:text-primary",
+                        )}
+                      >
+                        {selected ? (
+                          <span className="absolute -left-4 h-12 w-1 rounded-full bg-primary" />
+                        ) : null}
+                        <span className="leading-none">
+                          {selected ? (
+                            <span className="block text-xs font-bold">Ngày</span>
+                          ) : null}
+                          <span className={cn("block font-semibold", selected ? "mt-1 text-3xl" : "text-2xl")}>
+                            {dayIndex + 1}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="trip-panel-content-in space-y-4">
+                <div className="relative">
+                  <p className="pr-12 text-sm font-semibold text-muted-foreground">Chuyến đi</p>
+                  <div className="mt-3 flex gap-3">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition-all hover:border-primary/30"
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <CalendarDays className="size-5 shrink-0 text-primary" />
+                        <span className="truncate">{timeline.title || "Tạo tên là bảng"}</span>
+                      </span>
+                      <ChevronDown className="size-5 shrink-0 text-muted-foreground" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTripMenuOpen((current) => !current)}
+                      aria-label="Mở tuỳ chọn chuyến đi"
+                      aria-expanded={tripMenuOpen}
+                      className="flex size-[54px] shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-foreground shadow-sm transition-all hover:border-primary/30 hover:text-primary"
+                    >
+                      <MoreHorizontal className="size-6" />
+                    </button>
+                  </div>
+                  {tripMenuOpen ? <TripActionsMenu /> : null}
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">Ngày</p>
+                  <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+                    {collapsedDayIndexes.map((dayIndex) => {
+                      const day = days[dayIndex];
+                      const selected = dayIndex === selectedDayIndex;
+                      return (
+                        <button
+                          key={toDateInput(day)}
+                          type="button"
+                          onClick={() => setSelectedDayIndex(dayIndex)}
+                          className={cn(
+                            "flex min-h-[70px] min-w-[112px] flex-1 flex-col items-center justify-center rounded-2xl border px-3 py-2.5 text-[13px] font-semibold shadow-sm transition-all",
+                            selected
+                              ? "border-transparent bg-gradient-to-br from-[#5146f2] to-[#9a47eb] text-white shadow-[0_18px_32px_rgba(91,77,241,0.28)]"
+                              : "border-border bg-card text-foreground hover:border-primary/30",
+                          )}
+                        >
+                          <span className="flex items-center gap-2">
+                            {selected ? <CalendarDays className="size-5" /> : null}
+                            Ngày {dayIndex + 1}
+                          </span>
+                          {selected ? (
+                            <span className="mt-1 flex items-center gap-1.5 text-xs font-medium text-white/90">
+                              <Clock3 className="size-3.5" />
+                              {formatShortDate(day)}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <section>
+                  <h2 className="text-sm font-semibold text-muted-foreground">Tổng quan ngày {selectedDayIndex + 1}</h2>
+                  <div className="mt-2 grid grid-cols-3 divide-x divide-border rounded-2xl bg-muted/35 px-3 py-3">
+                    <SummaryPill icon={MapPinned} value={mappedEvents.length} label="địa điểm" tone="text-primary bg-primary/10" />
+                    <SummaryPill icon={Route} value={totalDistance.toFixed(1)} label="km" tone="text-blue-500 bg-blue-500/10" />
+                    <SummaryPill icon={Clock3} value={travelMinutes} label="phút" tone="text-green-600 bg-green-500/12" />
+                  </div>
+                </section>
+
+                {error ? (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                ) : null}
+
+                <section>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-foreground">Lộ trình hôm nay</h2>
+                    {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
+                  </div>
+
+                  <div className="mt-3">
+                    {mappedEvents.length ? (
+                      <div className="max-h-[280px] space-y-3 overflow-y-auto pr-1">
+                        {mappedEvents.map((event, index) => (
+                          <RouteListItem key={event.id} event={event} index={index} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-border bg-card px-5 py-6 text-center shadow-sm">
+                        <div className="mx-auto flex size-20 items-center justify-center rounded-[24px] bg-accent text-primary">
+                          <MapPinned className="size-11" />
+                        </div>
+                        <p className="mt-4 text-lg font-bold text-foreground">Chưa có điểm đến</p>
+                        <p className="mx-auto mt-2 max-w-[260px] text-sm font-medium leading-6 text-muted-foreground">
+                          Thêm địa điểm từ Timeline để xem tuyến đường trên bản đồ.
+                        </p>
+                        <button
+                          type="button"
+                          className="mx-auto mt-5 flex min-h-12 w-full max-w-[210px] items-center justify-center gap-3 rounded-2xl border-2 border-primary bg-card px-5 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:bg-accent"
+                        >
+                          <List className="size-5" />
+                          Mở Timeline
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {routeState.loading ? (
+                    <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Đang tính tuyến đường theo OpenStreetMap...
+                    </p>
+                  ) : routeState.error ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Router tạm thời không phản hồi, đang hiển thị tuyến nối nhanh.
+                    </p>
+                  ) : null}
+                </section>
+              </div>
+            )}
           </aside>
 
-          <section className="min-w-0 space-y-5">
-            <div className="relative h-[620px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <section className="min-h-0 min-w-0">
+            <div className="relative h-full min-h-[520px] overflow-hidden rounded-[24px] border border-border bg-card shadow-sm">
               <MapContainer
                 center={center}
                 zoom={14}
@@ -525,6 +702,7 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
                 <ZoomControl position="topleft" />
                 <ScaleControl position="bottomleft" imperial metric />
                 <FitRoute points={routePolyline.length ? routePolyline : routePoints} />
+                <MapResizeWatcher layoutKey={tripPanelCollapsed ? "collapsed" : "expanded"} />
                 {routePolyline.length >= 2 ? (
                   <Polyline
                     positions={routePolyline}
@@ -549,58 +727,40 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
                   : null}
               </MapContainer>
 
+              <button
+                type="button"
+                onClick={() => setRouteSummaryOpen((current) => !current)}
+                aria-label="Mở tổng quan lộ trình"
+                aria-expanded={routeSummaryOpen}
+                className="absolute bottom-4 right-4 z-[470] flex size-12 items-center justify-center rounded-xl border border-border bg-card/95 text-primary shadow-[0_12px_26px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-all hover:-translate-y-0.5"
+              >
+                <BarChart3 className="size-6" />
+              </button>
+              {routeSummaryOpen ? (
+                <MapSummaryBar
+                  placeCount={mappedEvents.length}
+                  distanceKm={totalDistance}
+                  travelMinutes={travelMinutes}
+                />
+              ) : null}
+
               <MapLayerControl
+                open={layerMenuOpen}
                 layer={layer}
                 showPlaces={showPlaces}
-                onLayerChange={setLayer}
+                onLayerChange={(nextLayer) => {
+                  setLayer(nextLayer);
+                  setLayerMenuOpen(false);
+                }}
+                onToggleOpen={() => setLayerMenuOpen((current) => !current)}
                 onTogglePlaces={() => setShowPlaces((current) => !current)}
               />
               <MapAttribution />
-
-              <div className="absolute bottom-5 right-5 z-[450] rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-14 items-center justify-center rounded-2xl bg-accent text-primary">
-                    <Navigation className="size-7" />
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2 font-semibold text-foreground">
-                      Lộ trình hôm nay
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{mappedEvents.length} địa điểm</p>
-                    <p className="text-sm font-semibold text-primary">
-                      {routeState.loading ? "Đang tính tuyến..." : `${travelMinutes} phút di chuyển`}
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
-
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="flex items-center gap-2 text-lg font-bold text-primary">
-                    <Sparkles className="size-5" />
-                    Gợi ý di chuyển thông minh
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    AI đề xuất tuyến tối ưu để giảm thời gian di chuyển giữa các địa điểm.
-                  </p>
-                </div>
-                <button className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-[0_12px_26px_oklch(0.515_0.22_277_/_0.22)]">
-                  <Rocket className="size-5" />
-                  Áp dụng gợi ý
-                </button>
-              </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-3">
-                <SmartTip icon={MapPinned} title="Ưu tiên gần nhau" description="Giảm quãng đường di chuyển" />
-                <SmartTip icon={Clock3} title="Tránh giờ đông" description="Tiết kiệm thời gian chờ" />
-                <SmartTip icon={Route} title="Tối ưu chi phí" description="Kết hợp đi bộ + phương tiện" />
-              </div>
-            </section>
           </section>
         </div>
       </div>
+      {tipsOpen ? <UsageTipsModal onClose={() => setTipsOpen(false)} /> : null}
     </main>
   );
 }
@@ -629,21 +789,80 @@ function RouteListItem({ event, index }: { event: MappedEvent; index: number }) 
   );
 }
 
-function SummaryRow({
+function SummaryPill({
   icon: Icon,
   label,
   value,
+  tone,
 }: {
   icon: typeof Route;
   label: string;
-  value: string;
+  value: string | number;
+  tone: string;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <Icon className="size-4 text-muted-foreground" />
-      <span className="min-w-0 flex-1 text-muted-foreground">{label}</span>
-      <span className="font-semibold text-primary">{value}</span>
+    <div className="flex min-w-0 items-center justify-center gap-3 px-2 first:pl-0 last:pr-0">
+      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full", tone)}>
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-lg font-bold leading-none text-foreground">{value}</span>
+        <span className="mt-1 block text-sm font-semibold leading-none text-muted-foreground">{label}</span>
+      </span>
     </div>
+  );
+}
+
+function MapSummaryBar({
+  placeCount,
+  distanceKm,
+  travelMinutes,
+}: {
+  placeCount: number;
+  distanceKm: number;
+  travelMinutes: number;
+}) {
+  return (
+    <div className="absolute bottom-4 right-[76px] z-[470] grid w-[min(420px,calc(100%_-_96px))] grid-cols-3 divide-x divide-border rounded-2xl border border-border bg-card/96 px-4 py-3 shadow-[0_18px_46px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+      <SummaryPill icon={MapPinned} value={placeCount} label="địa điểm" tone="text-primary bg-primary/10" />
+      <SummaryPill icon={Route} value={distanceKm.toFixed(1)} label="km" tone="text-blue-500 bg-blue-500/10" />
+      <SummaryPill icon={Clock3} value={travelMinutes} label="phút" tone="text-green-600 bg-green-500/12" />
+    </div>
+  );
+}
+
+function TripActionsMenu() {
+  return (
+    <div className="absolute right-0 top-[104px] z-[520] w-[280px] overflow-hidden rounded-2xl border border-border bg-card py-3 shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
+      <TripAction icon={Pencil} label="Đổi tên chuyến đi" />
+      <TripAction icon={Copy} label="Nhân bản chuyến đi" />
+      <TripAction icon={Share2} label="Chia sẻ" />
+      <div className="my-2 border-t border-border" />
+      <TripAction icon={Trash2} label="Xóa chuyến đi" destructive />
+    </div>
+  );
+}
+
+function TripAction({
+  icon: Icon,
+  label,
+  destructive = false,
+}: {
+  icon: typeof Pencil;
+  label: string;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex w-full items-center gap-4 px-6 py-3 text-left text-base font-semibold transition-colors hover:bg-muted",
+        destructive ? "text-destructive" : "text-foreground",
+      )}
+    >
+      <Icon className={cn("size-5 shrink-0", destructive ? "text-destructive" : "text-muted-foreground")} />
+      {label}
+    </button>
   );
 }
 
@@ -660,48 +879,182 @@ function MapTooltip({ event }: { event: MappedEvent }) {
 }
 
 function MapLayerControl({
+  open,
   layer,
   showPlaces,
   onLayerChange,
+  onToggleOpen,
   onTogglePlaces,
 }: {
+  open: boolean;
   layer: MapLayer;
   showPlaces: boolean;
   onLayerChange: (layer: MapLayer) => void;
+  onToggleOpen: () => void;
   onTogglePlaces: () => void;
 }) {
   return (
-    <div className="absolute right-5 top-5 z-[450] rounded-2xl border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
-      <div className="space-y-3 text-sm font-medium">
-        <label className="flex items-center gap-3">
-          <input
-            type="radio"
-            checked={layer === "street"}
-            onChange={() => onLayerChange("street")}
-            className="size-5 accent-primary"
-          />
-          Đường
-        </label>
-        <label className="flex items-center gap-3">
-          <input
-            type="radio"
-            checked={layer === "satellite"}
-            onChange={() => onLayerChange("satellite")}
-            className="size-5 accent-primary"
-          />
-          Vệ tinh
-        </label>
-        <div className="border-t border-border" />
-        <label className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={showPlaces}
-            onChange={onTogglePlaces}
-            className="size-5 accent-primary"
-          />
-          Địa điểm
-        </label>
-      </div>
+    <div className="absolute right-4 top-4 z-[470] flex flex-col items-end gap-3">
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        aria-label="Mở lớp bản đồ"
+        aria-expanded={open}
+        className="flex size-12 items-center justify-center rounded-xl border border-border bg-card/95 text-primary shadow-[0_12px_26px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-all hover:-translate-y-0.5"
+      >
+        <Layers className="size-6" />
+      </button>
+
+      {open ? (
+        <div className="w-[310px] overflow-hidden rounded-2xl border border-border bg-card/95 shadow-[0_24px_70px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+          <div className="divide-y divide-border px-4 py-2">
+            {layerOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onLayerChange(option.value)}
+                className="flex w-full items-center gap-4 py-3 text-left text-lg font-semibold text-foreground"
+              >
+                <img
+                  src={option.preview}
+                  alt={`Xem trước ${option.label}`}
+                  className="h-14 w-20 shrink-0 rounded-xl object-cover"
+                />
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                <span
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-full border-2",
+                    layer === option.value ? "border-primary" : "border-slate-400",
+                  )}
+                  aria-hidden="true"
+                >
+                  {layer === option.value ? <span className="size-3.5 rounded-full bg-primary" /> : null}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onTogglePlaces}
+            className="flex w-full items-center justify-between border-t border-border px-4 py-4 text-left text-base font-semibold text-foreground"
+          >
+            Hiển thị điểm quan tâm
+            <span
+              className={cn(
+                "flex h-7 w-12 items-center rounded-full p-1 transition-colors",
+                showPlaces ? "bg-primary" : "bg-muted",
+              )}
+              aria-hidden="true"
+            >
+              <span
+                className={cn(
+                  "size-5 rounded-full bg-white shadow-sm transition-transform",
+                  showPlaces ? "translate-x-5" : "translate-x-0",
+                )}
+              />
+            </span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function UsageTipsModal({ onClose }: { onClose: () => void }) {
+  const tips = [
+    {
+      icon: CalendarDays,
+      text: (
+        <>
+          Chọn chuyến đi trước khi
+          <br />
+          xem bản đồ
+        </>
+      ),
+      tone: "bg-primary/10 text-primary",
+    },
+    {
+      icon: CalendarDays,
+      text: (
+        <>
+          Chuyển ngày để xem
+          <br />
+          lộ trình từng ngày
+        </>
+      ),
+      tone: "bg-blue-500/10 text-blue-500",
+    },
+    {
+      icon: List,
+      text: (
+        <>
+          Bấm <strong>Mở Timeline</strong>
+          <br />
+          để thêm địa điểm
+        </>
+      ),
+      tone: "bg-fuchsia-500/10 text-primary",
+    },
+    {
+      icon: Layers,
+      text: (
+        <>
+          Dùng lớp bản đồ
+          <br />
+          để đổi chế độ xem
+        </>
+      ),
+      tone: "bg-green-500/12 text-green-600",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-[3px]">
+      <section
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[92vh] w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/25"
+      >
+        <header className="flex items-center justify-between px-5 py-5">
+          <h2 className="text-lg font-bold text-foreground">Mẹo sử dụng</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-5" />
+          </button>
+        </header>
+
+        <div className="space-y-4 px-5 pb-5">
+          {tips.map((tip) => {
+            const Icon = tip.icon;
+            return (
+              <div key={tip.tone} className="flex gap-4">
+                <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", tip.tone)}>
+                  <Icon className="size-5" />
+                </span>
+                <p className="text-sm font-medium leading-6 text-foreground">{tip.text}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <footer className="flex items-center justify-between border-t border-border px-5 py-4">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" className="size-4 rounded border-border" />
+            Không hiển thị lại
+          </label>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground"
+          >
+            Đã hiểu
+          </button>
+        </footer>
+      </section>
     </div>
   );
 }
@@ -748,28 +1101,6 @@ function MapAttribution() {
           © CARTO
         </a>
       </div>
-    </div>
-  );
-}
-
-function SmartTip({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: typeof MapPinned;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
-        <Icon className="size-5" />
-      </span>
-      <span className="min-w-0">
-        <span className="block font-semibold text-foreground">{title}</span>
-        <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
-      </span>
     </div>
   );
 }
