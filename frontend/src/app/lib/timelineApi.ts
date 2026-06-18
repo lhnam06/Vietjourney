@@ -133,6 +133,17 @@ export interface NotificationUnreadCount {
   unreadCount: number;
 }
 
+export interface NotificationPreference {
+  category: NotificationCategory;
+  inAppEnabled: boolean;
+  realtimeEnabled: boolean;
+}
+
+export interface NotificationPreferenceInput {
+  inAppEnabled: boolean;
+  realtimeEnabled: boolean;
+}
+
 export interface InviteCodeResult {
   code: string;
   role: TimelineMemberRole;
@@ -377,6 +388,20 @@ export function fetchNotifications(query: NotificationQuery = {}, signal?: Abort
 
 export function fetchNotificationUnreadCount(signal?: AbortSignal) {
   return apiFetch<NotificationUnreadCount>("/api/v1/notifications/unread-count", {}, signal);
+}
+
+export function fetchNotificationPreferences(signal?: AbortSignal) {
+  return apiFetch<NotificationPreference[]>("/api/v1/notifications/preferences", {}, signal);
+}
+
+export function updateNotificationPreference(
+  category: NotificationCategory,
+  input: NotificationPreferenceInput,
+) {
+  return apiFetch<NotificationPreference>(`/api/v1/notifications/preferences/${category}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }
 
 export function markNotificationAsRead(notificationId: string) {
