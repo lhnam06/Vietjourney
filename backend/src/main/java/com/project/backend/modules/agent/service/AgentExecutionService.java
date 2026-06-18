@@ -175,6 +175,8 @@ public class AgentExecutionService {
                     executeAsDirectAdd(request.getTimelineId(), createRequest, resultBuilder);
                 }
 
+                results.add(resultBuilder.build());
+
             } catch (AppException e) {
                 log.warn("[Agent] AppException for event {} ({}): code={} msg={}",
                         i, event.getLocation(), e.getErrorCode(), e.getMessage());

@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { buildWsUrl } from '../lib/wsConfig';
 
 type SocketCallback = (message: any) => void;
 
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_RETRIES = 10;
+
+function buildWsUrl(path: string, params: Record<string, string> = {}) {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = window.location.host;
+  const baseUrl = `${protocol}//${host}${path}`;
+  
+  if (Object.keys(params).length === 0) return baseUrl;
+  
+  const searchParams = new URLSearchParams(params);
+  return `${baseUrl}?${searchParams.toString()}`;
+}
 
 export function useTimelineSocket(tripId: string, token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
