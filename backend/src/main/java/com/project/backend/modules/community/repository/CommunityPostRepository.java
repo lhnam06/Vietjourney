@@ -25,18 +25,18 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, St
                        where tag.post = p
                          and lower(tag.tag) like :queryPattern
                    ))
-              and (:tagBlank = true or exists (
-                   select tagFilter from CommunityPostTag tagFilter
+              and (:tagCount = 0 or (
+                   select count(distinct tagFilter.tag) from CommunityPostTag tagFilter
                    where tagFilter.post = p
-                     and lower(tagFilter.tag) = :normalizedTag
-              ))
+                     and lower(tagFilter.tag) in :tags
+              ) = :tagCount)
             """)
     Page<CommunityPost> searchPublished(
             @Param("status") CommunityPostStatus status,
             @Param("queryBlank") boolean queryBlank,
             @Param("queryPattern") String queryPattern,
-            @Param("tagBlank") boolean tagBlank,
-            @Param("normalizedTag") String normalizedTag,
+            @Param("tagCount") long tagCount,
+            @Param("tags") Collection<String> tags,
             Pageable pageable
     );
 
@@ -52,19 +52,19 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPost, St
                        where tag.post = p
                          and lower(tag.tag) like :queryPattern
                    ))
-              and (:tagBlank = true or exists (
-                   select tagFilter from CommunityPostTag tagFilter
+              and (:tagCount = 0 or (
+                   select count(distinct tagFilter.tag) from CommunityPostTag tagFilter
                    where tagFilter.post = p
-                     and lower(tagFilter.tag) = :normalizedTag
-              ))
+                     and lower(tagFilter.tag) in :tags
+              ) = :tagCount)
             """)
     Page<CommunityPost> searchPublishedByAuthors(
             @Param("status") CommunityPostStatus status,
             @Param("authorIds") Collection<String> authorIds,
             @Param("queryBlank") boolean queryBlank,
             @Param("queryPattern") String queryPattern,
-            @Param("tagBlank") boolean tagBlank,
-            @Param("normalizedTag") String normalizedTag,
+            @Param("tagCount") long tagCount,
+            @Param("tags") Collection<String> tags,
             Pageable pageable
     );
 
