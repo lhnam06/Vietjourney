@@ -67,7 +67,8 @@ public enum  ErrorCode {
     COMMUNITY_POST_NOT_EXIST(8001, "Community post does not exist", HttpStatus.NOT_FOUND),
     COMMUNITY_POST_ACCESS_DENIED(8002, "You do not have access to this community post", HttpStatus.FORBIDDEN),
     COMMUNITY_INVALID_RATING(8003, "Rating must be between 1 and 5", HttpStatus.BAD_REQUEST),
-    COMMUNITY_FOLLOW_SELF(8004, "You cannot follow yourself", HttpStatus.BAD_REQUEST);
+    COMMUNITY_FOLLOW_SELF(8004, "You cannot follow yourself", HttpStatus.BAD_REQUEST),
+    COMMUNITY_SELF_RATING_NOT_ALLOWED(8005, "You cannot rate your own post", HttpStatus.BAD_REQUEST);
     int code;
     String message;
     HttpStatusCode statusCode;

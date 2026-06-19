@@ -50,6 +50,8 @@ export interface CommunityPost {
   ratingCount: number;
   likedByMe: boolean;
   savedByMe: boolean;
+  myRating?: number;
+  currentUserId?: string;
   createdAt: string;
 }
 
@@ -80,7 +82,7 @@ export interface CommunityPostInput {
 export interface CommunityFeedQuery {
   tab?: "FOR_YOU" | "FOLLOWING";
   query?: string;
-  tag?: string;
+  tags?: string[];
   page?: number;
   size?: number;
 }
@@ -127,7 +129,9 @@ export function fetchCommunityPosts(query: CommunityFeedQuery = {}, signal?: Abo
   params.set("page", String(query.page ?? 0));
   params.set("size", String(query.size ?? 10));
   if (query.query?.trim()) params.set("query", query.query.trim());
-  if (query.tag?.trim()) params.set("tag", query.tag.trim());
+  if (query.tags?.length) {
+    query.tags.forEach(tag => params.append("tag", tag.trim()));
+  }
 
   return apiFetch<SpringPage<CommunityPost>>(`/api/v1/community/posts?${params.toString()}`, {}, signal);
 }
@@ -181,6 +185,12 @@ export function copyCommunityTimeline(postId: string) {
 
 export function toggleCommunityFollow(authorId: string) {
   return apiFetch<CommunityAuthor>(`/api/v1/community/authors/${authorId}/follow`, {
+    method: "POST",
+  });
+}
+
+export function archiveCommunityPost(postId: string) {
+  return apiFetch<CommunityPost>(`/api/v1/community/posts/${postId}/archive`, {
     method: "POST",
   });
 }

@@ -17,7 +17,10 @@ import {
   Star,
   Users,
   X,
+  Archive,
+  Flag,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   copyCommunityTimeline,
   createCommunityComment,
@@ -43,7 +46,7 @@ interface CommunityPageProps {
   onOpenTimeline?: (timeline: Timeline) => void;
 }
 
-const fallbackImage = "/placeholder.svg";
+const fallbackImage = "https://images.unsplash.com/photo-1599839619722-39751411ea63?q=80&w=600&auto=format&fit=crop";
 const suggestedTags = ["Danang", "AmThuc", "Bien", "3N2D", "DaLat", "HoiAn"];
 
 function formatCount(value: number) {
@@ -78,37 +81,49 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   const [summary, setSummary] = useState<CommunitySummary | null>(null);
   const [tab, setTab] = useState<FeedTab>("FOR_YOU");
   const [query, setQuery] = useState("");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [commentsPost, setCommentsPost] = useState<CommunityPost | null>(null);
 
-  async function load(signal?: AbortSignal) {
-    setLoading(true);
+  async function load(signal?: AbortSignal, isLoadMore = false) {
+    if (!isLoadMore) {
+      setLoading(true);
+      setPage(0);
+    }
     setError(null);
 
     try {
-      const [page, nextSummary] = await Promise.all([
+      const [pageResult, nextSummary] = await Promise.all([
         fetchCommunityPosts(
           {
             tab,
             query,
-            tag: activeTag || undefined,
-            page: 0,
+            tags: activeTags,
+            page: isLoadMore ? page + 1 : 0,
             size: 12,
           },
           signal,
         ),
-        fetchCommunitySummary(signal).catch(() => null),
+        !isLoadMore ? fetchCommunitySummary(signal).catch(() => null) : Promise.resolve(summary),
       ]);
-      setPosts(page.content);
-      setSummary(nextSummary);
+      
+      if (isLoadMore) {
+        setPosts((current) => [...current, ...pageResult.content]);
+        setPage((p) => p + 1);
+      } else {
+        setPosts(pageResult.content);
+        setSummary(nextSummary);
+      }
+      setHasMore(!pageResult.last);
     } catch (loadError) {
       if (signal?.aborted) return;
       setError(loadError instanceof Error ? loadError.message : "Không tải được cộng đồng.");
-      setPosts([]);
+      if (!isLoadMore) setPosts([]);
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -117,14 +132,14 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      void load(controller.signal);
+      void load(controller.signal, false);
     }, query ? 260 : 0);
 
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [tab, query, activeTag]);
+  }, [tab, query, activeTags]);
 
   function replacePost(nextPost: CommunityPost) {
     setPosts((currentPosts) => currentPosts.map((post) => (post.id === nextPost.id ? nextPost : post)));
@@ -138,27 +153,51 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
     );
   }
 
-  async function runPostAction(postId: string, action: () => Promise<CommunityPost>) {
+  async function runPostAction(postId: string, action: () => Promise<CommunityPost>, optimisticPost?: CommunityPost) {
     setActionId(postId);
     setError(null);
+    const originalPost = posts.find(p => p.id === postId);
+    if (optimisticPost) replacePost(optimisticPost);
     try {
       replacePost(await action());
     } catch (actionError) {
+      if (originalPost) replacePost(originalPost);
       setError(actionError instanceof Error ? actionError.message : "Thao tác cộng đồng thất bại.");
+      toast.error("Thao tác thất bại.");
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function archivePostAction(post: CommunityPost) {
+    if (!window.confirm("Bạn có chắc muốn lưu trữ bài viết này?")) return;
+    setActionId(post.id);
+    setError(null);
+    setPosts(current => current.filter(p => p.id !== post.id));
+    try {
+      await archiveCommunityPost(post.id);
+      toast.success("Đã lưu trữ bài viết.");
+    } catch (archiveError) {
+      setPosts(current => [post, ...current]);
+      toast.error("Lưu trữ thất bại.");
+      setError(archiveError instanceof Error ? archiveError.message : "Lưu trữ thất bại.");
     } finally {
       setActionId(null);
     }
   }
 
   async function copyTimeline(post: CommunityPost) {
+    if (!window.confirm("Bạn muốn sao chép lịch trình này về trang của mình?")) return;
     setActionId(`copy:${post.id}`);
     setError(null);
     try {
       const timeline = await copyCommunityTimeline(post.id);
-      await load();
+      replacePost({ ...post, copyCount: post.copyCount + 1 });
+      toast.success("Sao chép thành công!");
       onOpenTimeline?.(timeline);
     } catch (copyError) {
       setError(copyError instanceof Error ? copyError.message : "Không sao chép được lịch trình.");
+      toast.error("Sao chép thất bại.");
     } finally {
       setActionId(null);
     }
@@ -167,10 +206,31 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   async function followAuthor(author: CommunityAuthor) {
     setActionId(`author:${author.id}`);
     setError(null);
+    
+    // Optimistic Update
+    const isFollowing = !author.followedByMe;
+    const authorUpdater = (a: CommunityAuthor) => a.id === author.id ? { ...a, followedByMe: isFollowing, followerCount: a.followerCount + (isFollowing ? 1 : -1) } : a;
+    
+    setPosts(current => current.map(p => ({ ...p, author: authorUpdater(p.author) })));
+    setSummary(current => current ? {
+      ...current,
+      featuredCreators: current.featuredCreators.map(authorUpdater),
+      hotTimelines: current.hotTimelines.map(p => ({ ...p, author: authorUpdater(p.author) }))
+    } : current);
+
     try {
       await toggleCommunityFollow(author.id);
-      await load();
     } catch (followError) {
+      // Rollback
+      const revertFollowing = !isFollowing;
+      const revertUpdater = (a: CommunityAuthor) => a.id === author.id ? { ...a, followedByMe: revertFollowing, followerCount: a.followerCount + (revertFollowing ? 1 : -1) } : a;
+      setPosts(current => current.map(p => ({ ...p, author: revertUpdater(p.author) })));
+      setSummary(current => current ? {
+        ...current,
+        featuredCreators: current.featuredCreators.map(revertUpdater),
+        hotTimelines: current.hotTimelines.map(p => ({ ...p, author: revertUpdater(p.author) }))
+      } : current);
+      
       setError(followError instanceof Error ? followError.message : "Không cập nhật theo dõi được.");
     } finally {
       setActionId(null);
@@ -209,10 +269,10 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
               </div>
               <button
                 type="button"
-                onClick={() => setActiveTag(null)}
+                onClick={() => setActiveTags([])}
                 className={cn(
                   "flex h-12 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold shadow-sm transition-colors",
-                  activeTag ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  activeTags.length ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                 )}
               >
                 <Filter className="size-4" />
@@ -229,11 +289,19 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
             </div>
           </header>
 
-          {activeTag ? (
-            <div className="mt-5 flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              Đang lọc theo #{activeTag}
-              <button type="button" onClick={() => setActiveTag(null)} className="ml-auto rounded-lg p-1 hover:bg-blue-100">
-                <X className="size-4" />
+          {activeTags.length > 0 ? (
+            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <span className="font-semibold">Đang lọc theo:</span>
+              {activeTags.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold">
+                  #{tag}
+                  <button type="button" onClick={() => setActiveTags((prev) => prev.filter((t) => t !== tag))} className="hover:text-blue-900">
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+              <button type="button" onClick={() => setActiveTags([])} className="ml-auto text-xs font-bold underline hover:text-blue-900">
+                Xóa bộ lọc
               </button>
             </div>
           ) : null}
@@ -253,14 +321,28 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
                   key={post.id}
                   post={post}
                   busy={actionId === post.id || actionId === `copy:${post.id}`}
-                  onTagClick={(tag) => setActiveTag(normalizeTag(tag))}
-                  onLike={() => void runPostAction(post.id, () => toggleCommunityLike(post.id))}
-                  onSave={() => void runPostAction(post.id, () => toggleCommunitySave(post.id))}
-                  onRate={(rating) => void runPostAction(post.id, () => rateCommunityPost(post.id, rating))}
+                  onTagClick={(tag) => setActiveTags((prev) => (prev.includes(normalizeTag(tag)) ? prev.filter((t) => t !== normalizeTag(tag)) : [...prev, normalizeTag(tag)]))}
+                  onLike={() => void runPostAction(post.id, () => toggleCommunityLike(post.id), { ...post, likedByMe: !post.likedByMe, likeCount: post.likeCount + (post.likedByMe ? -1 : 1) })}
+                  onSave={() => void runPostAction(post.id, () => toggleCommunitySave(post.id), { ...post, savedByMe: !post.savedByMe, saveCount: post.saveCount + (post.savedByMe ? -1 : 1) })}
+                  onRate={(rating) => {
+                    if (post.myRating && post.myRating > 0) return;
+                    void runPostAction(post.id, () => rateCommunityPost(post.id, rating), { ...post, myRating: rating, ratingCount: post.ratingCount + 1, ratingAverage: (post.ratingAverage * post.ratingCount + rating) / (post.ratingCount + 1) });
+                  }}
                   onCopy={() => void copyTimeline(post)}
                   onComment={() => setCommentsPost(post)}
+                  onArchive={() => void archivePostAction(post)}
                 />
               ))}
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => void load(undefined, true)}
+                  disabled={loading}
+                  className="mt-4 flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : "Tải thêm"}
+                </button>
+              )}
             </div>
           ) : (
             <EmptyCommunityState onShare={() => setShareOpen(true)} />
@@ -268,7 +350,7 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
         </section>
 
         <aside className="hidden space-y-4 px-5 pb-8 pt-8 xl:block">
-          <TrendingTags tags={summary?.trendingTags || []} onSelectTag={setActiveTag} />
+          <TrendingTags tags={summary?.trendingTags || []} onSelectTag={(tag) => setActiveTags((prev) => (prev.includes(normalizeTag(tag)) ? prev.filter((t) => t !== normalizeTag(tag)) : [...prev, normalizeTag(tag)]))} />
           <FeaturedCreators
             creators={summary?.featuredCreators || []}
             busyId={actionId?.startsWith("author:") ? actionId.replace("author:", "") : null}
@@ -293,7 +375,7 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
         <CommentsModal
           post={commentsPost}
           onClose={() => setCommentsPost(null)}
-          onCommented={() => void load()}
+          onCommented={() => replacePost({ ...commentsPost, commentCount: commentsPost.commentCount + 1 })}
         />
       ) : null}
     </main>
@@ -334,7 +416,9 @@ function CommunityPostCard({
   onRate: (rating: number) => void;
   onCopy: () => void;
   onComment: () => void;
+  onArchive?: () => void;
 }) {
+  const [showMenu, setShowMenu] = useState(false);
   const images = post.images.length ? post.images : [fallbackImage];
 
   return (
@@ -351,9 +435,40 @@ function CommunityPostCard({
           </div>
           {post.caption ? <p className="mt-1 text-sm leading-relaxed text-slate-700">{post.caption}</p> : null}
         </div>
-        <button type="button" aria-label="Tùy chọn bài viết" className="rounded-xl p-2 text-slate-500 hover:bg-slate-100">
-          <MoreHorizontal className="size-5" />
-        </button>
+        <div className="relative">
+          <button type="button" onClick={() => setShowMenu(!showMenu)} aria-label="Tùy chọn bài viết" className="rounded-xl p-2 text-slate-500 hover:bg-slate-100">
+            <MoreHorizontal className="size-5" />
+          </button>
+          {showMenu && (
+            <div className="absolute right-0 top-full z-10 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-lg">
+              {post.author.id === post.currentUserId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    onArchive?.();
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                >
+                  <Archive className="size-4" />
+                  Lưu trữ bài viết
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    toast.info("Đã gửi báo cáo vi phạm.");
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  <Flag className="size-4" />
+                  Báo cáo vi phạm
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
@@ -588,9 +703,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-bold text-slate-950">{title}</h2>
-        <button type="button" className="text-xs font-semibold text-blue-600 hover:underline">
-          Xem tất cả
-        </button>
       </div>
       {children}
     </section>
