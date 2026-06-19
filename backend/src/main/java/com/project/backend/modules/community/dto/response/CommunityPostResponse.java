@@ -31,5 +31,7 @@ public class CommunityPostResponse {
     Long ratingCount;
     Boolean likedByMe;
     Boolean savedByMe;
+    Integer myRating;
+    String currentUserId;
     LocalDateTime createdAt;
 }

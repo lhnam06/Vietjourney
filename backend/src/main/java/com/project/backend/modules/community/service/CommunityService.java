@@ -59,14 +59,13 @@ public class CommunityService {
     PlaceLookupService placeLookupService;
 
     @Transactional(readOnly = true)
-    public Page<CommunityPostResponse> getFeed(String tab, String query, String tag, Pageable pageable) {
+    public Page<CommunityPostResponse> getFeed(String tab, String query, List<String> tags, Pageable pageable) {
         User currentUser = getCurrentUser();
         String normalizedQuery = normalizeNullable(query);
-        String normalizedTag = normalizeNullableTag(tag);
+        List<String> normalizedTags = normalizeTags(tags);
         boolean queryBlank = normalizedQuery == null;
-        boolean tagBlank = normalizedTag == null;
+        long tagCount = normalizedTags.size();
         String queryPattern = queryBlank ? "" : "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
-        String normalizedTagValue = tagBlank ? "" : normalizedTag.toLowerCase(Locale.ROOT);
         Page<CommunityPost> posts;
 
         if ("FOLLOWING".equalsIgnoreCase(tab)) {
@@ -81,8 +80,8 @@ public class CommunityService {
                     authorIds,
                     queryBlank,
                     queryPattern,
-                    tagBlank,
-                    normalizedTagValue,
+                    tagCount,
+                    normalizedTags,
                     pageable
             );
         } else {
@@ -90,8 +89,8 @@ public class CommunityService {
                     CommunityPostStatus.PUBLISHED,
                     queryBlank,
                     queryPattern,
-                    tagBlank,
-                    normalizedTagValue,
+                    tagCount,
+                    normalizedTags,
                     pageable
             );
         }
@@ -183,6 +182,11 @@ public class CommunityService {
 
         User currentUser = getCurrentUser();
         CommunityPost post = getPublishedPost(postId);
+        
+        if (post.getAuthor().getId().equals(currentUser.getId())) {
+            throw new AppException(ErrorCode.COMMUNITY_SELF_RATING_NOT_ALLOWED);
+        }
+
         CommunityPostRating rating = communityPostRatingRepository
                 .findByPostIdAndUserId(postId, currentUser.getId())
                 .orElse(CommunityPostRating.builder()
@@ -199,7 +203,7 @@ public class CommunityService {
     public List<CommunityCommentResponse> getComments(String postId) {
         getPublishedPost(postId);
         User currentUser = getCurrentUser();
-        return communityCommentRepository.findAllByPostIdOrderByCreatedAtAsc(postId).stream()
+        return communityCommentRepository.findAllByPostIdOrderByCreatedAtDesc(postId).stream()
                 .map(comment -> toCommentResponse(comment, currentUser))
                 .toList();
     }
@@ -243,7 +247,7 @@ public class CommunityService {
         CommunityPost post = getPublishedPost(postId);
         Timeline sourceTimeline = post.getTimeline();
         Timeline copiedTimeline = timelineRepository.save(Timeline.builder()
-                .title(sourceTimeline.getTitle() + " (từ cộng đồng)")
+                .title("[Sao chép từ: " + sourceTimeline.getTitle() + "]")
                 .description(sourceTimeline.getDescription())
                 .startDate(sourceTimeline.getStartDate())
                 .endDate(sourceTimeline.getEndDate())
@@ -281,6 +285,21 @@ public class CommunityService {
         return timelineService.getTimeline(copiedTimeline.getId());
     }
 
+    @Transactional
+    public CommunityPostResponse archivePost(String postId) {
+        User currentUser = getCurrentUser();
+        CommunityPost post = getPublishedPost(postId);
+        
+        if (!post.getAuthor().getId().equals(currentUser.getId())) {
+            throw new AppException(ErrorCode.COMMUNITY_POST_ACCESS_DENIED);
+        }
+        
+        post.setStatus(CommunityPostStatus.ARCHIVED);
+        communityPostRepository.save(post);
+        
+        return toPostResponse(post, currentUser);
+    }
+
     private CommunityPost getPublishedPost(String postId) {
         return communityPostRepository.findById(postId)
                 .filter(post -> post.getStatus() == CommunityPostStatus.PUBLISHED)
@@ -297,6 +316,10 @@ public class CommunityService {
         List<String> tags = communityPostTagRepository.findAllByPostId(post.getId()).stream()
                 .map(CommunityPostTag::getTag)
                 .toList();
+
+        Integer myRating = communityPostRatingRepository.findByPostIdAndUserId(post.getId(), currentUser.getId())
+                .map(CommunityPostRating::getRating)
+                .orElse(0);
 
         return CommunityPostResponse.builder()
                 .id(post.getId())
@@ -325,6 +348,8 @@ public class CommunityService {
                         currentUser.getId(),
                         CommunityInteractionType.SAVE
                 ))
+                .myRating(myRating)
+                .currentUserId(currentUser.getId())
                 .createdAt(post.getCreatedAt())
                 .build();
     }

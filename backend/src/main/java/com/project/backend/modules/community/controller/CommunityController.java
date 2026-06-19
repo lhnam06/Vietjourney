@@ -32,7 +32,7 @@ public class CommunityController {
     public ApiResponse<Page<CommunityPostResponse>> getPosts(
             @RequestParam(defaultValue = "FOR_YOU") String tab,
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) List<String> tag,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
@@ -121,6 +121,14 @@ public class CommunityController {
     public ApiResponse<CommunityAuthorResponse> toggleFollow(@PathVariable String authorId) {
         return ApiResponse.<CommunityAuthorResponse>builder()
                 .result(communityService.toggleFollow(authorId))
+                .build();
+    }
+
+    @PostMapping("/posts/{postId}/archive")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
+    public ApiResponse<CommunityPostResponse> archivePost(@PathVariable String postId) {
+        return ApiResponse.<CommunityPostResponse>builder()
+                .result(communityService.archivePost(postId))
                 .build();
     }
 }
