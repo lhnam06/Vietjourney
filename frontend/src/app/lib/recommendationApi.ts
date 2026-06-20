@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 import { getAuthToken } from "./authApi";
 import type { Place } from "./placesApi";
 
@@ -23,7 +24,7 @@ function authHeaders() {
 }
 
 export async function fetchRecommendedPlaces(size = 12, signal?: AbortSignal) {
-  const response = await fetch(`/api/v1/recommendations/places?size=${size}`, {
+  const response = await fetch(_getApiBase() + `/api/v1/recommendations/places?size=${size}`, {
     method: "GET",
     signal,
     headers: authHeaders(),
@@ -38,7 +39,7 @@ export async function fetchRecommendedPlaces(size = 12, signal?: AbortSignal) {
 }
 
 export async function recordPlaceInteraction({ place, eventType }: PlaceInteractionInput) {
-  const response = await fetch("/api/v1/recommendations/interactions", {
+  const response = await fetch(_getApiBase() + "/api/v1/recommendations/interactions", {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
