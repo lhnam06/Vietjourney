@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 import { getAuthToken } from "./authApi";
 import type { Timeline } from "./timelineApi";
 
@@ -96,7 +97,7 @@ function authHeaders(body?: boolean) {
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}, signal?: AbortSignal) {
-  const response = await fetch(path, {
+  const response = await fetch(path.startsWith("/") ? _getApiBase() + path : _getApiBase() + "/" + path, {
     ...init,
     signal,
     headers: {

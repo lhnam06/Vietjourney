@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 export type TimelineVisibility = "PRIVATE" | "SHARED" | "PUBLIC_READ";
 export type TimelineMemberRole = "OWNER" | "EDITOR" | "VIEWER";
 export type TimelineEventCategory = "FOOD" | "DRINK" | "ACTIVITY";
@@ -224,7 +225,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, signal?: AbortS
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(path.startsWith("/") ? _getApiBase() + path : _getApiBase() + "/" + path, {
     ...init,
     signal,
     headers,

@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 export interface ChatMessage {
   id: string;
   timelineId: string;
@@ -13,7 +14,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(path.startsWith("/") ? _getApiBase() + path : _getApiBase() + "/" + path, { ...init, headers });
   
   let payload: any = null;
   try {

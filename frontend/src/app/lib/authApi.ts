@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 interface ApiResponse<T> {
   code: number;
   message?: string;
@@ -41,7 +42,7 @@ async function authFetch<T>(path: string, init: RequestInit) {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
 
-  const response = await fetch(path, {
+  const response = await fetch(path.startsWith("/") ? _getApiBase() + path : _getApiBase() + "/" + path, {
     ...init,
     headers,
   });
