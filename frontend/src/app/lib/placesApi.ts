@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 export type PlaceCategory = "FOOD" | "DRINK" | "ACTIVITY" | string;
 export type PlaceCategoryFilter = "FOOD" | "DRINK" | "ACTIVITY";
 
@@ -50,7 +51,7 @@ export async function fetchPlaces(
   request: PlaceFilterRequest = {},
   signal?: AbortSignal,
 ) {
-  const response = await fetch("/api/v1/places/filter", {
+  const response = await fetch(_getApiBase() + "/api/v1/places/filter", {
     method: "POST",
     signal,
     headers: {
@@ -75,7 +76,7 @@ export async function fetchDistricts(
   request: PlaceFilterRequest = {},
   signal?: AbortSignal,
 ) {
-  const response = await fetch("/api/v1/places/districts", {
+  const response = await fetch(_getApiBase() + "/api/v1/places/districts", {
     method: "POST",
     signal,
     headers: {

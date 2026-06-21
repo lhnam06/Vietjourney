@@ -165,6 +165,10 @@ body {
   color: #64748b;
 }
 
+.timeline-today-header {
+  background: color-mix(in oklab, var(--primary) 14%, var(--card));
+}
+
 .timeline-invalid-cell {
   background: #f4f6f5;
   box-shadow:
