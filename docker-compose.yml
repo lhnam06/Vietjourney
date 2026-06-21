@@ -41,8 +41,6 @@ services:
       SPRING_DATA_REDIS_PORT: "6379"
       JWT_SIGNER_KEY: "LocalDevJwtSecret_ChangeMe_UseLongRandomString!"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_started
 

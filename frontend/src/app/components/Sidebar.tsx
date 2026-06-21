@@ -96,7 +96,7 @@ export function Sidebar({
           type="button"
           aria-label="Đóng menu"
           onClick={closeMenu}
-          className="fixed inset-0 z-30 cursor-default bg-foreground/[0.025]"
+          className="fixed inset-0 z-[1090] cursor-default bg-foreground/[0.025]"
         />
       ) : null}
 
@@ -111,7 +111,7 @@ export function Sidebar({
           }
         }}
         className={cn(
-          "fixed bottom-0 left-0 top-0 z-40 flex flex-col border-r border-border/70 bg-card/95 shadow-[0_24px_80px_oklch(0.22_0.02_270_/_0.12)] backdrop-blur-xl transition-[width,border-radius,box-shadow] duration-300 ease-out",
+          "fixed bottom-0 left-0 top-0 z-[1100] flex flex-col border-r border-border/70 bg-card/95 shadow-[0_24px_80px_oklch(0.22_0.02_270_/_0.12)] backdrop-blur-xl transition-[width,border-radius,box-shadow] duration-300 ease-out",
           isMenuOpen
             ? "w-[344px] overflow-hidden rounded-r-[28px] border-white/80 px-5 py-5 shadow-[0_24px_90px_oklch(0.22_0.02_270_/_0.18)]"
             : "w-[72px] overflow-visible rounded-r-none px-3 py-5 shadow-none",

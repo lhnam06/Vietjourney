@@ -1,22 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
-  ChevronDown,
   ChevronsRight,
   Clock3,
-  Copy,
   Info,
   Layers,
   List,
   Loader2,
   MapPinned,
-  MoreHorizontal,
-  Pencil,
   Route,
-  Share2,
-  Trash2,
   X,
 } from "lucide-react";
 import L, { type LatLngExpression } from "leaflet";
@@ -31,6 +25,7 @@ import {
   Tooltip,
   ZoomControl,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import {
   fetchTimelineEvents,
@@ -46,6 +41,7 @@ interface TripMapPageProps {
 }
 
 type MapLayer = "street" | "satellite" | "terrain" | "traffic";
+type DayDirection = "next" | "prev";
 
 interface MappedEvent extends TimelineEvent {
   coordinate: [number, number];
@@ -320,7 +316,7 @@ function MapResizeWatcher({ layoutKey }: { layoutKey: string }) {
 
     observer?.observe(container);
 
-    const timeouts = [0, 120, 320].map((delay) =>
+    const timeouts = [0, 160, 320].map((delay) =>
       window.setTimeout(() => {
         map.invalidateSize({ animate: true });
       }, delay),
@@ -335,13 +331,21 @@ function MapResizeWatcher({ layoutKey }: { layoutKey: string }) {
   return null;
 }
 
+function MapInteractionHandler({ onMapClick }: { onMapClick: () => void }) {
+  useMapEvents({
+    click: onMapClick,
+  });
+
+  return null;
+}
+
 export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
   const [events, setEvents] = useState<TimelineEvent[]>(timeline.events);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [dayDirection, setDayDirection] = useState<DayDirection>("next");
   const [layer, setLayer] = useState<MapLayer>("street");
   const [showPlaces, setShowPlaces] = useState(true);
   const [tripPanelCollapsed, setTripPanelCollapsed] = useState(false);
-  const [tripMenuOpen, setTripMenuOpen] = useState(false);
   const [tipsOpen, setTipsOpen] = useState(false);
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
   const [routeSummaryOpen, setRouteSummaryOpen] = useState(false);
@@ -354,9 +358,16 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
     loading: false,
     error: null,
   });
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const collapsedDayRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const expandedDayRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const days = useMemo(
-    () => Array.from({ length: dayCount(timeline.startDate, timeline.endDate) }, (_, index) => addDays(dateOnly(timeline.startDate), index)),
+    () =>
+      Array.from(
+        { length: dayCount(timeline.startDate, timeline.endDate) },
+        (_, index) => addDays(dateOnly(timeline.startDate), index),
+      ),
     [timeline.endDate, timeline.startDate],
   );
   const selectedDay = days[selectedDayIndex] || days[0] || dateOnly(timeline.startDate);
@@ -372,22 +383,12 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
   const totalDistance = routeState.distanceKm || distanceKm(routePoints);
   const travelMinutes = routeState.durationMinutes || estimateTravelMinutes(totalDistance);
   const currentTileLayer = tileLayers[layer];
-  const collapsedDayIndexes = useMemo(() => {
-    const visibleDayCount = 3;
-    const totalDays = days.length;
 
-    if (totalDays <= visibleDayCount) {
-      return days.map((_, index) => index);
-    }
-
-    const maxStartIndex = totalDays - visibleDayCount;
-    const startIndex = Math.min(
-      Math.max(selectedDayIndex - 1, 0),
-      maxStartIndex,
-    );
-
-    return Array.from({ length: visibleDayCount }, (_, index) => startIndex + index);
-  }, [days, selectedDayIndex]);
+  function handleSelectDay(nextDayIndex: number) {
+    if (nextDayIndex === selectedDayIndex) return;
+    setDayDirection(nextDayIndex > selectedDayIndex ? "next" : "prev");
+    setSelectedDayIndex(nextDayIndex);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -465,6 +466,58 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
     return () => controller.abort();
   }, [routePoints]);
 
+  useEffect(() => {
+    if (selectedDayIndex > days.length - 1) {
+      setSelectedDayIndex(Math.max(days.length - 1, 0));
+    }
+  }, [days.length, selectedDayIndex]);
+
+  useEffect(() => {
+    setSelectedDayIndex(0);
+    setDayDirection("next");
+  }, [timeline.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    updateMotionPreference();
+    mediaQuery.addEventListener("change", updateMotionPreference);
+
+    return () => mediaQuery.removeEventListener("change", updateMotionPreference);
+  }, []);
+
+  useEffect(() => {
+    const behavior = prefersReducedMotion ? "auto" : "smooth";
+    collapsedDayRefs.current[selectedDayIndex]?.scrollIntoView({
+      behavior,
+      block: "center",
+      inline: "nearest",
+    });
+    expandedDayRefs.current[selectedDayIndex]?.scrollIntoView({
+      behavior,
+      block: "nearest",
+      inline: "center",
+    });
+  }, [prefersReducedMotion, selectedDayIndex]);
+
+  useEffect(() => {
+    if (!layerMenuOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setLayerMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [layerMenuOpen]);
+
   return (
     <main className="h-dvh min-w-0 flex-1 overflow-hidden bg-background px-4 py-4 lg:px-6">
       <div className="mx-auto flex h-full max-w-[1500px] flex-col">
@@ -497,7 +550,7 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
 
         <div
           className={cn(
-            "grid min-h-0 flex-1 gap-4 transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "grid min-h-0 flex-1 gap-4 transition-[grid-template-columns] duration-300 ease-out",
             tripPanelCollapsed
               ? "xl:grid-cols-[104px_minmax(0,1fr)]"
               : "xl:grid-cols-[minmax(440px,500px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(500px,560px)_minmax(0,1fr)]",
@@ -505,8 +558,10 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
         >
           <aside
             className={cn(
-              "trip-panel-scroll relative min-h-0 overflow-hidden rounded-[24px] border border-border bg-card shadow-[0_24px_70px_rgba(15,23,42,0.08)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-              tripPanelCollapsed ? "p-3" : "space-y-4 overflow-y-auto p-4",
+              "relative min-h-0 overflow-hidden rounded-[24px] border border-border bg-card p-3 shadow-[0_24px_70px_rgba(15,23,42,0.08)] transition-[padding,box-shadow,border-radius] duration-300 ease-out sm:p-4",
+              tripPanelCollapsed
+                ? "shadow-[0_18px_48px_rgba(15,23,42,0.08)]"
+                : "shadow-[0_24px_70px_rgba(15,23,42,0.1)]",
             )}
           >
             <button
@@ -515,46 +570,70 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
               aria-label={tripPanelCollapsed ? "Mở rộng thanh chuyến đi" : "Thu hẹp thanh chuyến đi"}
               aria-expanded={!tripPanelCollapsed}
               className={cn(
-                "absolute z-20 flex size-12 items-center justify-center bg-transparent text-primary transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-110 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                "absolute z-20 flex size-12 items-center justify-center rounded-2xl bg-card/88 text-primary shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                 tripPanelCollapsed
-                  ? "left-1/2 top-6 -translate-x-1/2"
-                  : "right-2 top-2",
+                  ? "left-1/2 top-4 -translate-x-1/2"
+                  : "right-3 top-3",
               )}
             >
               <ChevronsRight
                 className={cn(
-                  "size-6 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  "size-6 transition-transform duration-300 ease-out",
                   tripPanelCollapsed ? "rotate-0" : "rotate-180",
                 )}
               />
             </button>
 
-            {tripPanelCollapsed ? (
-              <div className="trip-panel-content-in flex h-full flex-col items-center px-2 pb-4 pt-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
-                <div className="trip-panel-scroll flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-auto overflow-x-visible py-1">
-                  {collapsedDayIndexes.map((dayIndex) => {
+            <div className="relative h-full min-h-[520px]">
+              <div
+                aria-hidden={!tripPanelCollapsed}
+                className={cn(
+                  "trip-panel-stage trip-panel-stage-collapsed",
+                  tripPanelCollapsed ? "trip-panel-stage-active" : "trip-panel-stage-inactive",
+                )}
+              >
+                <div className="trip-panel-scroll flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-auto overflow-x-visible px-1 pb-4 pt-20">
+                  {days.map((day, dayIndex) => {
                     const selected = dayIndex === selectedDayIndex;
+
                     return (
                       <button
-                        key={dayIndex}
+                        key={`collapsed-${toDateInput(day)}`}
+                        ref={(element) => {
+                          collapsedDayRefs.current[dayIndex] = element;
+                        }}
                         type="button"
-                        onClick={() => setSelectedDayIndex(dayIndex)}
+                        onClick={() => handleSelectDay(dayIndex)}
                         aria-label={`Ngày ${dayIndex + 1}`}
+                        tabIndex={tripPanelCollapsed ? 0 : -1}
                         className={cn(
-                          "relative flex shrink-0 items-center justify-center rounded-full text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                          "relative flex shrink-0 items-center justify-center rounded-[28px] text-center transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                           selected
-                            ? "size-[72px] bg-primary/12 text-primary shadow-[0_14px_28px_rgba(91,77,241,0.18)]"
-                            : "size-14 bg-card text-muted-foreground shadow-[0_10px_22px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 hover:text-primary",
+                            ? "h-[76px] w-[76px] -translate-y-0.5 bg-primary/12 text-primary shadow-[0_16px_34px_rgba(91,77,241,0.18)]"
+                            : "h-[56px] w-[56px] bg-card text-muted-foreground shadow-[0_10px_22px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 hover:text-primary",
                         )}
                       >
-                        {selected ? (
-                          <span className="absolute -left-4 h-12 w-1 rounded-full bg-primary" />
-                        ) : null}
+                        <span
+                          className={cn(
+                            "absolute -left-3.5 w-1 rounded-full bg-primary transition-all duration-300 ease-out",
+                            selected ? "h-12 opacity-100" : "h-4 opacity-0",
+                          )}
+                        />
                         <span className="leading-none">
-                          {selected ? (
-                            <span className="block text-xs font-bold">Ngày</span>
-                          ) : null}
-                          <span className={cn("block font-semibold", selected ? "mt-1 text-3xl" : "text-2xl")}>
+                          <span
+                            className={cn(
+                              "block overflow-hidden text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 ease-out",
+                              selected ? "max-h-4 opacity-100" : "max-h-0 opacity-0",
+                            )}
+                          >
+                            Ngày
+                          </span>
+                          <span
+                            className={cn(
+                              "mt-0.5 block font-semibold tabular-nums transition-all duration-300 ease-out",
+                              selected ? "text-3xl" : "text-2xl",
+                            )}
+                          >
                             {dayIndex + 1}
                           </span>
                         </span>
@@ -563,129 +642,152 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
                   })}
                 </div>
               </div>
-            ) : (
-              <div className="trip-panel-content-in space-y-4">
-                <div className="relative">
-                  <p className="pr-12 text-sm font-semibold text-muted-foreground">Chuyến đi</p>
-                  <div className="mt-3 flex gap-3">
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition-all hover:border-primary/30"
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <CalendarDays className="size-5 shrink-0 text-primary" />
-                        <span className="truncate">{timeline.title || "Tạo tên là bảng"}</span>
-                      </span>
-                      <ChevronDown className="size-5 shrink-0 text-muted-foreground" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTripMenuOpen((current) => !current)}
-                      aria-label="Mở tuỳ chọn chuyến đi"
-                      aria-expanded={tripMenuOpen}
-                      className="flex size-[54px] shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-foreground shadow-sm transition-all hover:border-primary/30 hover:text-primary"
-                    >
-                      <MoreHorizontal className="size-6" />
-                    </button>
-                  </div>
-                  {tripMenuOpen ? <TripActionsMenu /> : null}
-                </div>
 
-                <div>
-                  <p className="text-sm font-semibold text-muted-foreground">Ngày</p>
-                  <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
-                    {collapsedDayIndexes.map((dayIndex) => {
-                      const day = days[dayIndex];
-                      const selected = dayIndex === selectedDayIndex;
-                      return (
-                        <button
-                          key={toDateInput(day)}
-                          type="button"
-                          onClick={() => setSelectedDayIndex(dayIndex)}
-                          className={cn(
-                            "flex min-h-[70px] min-w-[112px] flex-1 flex-col items-center justify-center rounded-2xl border px-3 py-2.5 text-[13px] font-semibold shadow-sm transition-all",
-                            selected
-                              ? "border-transparent bg-gradient-to-br from-[#5146f2] to-[#9a47eb] text-white shadow-[0_18px_32px_rgba(91,77,241,0.28)]"
-                              : "border-border bg-card text-foreground hover:border-primary/30",
-                          )}
-                        >
-                          <span className="flex items-center gap-2">
-                            {selected ? <CalendarDays className="size-5" /> : null}
-                            Ngày {dayIndex + 1}
-                          </span>
-                          {selected ? (
-                            <span className="mt-1 flex items-center gap-1.5 text-xs font-medium text-white/90">
-                              <Clock3 className="size-3.5" />
-                              {formatShortDate(day)}
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <section>
-                  <h2 className="text-sm font-semibold text-muted-foreground">Tổng quan ngày {selectedDayIndex + 1}</h2>
-                  <div className="mt-2 grid grid-cols-3 divide-x divide-border rounded-2xl bg-muted/35 px-3 py-3">
-                    <SummaryPill icon={MapPinned} value={mappedEvents.length} label="địa điểm" tone="text-primary bg-primary/10" />
-                    <SummaryPill icon={Route} value={totalDistance.toFixed(1)} label="km" tone="text-blue-500 bg-blue-500/10" />
-                    <SummaryPill icon={Clock3} value={travelMinutes} label="phút" tone="text-green-600 bg-green-500/12" />
-                  </div>
-                </section>
-
-                {error ? (
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                    {error}
-                  </div>
-                ) : null}
-
-                <section>
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-foreground">Lộ trình hôm nay</h2>
-                    {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
-                  </div>
-
-                  <div className="mt-3">
-                    {mappedEvents.length ? (
-                      <div className="max-h-[280px] space-y-3 overflow-y-auto pr-1">
-                        {mappedEvents.map((event, index) => (
-                          <RouteListItem key={event.id} event={event} index={index} />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-border bg-card px-5 py-6 text-center shadow-sm">
-                        <div className="mx-auto flex size-20 items-center justify-center rounded-[24px] bg-accent text-primary">
-                          <MapPinned className="size-11" />
+              <div
+                aria-hidden={tripPanelCollapsed}
+                className={cn(
+                  "trip-panel-stage trip-panel-stage-expanded",
+                  tripPanelCollapsed ? "trip-panel-stage-inactive" : "trip-panel-stage-active",
+                )}
+              >
+                <div className="trip-panel-scroll flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
+                  <div className="space-y-4 pt-14">
+                    <div>
+                      <p className="pr-12 text-sm font-semibold text-muted-foreground">Chuyến đi đang xem</p>
+                      <div className="mt-3 flex min-w-0 items-center gap-3 rounded-[26px] border border-border bg-card px-4 py-4 shadow-sm">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <CalendarDays className="size-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-lg font-semibold text-foreground">
+                            {timeline.title || "Chuyến đi chưa đặt tên"}
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {formatShortDate(days[0] || dateOnly(timeline.startDate))} - {formatShortDate(days[days.length - 1] || dateOnly(timeline.endDate))}
+                          </p>
                         </div>
-                        <p className="mt-4 text-lg font-bold text-foreground">Chưa có điểm đến</p>
-                        <p className="mx-auto mt-2 max-w-[260px] text-sm font-medium leading-6 text-muted-foreground">
-                          Thêm địa điểm từ Timeline để xem tuyến đường trên bản đồ.
-                        </p>
-                        <button
-                          type="button"
-                          className="mx-auto mt-5 flex min-h-12 w-full max-w-[210px] items-center justify-center gap-3 rounded-2xl border-2 border-primary bg-card px-5 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:bg-accent"
-                        >
-                          <List className="size-5" />
-                          Mở Timeline
-                        </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {routeState.loading ? (
-                    <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Đang tính tuyến đường theo OpenStreetMap...
-                    </p>
-                  ) : routeState.error ? (
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Router tạm thời không phản hồi, đang hiển thị tuyến nối nhanh.
-                    </p>
-                  ) : null}
-                </section>
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground">Ngày</p>
+                      <div className="trip-day-viewport trip-panel-scroll mt-3 flex gap-3 overflow-x-auto pb-1">
+                        {days.map((day, dayIndex) => {
+                          const selected = dayIndex === selectedDayIndex;
+
+                          return (
+                            <button
+                              key={toDateInput(day)}
+                              ref={(element) => {
+                                expandedDayRefs.current[dayIndex] = element;
+                              }}
+                              type="button"
+                              onClick={() => handleSelectDay(dayIndex)}
+                              tabIndex={tripPanelCollapsed ? -1 : 0}
+                              className={cn(
+                                "flex min-h-[74px] min-w-[112px] shrink-0 flex-col items-center justify-center rounded-[24px] border px-3 py-2.5 text-[13px] font-semibold tabular-nums transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                                selected
+                                  ? "-translate-y-0.5 border-transparent bg-gradient-to-br from-[#5146f2] to-[#7b61ff] text-white shadow-[0_18px_32px_rgba(91,77,241,0.24)]"
+                                  : "border-border bg-card text-foreground shadow-sm hover:-translate-y-0.5 hover:border-primary/30",
+                              )}
+                            >
+                              <span className="flex items-center gap-2">
+                                <CalendarDays
+                                  className={cn(
+                                    "transition-all duration-300 ease-out",
+                                    selected ? "size-5 opacity-100" : "size-4 opacity-60",
+                                  )}
+                                />
+                                Ngày {dayIndex + 1}
+                              </span>
+                              <span
+                                className={cn(
+                                  "mt-1 flex items-center gap-1.5 overflow-hidden text-xs font-medium transition-all duration-300 ease-out",
+                                  selected
+                                    ? "max-h-5 translate-y-0 opacity-100 text-white/90"
+                                    : "max-h-0 translate-y-1 opacity-0 text-transparent",
+                                )}
+                              >
+                                <Clock3 className="size-3.5" />
+                                {formatShortDate(day)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div
+                      key={selectedDate}
+                      className={cn(
+                        "trip-day-content-stage space-y-4",
+                        dayDirection === "next" ? "trip-day-content-next" : "trip-day-content-prev",
+                      )}
+                    >
+                      <section>
+                        <h2 className="text-sm font-semibold text-muted-foreground">Tổng quan ngày {selectedDayIndex + 1}</h2>
+                        <div className="mt-2 grid grid-cols-3 divide-x divide-border rounded-2xl bg-muted/35 px-3 py-3">
+                          <SummaryPill icon={MapPinned} value={mappedEvents.length} label="địa điểm" tone="text-primary bg-primary/10" />
+                          <SummaryPill icon={Route} value={totalDistance.toFixed(1)} label="km" tone="text-blue-500 bg-blue-500/10" />
+                          <SummaryPill icon={Clock3} value={travelMinutes} label="phút" tone="text-green-600 bg-green-500/12" />
+                        </div>
+                      </section>
+
+                      {error ? (
+                        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                          {error}
+                        </div>
+                      ) : null}
+
+                      <section>
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-bold text-foreground">Lộ trình hôm nay</h2>
+                          {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
+                        </div>
+
+                        <div className="mt-3">
+                          {mappedEvents.length ? (
+                            <div className="max-h-[280px] space-y-3 overflow-y-auto pr-1">
+                              {mappedEvents.map((event, index) => (
+                                <RouteListItem key={event.id} event={event} index={index} />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-border bg-card px-5 py-6 text-center shadow-sm">
+                              <div className="mx-auto flex size-20 items-center justify-center rounded-[24px] bg-accent text-primary">
+                                <MapPinned className="size-11" />
+                              </div>
+                              <p className="mt-4 text-lg font-bold text-foreground">Chưa có điểm đến</p>
+                              <p className="mx-auto mt-2 max-w-[260px] text-sm font-medium leading-6 text-muted-foreground">
+                                Thêm địa điểm từ Timeline để xem tuyến đường trên bản đồ.
+                              </p>
+                              <button
+                                type="button"
+                                className="mx-auto mt-5 flex min-h-12 w-full max-w-[210px] items-center justify-center gap-3 rounded-2xl border-2 border-primary bg-card px-5 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:bg-accent"
+                              >
+                                <List className="size-5" />
+                                Mở Timeline
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {routeState.loading ? (
+                          <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
+                            <Loader2 className="size-3.5 animate-spin" />
+                            Đang tính tuyến đường theo OpenStreetMap...
+                          </p>
+                        ) : routeState.error ? (
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Router tạm thời không phản hồi, đang hiển thị tuyến nối nhanh.
+                          </p>
+                        ) : null}
+                      </section>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
           </aside>
 
           <section className="min-h-0 min-w-0">
@@ -703,6 +805,7 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
                 <ScaleControl position="bottomleft" imperial metric />
                 <FitRoute points={routePolyline.length ? routePolyline : routePoints} />
                 <MapResizeWatcher layoutKey={tripPanelCollapsed ? "collapsed" : "expanded"} />
+                <MapInteractionHandler onMapClick={() => setLayerMenuOpen(false)} />
                 {routePolyline.length >= 2 ? (
                   <Polyline
                     positions={routePolyline}
@@ -748,10 +851,7 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
                 open={layerMenuOpen}
                 layer={layer}
                 showPlaces={showPlaces}
-                onLayerChange={(nextLayer) => {
-                  setLayer(nextLayer);
-                  setLayerMenuOpen(false);
-                }}
+                onLayerChange={setLayer}
                 onToggleOpen={() => setLayerMenuOpen((current) => !current)}
                 onTogglePlaces={() => setShowPlaces((current) => !current)}
               />
@@ -783,7 +883,6 @@ function RouteListItem({ event, index }: { event: MappedEvent; index: number }) 
             {categoryLabel(event.category)}
           </span>
         </div>
-        <MoreHorizontal className="size-5 shrink-0 text-muted-foreground" />
       </div>
     </article>
   );
@@ -831,41 +930,6 @@ function MapSummaryBar({
   );
 }
 
-function TripActionsMenu() {
-  return (
-    <div className="absolute right-0 top-[104px] z-[520] w-[280px] overflow-hidden rounded-2xl border border-border bg-card py-3 shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
-      <TripAction icon={Pencil} label="Đổi tên chuyến đi" />
-      <TripAction icon={Copy} label="Nhân bản chuyến đi" />
-      <TripAction icon={Share2} label="Chia sẻ" />
-      <div className="my-2 border-t border-border" />
-      <TripAction icon={Trash2} label="Xóa chuyến đi" destructive />
-    </div>
-  );
-}
-
-function TripAction({
-  icon: Icon,
-  label,
-  destructive = false,
-}: {
-  icon: typeof Pencil;
-  label: string;
-  destructive?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex w-full items-center gap-4 px-6 py-3 text-left text-base font-semibold transition-colors hover:bg-muted",
-        destructive ? "text-destructive" : "text-foreground",
-      )}
-    >
-      <Icon className={cn("size-5 shrink-0", destructive ? "text-destructive" : "text-muted-foreground")} />
-      {label}
-    </button>
-  );
-}
-
 function MapTooltip({ event }: { event: MappedEvent }) {
   return (
     <div className="flex items-center gap-3">
@@ -898,7 +962,7 @@ function MapLayerControl({
       <button
         type="button"
         onClick={onToggleOpen}
-        aria-label="Mở lớp bản đồ"
+        aria-label={open ? "Đóng lớp bản đồ" : "Mở lớp bản đồ"}
         aria-expanded={open}
         className="flex size-12 items-center justify-center rounded-xl border border-border bg-card/95 text-primary shadow-[0_12px_26px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-all hover:-translate-y-0.5"
       >
