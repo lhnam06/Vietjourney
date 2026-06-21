@@ -29,8 +29,8 @@ public class NotificationDomainEventListener {
                 .recipientUsername(event.getUsername())
                 .category(NotificationCategory.SYSTEM)
                 .type(NotificationType.WELCOME)
-                .title("Welcome to VietJourney")
-                .message("Your account is ready. Start building your first timeline.")
+                .title("Chào mừng đến với VietJourney")
+                .message("Tài khoản của bạn đã sẵn sàng. Hãy bắt đầu lên lịch trình đầu tiên của bạn.")
                 .payload(Map.of(
                         "userId", event.getUserId(),
                         "username", event.getUsername()
@@ -48,8 +48,8 @@ public class NotificationDomainEventListener {
                 .recipientUsername(event.getInvitedUsername())
                 .category(NotificationCategory.COLLABORATION)
                 .type(NotificationType.COLLABORATION_INVITE)
-                .title("You were invited to a shared timeline")
-                .message(event.getActorUsername() + " invited you to collaborate on " + event.getTimelineTitle() + ".")
+                .title("Bạn được mời tham gia một lịch trình chung")
+                .message(event.getActorUsername() + " đã mời bạn cùng tham gia lịch trình " + event.getTimelineTitle() + ".")
                 .payload(Map.of(
                         "timelineId", event.getTimelineId(),
                         "timelineTitle", event.getTimelineTitle(),
@@ -101,20 +101,20 @@ public class NotificationDomainEventListener {
 
     private String mapTitle(TimelineChangeType changeType) {
         return switch (changeType) {
-            case TIMELINE_UPDATED -> "Timeline updated";
-            case EVENT_ADDED -> "A new event was added";
-            case EVENT_DELETED -> "An event was removed";
-            case EVENT_MOVED, EVENT_RESIZED, EVENT_REORDERED -> "Itinerary updated";
+            case TIMELINE_UPDATED -> "Lịch trình đã được cập nhật";
+            case EVENT_ADDED -> "Một hoạt động mới đã được thêm";
+            case EVENT_DELETED -> "Một hoạt động đã bị xóa";
+            case EVENT_MOVED, EVENT_RESIZED, EVENT_REORDERED -> "Lịch trình đã được thay đổi";
         };
     }
 
     private String mapMessage(TimelineChangeType changeType, String actorUsername, String timelineTitle) {
         return switch (changeType) {
-            case TIMELINE_UPDATED -> actorUsername + " updated timeline " + timelineTitle + ".";
-            case EVENT_ADDED -> actorUsername + " added a new event to " + timelineTitle + ".";
-            case EVENT_DELETED -> actorUsername + " removed an event from " + timelineTitle + ".";
+            case TIMELINE_UPDATED -> actorUsername + " đã cập nhật lịch trình " + timelineTitle + ".";
+            case EVENT_ADDED -> actorUsername + " đã thêm một hoạt động mới vào " + timelineTitle + ".";
+            case EVENT_DELETED -> actorUsername + " đã xóa một hoạt động khỏi " + timelineTitle + ".";
             case EVENT_MOVED, EVENT_RESIZED, EVENT_REORDERED ->
-                    actorUsername + " changed the itinerary in " + timelineTitle + ".";
+                    actorUsername + " đã thay đổi các hoạt động trong " + timelineTitle + ".";
         };
     }
 }
