@@ -78,7 +78,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, timelineI
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/70 px-4 py-6 backdrop-blur-sm">
       <section className="flex h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_80px_oklch(0.23_0.04_260_/_0.35)]">
         <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
           <div className="flex items-center gap-3">

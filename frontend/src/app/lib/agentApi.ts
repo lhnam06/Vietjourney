@@ -1,3 +1,4 @@
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 import { getAuthToken } from "./authApi";
 
 interface ApiResponse<T> {
@@ -100,7 +101,7 @@ export async function executeAgentPlan(plan: ExecutePlanRequest) {
     headers.set("Authorization", `Bearer ${token.replace(/^Bearer\s+/i, "")}`);
   }
 
-  const response = await fetch("/api/v1/agent/execute-plan", {
+  const response = await fetch(_getApiBase() + "/api/v1/agent/execute-plan", {
     method: "POST",
     headers,
     body: JSON.stringify(plan),

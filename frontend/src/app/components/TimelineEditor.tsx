@@ -55,8 +55,11 @@ const dayColumnWidth = "minmax(0,1fr)";
 const eventCardInset = 7;
 const edgeSwitchZone = 50;
 const edgeSwitchDelay = 500;
+const dragAutoScrollZone = 112;
+const dragAutoScrollMaxSpeed = 14;
 const defaultDropDurationMinutes = 90;
 const snapMinutes = 15;
+const optimisticEventPrefix = "optimistic-event-";
 const realtimeRefreshTypes = new Set([
   "TIMELINE_EVENTS_CHANGED",
   "TIMELINE_UPDATED",
@@ -157,6 +160,10 @@ export function TimelineEditor({
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   const dropPreviewFrameRef = useRef<number | null>(null);
   const pendingDropPreviewRef = useRef<DropPreview | null>(null);
+  const calendarScrollRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const dragPointerYRef = useRef<number | null>(null);
+  const hasEnteredCalendarRef = useRef(false);
   const authToken = useMemo(() => getAuthToken(), []);
   const { isConnected: isRealtimeConnected, lastMessage: realtimeMessage } = useTimelineSocket(timeline.id, authToken);
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
@@ -313,9 +320,43 @@ export function TimelineEditor({
         window.clearTimeout(realtimeRefreshTimerRef.current);
       }
       clearDropPreviewFrame();
+      stopCalendarAutoScroll();
     },
     [],
   );
+
+  useEffect(() => {
+    if (!draggedPlaceId && !draggedEventId) return undefined;
+
+    function onWindowDragOver(event: globalThis.DragEvent) {
+      const container = calendarScrollRef.current;
+      if (!container) return;
+
+      if (hasEnteredCalendarRef.current) {
+        scheduleEdgeWeekSwitch(event.clientX, container);
+      }
+
+      const rect = container.getBoundingClientRect();
+      const horizontalGrace = 160;
+      const isNearTimelineHorizontally =
+        event.clientX >= rect.left - horizontalGrace &&
+        event.clientX <= rect.right + horizontalGrace;
+
+      if (!isNearTimelineHorizontally) {
+        stopCalendarAutoScroll();
+        return;
+      }
+
+      updateCalendarAutoScroll(event.clientY);
+    }
+
+    window.addEventListener("dragover", onWindowDragOver, true);
+    return () => {
+      window.removeEventListener("dragover", onWindowDragOver, true);
+      clearEdgeSwitchTimer();
+      stopCalendarAutoScroll();
+    };
+  }, [draggedEventId, draggedPlaceId, weekStart]);
 
   async function reloadEvents() {
     const nextEvents = await fetchTimelineEvents(timeline.id, rangeStart, rangeEnd);
@@ -445,6 +486,78 @@ export function TimelineEditor({
     setDropPreview(null);
   }
 
+  function runAfterNextPaint(task: () => void) {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(task, 0);
+    });
+  }
+
+  function buildOptimisticTimelineEvent(
+    place: Place,
+    startTime: string,
+    endTime: string,
+    orderIndex: number,
+  ): TimelineEvent {
+    return {
+      id: `${optimisticEventPrefix}${place.id}-${Date.now()}`,
+      externalPlaceId: place.id,
+      place: {
+        id: place.id,
+        name: place.name,
+        address: place.address ?? null,
+        rating: place.rating ?? null,
+        latitude: place.latitude ?? null,
+        longitude: place.longitude ?? null,
+        district: place.district ?? null,
+        imageUrl: placeImage(place),
+      },
+      category: toEventCategory(place.category),
+      startTime,
+      endTime,
+      orderIndex,
+      status: "PLANNED",
+      version: 0,
+    };
+  }
+
+  function replaceOptimisticEvent(optimisticId: string, nextEvent: TimelineEvent) {
+    setEvents((current) => current.map((item) => (item.id === optimisticId ? nextEvent : item)));
+  }
+
+  function persistCreatedEvent(optimisticId: string, place: Place, startTime: string, endTime: string, orderIndex: number) {
+    setSavingId(optimisticId);
+    runAfterNextPaint(() => {
+      void createTimelineEvent(timeline.id, {
+        externalPlaceId: place.id,
+        category: toEventCategory(place.category),
+        startTime,
+        endTime,
+        orderIndex,
+        status: "PLANNED",
+      })
+        .then((created) => {
+          replaceOptimisticEvent(optimisticId, created);
+        })
+        .catch(async (createError) => {
+          setEvents((current) => current.filter((item) => item.id !== optimisticId));
+          setError(createError instanceof Error ? createError.message : "Khong cap nhat duoc lich trinh.");
+          await reloadEvents();
+        })
+        .finally(() => {
+          setSavingId((current) => (current === optimisticId ? null : current));
+        });
+    });
+  }
+
+  function persistMovedEvent(source: TimelineEvent, startTime: string, endTime: string, orderIndex?: number) {
+    runAfterNextPaint(() => {
+      void moveEvent(source, startTime, endTime, orderIndex).catch(async (moveError) => {
+        setError(moveError instanceof Error ? moveError.message : "Khong cap nhat duoc lich trinh.");
+        await reloadEvents();
+      });
+    });
+  }
+
   function queueDropPreview(next: DropPreview) {
     pendingDropPreviewRef.current = next;
     if (dropPreviewFrameRef.current) return;
@@ -466,6 +579,53 @@ export function TimelineEditor({
     });
   }
 
+  function stopCalendarAutoScroll() {
+    dragPointerYRef.current = null;
+    if (autoScrollFrameRef.current) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  }
+
+  function runCalendarAutoScroll() {
+    const container = calendarScrollRef.current;
+    const pointerY = dragPointerYRef.current;
+    if (!container || pointerY == null) {
+      autoScrollFrameRef.current = null;
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const topThreshold = rect.top + dragAutoScrollZone;
+    const bottomThreshold = rect.bottom - dragAutoScrollZone;
+    let delta = 0;
+
+    if (pointerY < topThreshold) {
+      const intensity = clamp((topThreshold - pointerY) / dragAutoScrollZone, 0, 1);
+      delta = -dragAutoScrollMaxSpeed * intensity * intensity;
+    } else if (pointerY > bottomThreshold) {
+      const intensity = clamp((pointerY - bottomThreshold) / dragAutoScrollZone, 0, 1);
+      delta = dragAutoScrollMaxSpeed * intensity * intensity;
+    }
+
+    if (delta !== 0) {
+      const previousScrollTop = container.scrollTop;
+      container.scrollTop += delta;
+      autoScrollFrameRef.current = container.scrollTop === previousScrollTop
+        ? null
+        : window.requestAnimationFrame(runCalendarAutoScroll);
+    } else {
+      autoScrollFrameRef.current = null;
+    }
+  }
+
+  function updateCalendarAutoScroll(clientY: number) {
+    dragPointerYRef.current = clientY;
+    if (!autoScrollFrameRef.current) {
+      autoScrollFrameRef.current = window.requestAnimationFrame(runCalendarAutoScroll);
+    }
+  }
+
   function handleDragStart(event: DragEvent, payload: DragPayload) {
     if (payload.kind === "event" && !canEditTimeline) {
       event.preventDefault();
@@ -475,6 +635,7 @@ export function TimelineEditor({
 
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = payload.kind === "place" ? "copyMove" : "move";
+    hasEnteredCalendarRef.current = false;
     setCardDragImage(event, payload, {
       place: payload.kind === "place" ? placeById.get(payload.placeId) : undefined,
       timelineEvent: payload.kind === "event" ? eventById.get(payload.eventId) : undefined,
@@ -493,11 +654,13 @@ export function TimelineEditor({
   }
 
   function handleDragEnd() {
+    hasEnteredCalendarRef.current = false;
     setDraggedPlaceId(null);
     setDraggedEventId(null);
     setDeleteZoneActive(false);
     clearDropPreview();
     clearEdgeSwitchTimer();
+    stopCalendarAutoScroll();
   }
 
   function scheduleEdgeWeekSwitch(clientX: number, container: HTMLElement) {
@@ -541,14 +704,15 @@ export function TimelineEditor({
       event.dataTransfer.dropEffect = "none";
       return;
     }
+    hasEnteredCalendarRef.current = true;
     event.dataTransfer.dropEffect = draggedEventId ? "move" : "copy";
     scheduleEdgeWeekSwitch(event.clientX, event.currentTarget);
+    updateCalendarAutoScroll(event.clientY);
   }
 
   function handleDragLeave(event: DragEvent) {
     const next = event.relatedTarget as Node | null;
     if (next && event.currentTarget.contains(next)) return;
-    clearEdgeSwitchTimer();
     clearDropPreview();
   }
 
@@ -606,6 +770,7 @@ export function TimelineEditor({
 
   async function handleColumnDrop(event: DragEvent, day: Date) {
     event.preventDefault();
+    stopCalendarAutoScroll();
     clearEdgeSwitchTimer();
     if (!isTimelineDay(day, timelineStart, timelineEnd)) return;
 
@@ -644,18 +809,13 @@ export function TimelineEditor({
           return;
         }
 
-        const created = await createTimelineEvent(timeline.id, {
-          externalPlaceId: place.id,
-          category: toEventCategory(place.category),
-          startTime: start,
-          endTime: end,
-          orderIndex: dayEvents(day).length,
-          status: "PLANNED",
-        });
-        setEvents((current) => [...current, created]);
+        const orderIndex = dayEvents(day).length;
+        const optimisticEvent = buildOptimisticTimelineEvent(place, start, end, orderIndex);
+        setEvents((current) => [...current, optimisticEvent]);
         setDraggedPlaceId(null);
         setDeleteZoneActive(false);
         clearDropPreview();
+        persistCreatedEvent(optimisticEvent.id, place, start, end, orderIndex);
         return;
       }
 
@@ -670,10 +830,10 @@ export function TimelineEditor({
           item.id === source.id ? { ...item, startTime: start, endTime: end } : item,
         ),
       );
-      await moveEvent(source, start, end, dayEvents(day).length);
       setDraggedEventId(null);
       setDeleteZoneActive(false);
       clearDropPreview();
+      persistMovedEvent(source, start, end, dayEvents(day).length);
     } catch (dropError) {
       setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
       clearDropPreview();
@@ -684,6 +844,7 @@ export function TimelineEditor({
   async function handleDeleteZoneDrop(event: DragEvent) {
     event.preventDefault();
     event.stopPropagation();
+    stopCalendarAutoScroll();
     clearEdgeSwitchTimer();
     if (!canEditTimeline) {
       setNotice("Bạn chỉ có quyền xem timeline này, không thể xóa hoạt động.");
@@ -701,6 +862,7 @@ export function TimelineEditor({
 
   async function handleDrop(event: DragEvent, day: Date, hour: number) {
     event.preventDefault();
+    stopCalendarAutoScroll();
     setEdgeHint(null);
     if (!isTimelineDay(day, timelineStart, timelineEnd)) {
       return;
@@ -728,15 +890,10 @@ export function TimelineEditor({
           }
           return;
         }
-        const created = await createTimelineEvent(timeline.id, {
-          externalPlaceId: place.id,
-          category: toEventCategory(place.category),
-          startTime: start,
-          endTime: end,
-          orderIndex: dayEvents(day).length,
-          status: "PLANNED",
-        });
-        setEvents((current) => [...current, created]);
+        const orderIndex = dayEvents(day).length;
+        const optimisticEvent = buildOptimisticTimelineEvent(place, start, end, orderIndex);
+        setEvents((current) => [...current, optimisticEvent]);
+        persistCreatedEvent(optimisticEvent.id, place, start, end, orderIndex);
         return;
       }
 
@@ -749,7 +906,12 @@ export function TimelineEditor({
       if (!source) return;
       const duration = differenceMinutes(new Date(source.endTime), new Date(source.startTime));
       const movedEnd = toDateTimeInput(addMinutes(new Date(start), duration));
-      await moveEvent(source, start, movedEnd, dayEvents(day).length);
+      setEvents((current) =>
+        current.map((item) =>
+          item.id === source.id ? { ...item, startTime: start, endTime: movedEnd } : item,
+        ),
+      );
+      persistMovedEvent(source, start, movedEnd, dayEvents(day).length);
     } catch (dropError) {
       setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
       await reloadEvents();
@@ -1103,6 +1265,7 @@ export function TimelineEditor({
           ) : null}
 
           <div
+            ref={calendarScrollRef}
             className="relative mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-3xl border border-border bg-[radial-gradient(circle_at_top_left,oklch(0.68_0.19_270_/_0.12),transparent_34%),linear-gradient(180deg,var(--card),var(--background))] shadow-inner"
             onDragOver={handleCalendarDragOver}
             onDragLeave={handleDragLeave}
@@ -1142,7 +1305,7 @@ export function TimelineEditor({
                       available
                         ? "bg-card text-foreground"
                         : "timeline-invalid-header",
-                      isToday && "bg-primary/15",
+                      isToday && "timeline-today-header",
                     )}
                     style={{ height: calendarHeaderHeight }}
                   >

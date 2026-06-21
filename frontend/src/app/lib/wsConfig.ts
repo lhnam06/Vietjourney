@@ -10,7 +10,12 @@ export function buildWsUrl(path: string, params: QueryParams = {}) {
       : normalizedPath;
 
   const url = new URL(`${base.replace(/\/$/, "")}${pathForBase}`);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  
+  if (url.protocol === "https:" || window.location.protocol === "https:") {
+    url.protocol = "wss:";
+  } else if (url.protocol === "http:") {
+    url.protocol = "ws:";
+  }
 
   Object.entries(params).forEach(([key, value]) => {
     if (value != null) {
