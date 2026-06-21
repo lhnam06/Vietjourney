@@ -396,20 +396,86 @@ button {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
-@keyframes trip-panel-content-in {
+@keyframes trip-day-content-next {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
+    transform: translateX(18px) scale(0.985);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(0) scale(1);
   }
 }
 
-.trip-panel-content-in {
-  animation: trip-panel-content-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+@keyframes trip-day-content-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.trip-panel-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  transition:
+    opacity 300ms ease-out,
+    transform 300ms ease-out,
+    visibility 300ms linear;
+  will-change: opacity, transform;
+}
+
+.trip-panel-stage-collapsed {
+  align-items: center;
+}
+
+.trip-panel-stage-expanded {
+  transform-origin: top left;
+}
+
+.trip-panel-stage-active {
+  visibility: visible;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  pointer-events: auto;
+}
+
+.trip-panel-stage-collapsed.trip-panel-stage-inactive {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate3d(-10px, 0, 0) scale(0.985);
+  pointer-events: none;
+}
+
+.trip-panel-stage-expanded.trip-panel-stage-inactive {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate3d(12px, 0, 0) scale(0.985);
+  pointer-events: none;
+}
+
+.trip-day-viewport {
+  scroll-behavior: smooth;
+}
+
+.trip-day-content-stage {
+  will-change: opacity, transform;
+}
+
+.trip-day-content-next {
+  animation: trip-day-content-next 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.trip-day-content-prev {
+  animation: trip-day-content-prev 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .trip-panel-scroll {
@@ -424,7 +490,15 @@ button {
   .auth-panel-in,
   .auth-copy-in,
   .auth-side-in,
-  .trip-panel-content-in {
+  .trip-day-content-next,
+  .trip-day-content-prev {
     animation: none;
+  }
+
+  .trip-panel-stage,
+  .trip-day-content-stage,
+  .trip-day-viewport {
+    transition: none;
+    scroll-behavior: auto;
   }
 }
