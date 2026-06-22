@@ -60,7 +60,7 @@ public class CommunityService {
 
     @Transactional(readOnly = true)
     public Page<CommunityPostResponse> getFeed(String tab, String query, List<String> tags, Pageable pageable) {
-        User currentUser = getCurrentUser();
+        User currentUser = getOptionalCurrentUser();
         String normalizedQuery = normalizeNullable(query);
         List<String> normalizedTags = normalizeTags(tags);
         boolean queryBlank = normalizedQuery == null;
@@ -69,6 +69,9 @@ public class CommunityService {
         Page<CommunityPost> posts;
 
         if ("FOLLOWING".equalsIgnoreCase(tab)) {
+            if (currentUser == null) {
+                return Page.empty(pageable);
+            }
             List<String> authorIds = communityFollowRepository.findAllByFollowerId(currentUser.getId()).stream()
                     .map(follow -> follow.getFollowing().getId())
                     .toList();
@@ -100,7 +103,7 @@ public class CommunityService {
 
     @Transactional(readOnly = true)
     public CommunitySummaryResponse getSummary() {
-        User currentUser = getCurrentUser();
+        User currentUser = getOptionalCurrentUser();
         List<CommunityTagResponse> tags = communityPostTagRepository.findAll().stream()
                 .collect(Collectors.groupingBy(tag -> tag.getTag().toLowerCase(Locale.ROOT), Collectors.counting()))
                 .entrySet()
@@ -202,7 +205,7 @@ public class CommunityService {
     @Transactional(readOnly = true)
     public List<CommunityCommentResponse> getComments(String postId) {
         getPublishedPost(postId);
-        User currentUser = getCurrentUser();
+        User currentUser = getOptionalCurrentUser();
         return communityCommentRepository.findAllByPostIdOrderByCreatedAtDesc(postId).stream()
                 .map(comment -> toCommentResponse(comment, currentUser))
                 .toList();
@@ -300,6 +303,22 @@ public class CommunityService {
         return toPostResponse(post, currentUser);
     }
 
+    @Transactional
+    public void deletePost(String postId) {
+        User currentUser = getCurrentUser();
+        CommunityPost post = communityPostRepository.findById(postId)
+                .orElseThrow(() -> new AppException(ErrorCode.COMMUNITY_POST_NOT_EXIST));
+        
+        if (!post.getAuthor().getId().equals(currentUser.getId())) {
+            throw new AppException(ErrorCode.COMMUNITY_POST_ACCESS_DENIED);
+        }
+        
+        communityCommentRepository.deleteByPostId(postId);
+        communityPostInteractionRepository.deleteByPostId(postId);
+        communityPostRatingRepository.deleteByPostId(postId);
+        communityPostRepository.delete(post);
+    }
+
     private CommunityPost getPublishedPost(String postId) {
         return communityPostRepository.findById(postId)
                 .filter(post -> post.getStatus() == CommunityPostStatus.PUBLISHED)
@@ -317,7 +336,7 @@ public class CommunityService {
                 .map(CommunityPostTag::getTag)
                 .toList();
 
-        Integer myRating = communityPostRatingRepository.findByPostIdAndUserId(post.getId(), currentUser.getId())
+        Integer myRating = currentUser == null ? 0 : communityPostRatingRepository.findByPostIdAndUserId(post.getId(), currentUser.getId())
                 .map(CommunityPostRating::getRating)
                 .orElse(0);
 
@@ -338,18 +357,18 @@ public class CommunityService {
                 .copyCount(post.getCopyCount() == null ? 0 : post.getCopyCount())
                 .ratingAverage(roundOne(communityPostRatingRepository.averageRating(post.getId())))
                 .ratingCount(communityPostRatingRepository.countByPostId(post.getId()))
-                .likedByMe(communityPostInteractionRepository.existsByPostIdAndUserIdAndType(
+                .likedByMe(currentUser != null && communityPostInteractionRepository.existsByPostIdAndUserIdAndType(
                         post.getId(),
                         currentUser.getId(),
                         CommunityInteractionType.LIKE
                 ))
-                .savedByMe(communityPostInteractionRepository.existsByPostIdAndUserIdAndType(
+                .savedByMe(currentUser != null && communityPostInteractionRepository.existsByPostIdAndUserIdAndType(
                         post.getId(),
                         currentUser.getId(),
                         CommunityInteractionType.SAVE
                 ))
                 .myRating(myRating)
-                .currentUserId(currentUser.getId())
+                .currentUserId(currentUser != null ? currentUser.getId() : null)
                 .createdAt(post.getCreatedAt())
                 .build();
     }
@@ -369,7 +388,7 @@ public class CommunityService {
                 .username(author.getUsername())
                 .displayName(author.getDisplayName())
                 .verified(isVerified(author))
-                .followedByMe(!author.getId().equals(currentUser.getId())
+                .followedByMe(currentUser != null && !author.getId().equals(currentUser.getId())
                         && communityFollowRepository.existsByFollowerIdAndFollowingId(currentUser.getId(), author.getId()))
                 .followerCount(communityFollowRepository.countByFollowingId(author.getId()))
                 .postCount(communityPostRepository.countByAuthorIdAndStatus(author.getId(), CommunityPostStatus.PUBLISHED))
@@ -459,10 +478,18 @@ public class CommunityService {
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
         return userRepository.findByUsername(authentication.getName())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST));
+    }
+
+    private User getOptionalCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return null;
+        }
+        return userRepository.findByUsername(authentication.getName()).orElse(null);
     }
 }

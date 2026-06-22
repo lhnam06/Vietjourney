@@ -16,4 +16,6 @@ public interface CommunityPostRatingRepository extends JpaRepository<CommunityPo
 
     @Query("select coalesce(avg(r.rating), 0) from CommunityPostRating r where r.post.id = :postId")
     double averageRating(@Param("postId") String postId);
+
+    void deleteByPostId(String postId);
 }

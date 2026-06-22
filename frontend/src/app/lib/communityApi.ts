@@ -254,3 +254,12 @@ export function archiveCommunityPost(postId: string) {
     return result;
   });
 }
+
+export function deleteCommunityPost(postId: string) {
+  return apiFetch<void>(`/api/v1/community/posts/${postId}`, {
+    method: "DELETE",
+  }).then((result) => {
+    invalidateCommunityReadCaches();
+    return result;
+  });
+}
