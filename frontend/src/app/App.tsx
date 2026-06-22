@@ -10,6 +10,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { TripMapPage } from "./components/TripMapPage";
+import LandingPage from "./components/landing/LandingPage";
 import { clearAuthToken, getAuthToken } from "./lib/authApi";
 import { fetchCurrentUser, type CurrentUser, type Timeline } from "./lib/timelineApi";
 import type { Place } from "./lib/placesApi";
@@ -85,6 +86,8 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(hasInitialToken);
   const [isCheckingAuth, setIsCheckingAuth] = useState(hasInitialToken);
   const [showAuthPage, setShowAuthPage] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [showLandingPage, setShowLandingPage] = useState(!hasInitialToken);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [view, setView] = useState<AppView>(() => (hasInitialToken ? loadActiveView() : "explore"));
   const [editingTimeline, setEditingTimeline] = useState<Timeline | null>(null);
@@ -239,11 +242,18 @@ export default function App() {
   }
 
   function openLogin() {
+    setAuthMode("login");
+    setShowAuthPage(true);
+  }
+
+  function openRegister() {
+    setAuthMode("signup");
     setShowAuthPage(true);
   }
 
   function navigate(nextView: AppView) {
     if (!isAuthenticated && PROTECTED_VIEWS.includes(nextView)) {
+      setAuthMode("login");
       setShowAuthPage(true);
       return;
     }
@@ -254,6 +264,7 @@ export default function App() {
   async function completeAuthentication() {
     setIsAuthenticated(true);
     setShowAuthPage(false);
+    setShowLandingPage(false);
     setView("trips");
 
     try {
@@ -277,11 +288,37 @@ export default function App() {
   }
 
   if (showAuthPage) {
-    return <AuthPage onAuthenticated={() => void completeAuthentication()} />;
+    return <AuthPage initialMode={authMode} onAuthenticated={() => void completeAuthentication()} />;
   }
 
   if (isCheckingAuth) {
     return <AuthLoading />;
+  }
+
+  if (showLandingPage) {
+    return (
+      <LandingPage
+        isAuthenticated={isAuthenticated}
+        onStartPlanning={() => {
+          if (isAuthenticated) {
+            setView("trips");
+            setShowLandingPage(false);
+          } else {
+            openLogin();
+          }
+        }}
+        onExplore={() => {
+          setView("explore");
+          setShowLandingPage(false);
+        }}
+        onCommunity={() => {
+          setView("community");
+          setShowLandingPage(false);
+        }}
+        onLogin={openLogin}
+        onRegister={openRegister}
+      />
+    );
   }
 
   return (
