@@ -30,6 +30,7 @@ interface SidebarProps {
   onNavigate: (view: AppView) => void;
   onLogin: () => void;
   onLogout: () => void;
+  onLogoClick?: () => void;
 }
 
 export function Sidebar({
@@ -39,6 +40,7 @@ export function Sidebar({
   onNavigate,
   onLogin,
   onLogout,
+  onLogoClick,
 }: SidebarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -127,7 +129,10 @@ export function Sidebar({
             type="button"
             aria-label="VietJourney"
             aria-expanded={isMenuOpen}
-            onClick={openMenu}
+            onClick={() => {
+              if (onLogoClick) onLogoClick();
+              else openMenu();
+            }}
             className={cn(
               "flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-primary text-primary-foreground transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-95",
               isMenuOpen
@@ -138,11 +143,15 @@ export function Sidebar({
             <Navigation className="size-6" />
           </button>
 
-          <div
+          <button
+            type="button"
+            onClick={() => {
+              if (onLogoClick) onLogoClick();
+            }}
             className={cn(
-              "min-w-0 overflow-hidden transition-all duration-200",
+              "min-w-0 flex-col items-start overflow-hidden text-left transition-all duration-200 hover:opacity-80",
               isMenuOpen
-                ? "flex-1 translate-x-0 pl-4 opacity-100 delay-100"
+                ? "flex flex-1 translate-x-0 pl-4 opacity-100 delay-100"
                 : "pointer-events-none w-0 -translate-x-2 p-0 opacity-0",
             )}
           >
@@ -152,7 +161,7 @@ export function Sidebar({
             <p className="truncate text-xs text-muted-foreground">
               Travel planner for Vietnam
             </p>
-          </div>
+          </button>
 
           <button
             type="button"
