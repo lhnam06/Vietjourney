@@ -4,6 +4,9 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
 
+const CINEMATIC_EASE = "power2.inOut";
+const GENTLE_EASE = "sine.inOut";
+
 interface LandingMotionProps {
   rootRef: RefObject<HTMLElement>;
 }
@@ -31,7 +34,16 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
         gsap.fromTo(
           heroMedia,
           { autoAlpha: 0, x: 72, z: -100, rotationY: -13, rotationX: 4, scale: 0.94 },
-          { autoAlpha: 1, x: 0, z: 0, rotationY: 0, rotationX: 0, scale: 1, duration: 1.25, ease: "power4.out" },
+          {
+            autoAlpha: 1,
+            x: 0,
+            z: 0,
+            rotationY: 0,
+            rotationX: 0,
+            scale: 1,
+            duration: 1.55,
+            ease: CINEMATIC_EASE,
+          },
         );
 
         gsap.to(heroMedia, {
@@ -43,7 +55,7 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
             trigger: hero,
             start: "top top",
             end: "bottom top",
-            scrub: 1,
+            scrub: 2,
           },
         });
       }
@@ -59,7 +71,7 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
               trigger: hero,
               start: "top top",
               end: "bottom top",
-              scrub: 1.4,
+              scrub: 2.2,
             },
           });
         });
@@ -73,9 +85,9 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
             autoAlpha: 1,
             y: 0,
             rotationX: 0,
-            duration: 0.8,
-            stagger: 0.09,
-            ease: "power3.out",
+            duration: 1.25,
+            stagger: 0.12,
+            ease: GENTLE_EASE,
             scrollTrigger: {
               trigger: capabilityStrip,
               start: "top 88%",
@@ -103,8 +115,9 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
             z: 0,
             rotationX: 0,
             rotationY: 0,
-            duration: 1,
-            ease: "power3.out",
+            duration: 1.45,
+            delay: (index % 2) * 0.12,
+            ease: CINEMATIC_EASE,
             scrollTrigger: {
               trigger: card,
               start: "top 88%",
@@ -127,7 +140,7 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
               trigger: ".landing-how-photo",
               start: "top bottom",
               end: "bottom top",
-              scrub: 1.2,
+              scrub: 2,
             },
           },
         );
@@ -145,7 +158,7 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
               trigger: communityPanel,
               start: "top bottom",
               end: "bottom top",
-              scrub: 1.15,
+              scrub: 2,
             },
           },
         );
@@ -160,8 +173,8 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
             y: 0,
             z: 0,
             rotationX: 0,
-            duration: 1.05,
-            ease: "power3.out",
+            duration: 1.4,
+            ease: CINEMATIC_EASE,
             scrollTrigger: {
               trigger: communityPanel,
               start: "top 72%",
