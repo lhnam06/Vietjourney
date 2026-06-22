@@ -8,6 +8,8 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.2.9",
+    "@fontsource-variable/manrope": "^5.2.8",
     "@tailwindcss/vite": "^4.3.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
