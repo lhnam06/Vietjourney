@@ -1,4 +1,5 @@
 const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+import { clearReadCache } from "./readCache";
 interface ApiResponse<T> {
   code: number;
   message?: string;
@@ -86,10 +87,12 @@ export function getAuthToken() {
 
 export function saveAuthToken(token: string) {
   localStorage.setItem(authStorageKey, token);
+  clearReadCache();
 }
 
 export function clearAuthToken() {
   localStorage.removeItem(authStorageKey);
+  clearReadCache();
 }
 
 export function login(input: LoginInput) {
@@ -110,6 +113,9 @@ export function changePassword(input: ChangePasswordInput) {
   return authenticatedAuthFetch<UserInfo>("/api/v1/users/my-password", {
     method: "PATCH",
     body: JSON.stringify(input),
+  }).then((result) => {
+    clearReadCache();
+    return result;
   });
 }
 
@@ -117,5 +123,8 @@ export function changeDisplayName(input: ChangeDisplayNameInput) {
   return authenticatedAuthFetch<UserInfo>("/api/v1/users/my-display-name", {
     method: "PATCH",
     body: JSON.stringify(input),
+  }).then((result) => {
+    clearReadCache();
+    return result;
   });
 }
