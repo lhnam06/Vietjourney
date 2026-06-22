@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  archiveCommunityPost,
   copyCommunityTimeline,
   createCommunityComment,
   createCommunityPost,
@@ -238,13 +239,13 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   }
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-[#f7f9fc] text-slate-950">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-background text-foreground">
       <div className="grid min-h-full xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="min-w-0 border-r border-slate-200/80 px-5 pb-8 pt-6 lg:px-8">
+        <section className="min-w-0 border-r border-border px-5 pb-8 pt-6 lg:px-8">
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950">Cộng đồng</h1>
-              <div className="mt-5 flex gap-8 border-b border-slate-200">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Cộng đồng</h1>
+              <div className="mt-5 flex gap-8 border-b border-border">
                 <TabButton active={tab === "FOR_YOU"} onClick={() => setTab("FOR_YOU")}>
                   Dành cho bạn
                 </TabButton>
@@ -255,15 +256,15 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
             </div>
 
             <div className="flex min-w-[min(100%,520px)] flex-1 items-center justify-end gap-3">
-              <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">
-                <Search className="size-5 shrink-0 text-slate-400" />
+              <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-2xl border border-border bg-card px-4 shadow-sm">
+                <Search className="size-5 shrink-0 text-muted-foreground" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Tìm timeline, điểm đến, tag..."
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 />
-                <kbd className="hidden rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-400 sm:inline-flex">
+                <kbd className="hidden rounded-lg border border-border bg-background px-2 py-1 text-xs text-muted-foreground sm:inline-flex">
                   ⌘ K
                 </kbd>
               </div>
@@ -272,7 +273,9 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
                 onClick={() => setActiveTags([])}
                 className={cn(
                   "flex h-12 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold shadow-sm transition-colors",
-                  activeTags.length ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  activeTags.length
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-card text-foreground hover:bg-accent",
                 )}
               >
                 <Filter className="size-4" />
@@ -290,24 +293,24 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
           </header>
 
           {activeTags.length > 0 ? (
-            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-sm text-primary">
               <span className="font-semibold">Đang lọc theo:</span>
               {activeTags.map((tag) => (
-                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold">
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-xs font-bold text-foreground">
                   #{tag}
-                  <button type="button" onClick={() => setActiveTags((prev) => prev.filter((t) => t !== tag))} className="hover:text-blue-900">
+                  <button type="button" onClick={() => setActiveTags((prev) => prev.filter((t) => t !== tag))} className="hover:text-primary">
                     <X className="size-3" />
                   </button>
                 </span>
               ))}
-              <button type="button" onClick={() => setActiveTags([])} className="ml-auto text-xs font-bold underline hover:text-blue-900">
+              <button type="button" onClick={() => setActiveTags([])} className="ml-auto text-xs font-bold underline hover:text-primary">
                 Xóa bộ lọc
               </button>
             </div>
           ) : null}
 
           {error ? (
-            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
               {error}
             </div>
           ) : null}
@@ -338,7 +341,7 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
                   type="button"
                   onClick={() => void load(undefined, true)}
                   disabled={loading}
-                  className="mt-4 flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  className="mt-4 flex w-full items-center justify-center rounded-2xl border border-border bg-card py-3 text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-accent disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="size-4 animate-spin" /> : "Tải thêm"}
                 </button>
@@ -389,11 +392,11 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
       onClick={onClick}
       className={cn(
         "relative pb-3 text-sm font-semibold transition-colors",
-        active ? "text-blue-600" : "text-slate-500 hover:text-slate-900",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
-      {active ? <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-600" /> : null}
+      {active ? <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-primary" /> : null}
     </button>
   );
 }
@@ -422,25 +425,25 @@ function CommunityPostCard({
   const images = post.images.length ? post.images : [fallbackImage];
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="flex items-start gap-3 px-5 pt-5">
         <Avatar author={post.author} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-950">{authorName(post.author)}</span>
+            <span className="font-bold text-foreground">{authorName(post.author)}</span>
             {post.author.verified ? <CheckCircle2 className="size-4 fill-blue-600 text-white" /> : null}
-            <span className="text-sm text-slate-500">@{post.author.username}</span>
-            <span className="text-sm text-slate-400">·</span>
-            <span className="text-sm text-slate-500">{relativeTime(post.createdAt)}</span>
+            <span className="text-sm text-muted-foreground">@{post.author.username}</span>
+            <span className="text-sm text-muted-foreground/70">·</span>
+            <span className="text-sm text-muted-foreground">{relativeTime(post.createdAt)}</span>
           </div>
-          {post.caption ? <p className="mt-1 text-sm leading-relaxed text-slate-700">{post.caption}</p> : null}
+          {post.caption ? <p className="mt-1 text-sm leading-relaxed text-foreground/80">{post.caption}</p> : null}
         </div>
         <div className="relative">
-          <button type="button" onClick={() => setShowMenu(!showMenu)} aria-label="Tùy chọn bài viết" className="rounded-xl p-2 text-slate-500 hover:bg-slate-100">
+          <button type="button" onClick={() => setShowMenu(!showMenu)} aria-label="Tùy chọn bài viết" className="rounded-xl p-2 text-muted-foreground hover:bg-accent">
             <MoreHorizontal className="size-5" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 top-full z-10 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-lg">
+            <div className="absolute right-0 top-full z-10 mt-2 w-48 overflow-hidden rounded-2xl border border-border bg-card py-1 shadow-lg">
               {post.author.id === post.currentUserId ? (
                 <button
                   type="button"
@@ -448,7 +451,7 @@ function CommunityPostCard({
                     setShowMenu(false);
                     onArchive?.();
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
                 >
                   <Archive className="size-4" />
                   Lưu trữ bài viết
@@ -460,7 +463,7 @@ function CommunityPostCard({
                     setShowMenu(false);
                     toast.info("Đã gửi báo cáo vi phạm.");
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
                 >
                   <Flag className="size-4" />
                   Báo cáo vi phạm
@@ -475,28 +478,28 @@ function CommunityPostCard({
         <ImageGrid images={images} />
         <div className="flex min-w-0 flex-col justify-center">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-bold text-slate-950">{post.title}</h2>
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+            <h2 className="text-xl font-bold text-foreground">{post.title}</h2>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-foreground">
               <Star className="size-4 fill-amber-400 text-amber-400" />
               {post.ratingAverage.toFixed(1)}
-              <span className="font-normal text-slate-500">({post.ratingCount} đánh giá)</span>
+              <span className="font-normal text-muted-foreground">({post.ratingCount} đánh giá)</span>
             </span>
           </div>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-background/70">
             {post.itinerary.length ? (
               post.itinerary.slice(0, 3).map((day) => (
-                <div key={day.day} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 border-b border-slate-200 px-3 py-3 last:border-b-0">
-                  <span className="flex h-8 items-center justify-center rounded-xl border border-blue-100 bg-white text-sm font-semibold text-blue-600">
+                <div key={day.day} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 border-b border-border px-3 py-3 last:border-b-0">
+                  <span className="flex h-8 items-center justify-center rounded-xl border border-primary/20 bg-card text-sm font-semibold text-primary">
                     Ngày {day.day}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-slate-900">{day.title}</span>
-                    <span className="mt-0.5 block truncate text-xs text-slate-500">{day.summary || "Chưa có mô tả"}</span>
+                    <span className="block truncate text-sm font-semibold text-foreground">{day.title}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{day.summary || "Chưa có mô tả"}</span>
                   </span>
                 </div>
               ))
             ) : (
-              <div className="p-4 text-sm text-slate-500">Timeline này chưa có hoạt động chi tiết.</div>
+              <div className="p-4 text-sm text-muted-foreground">Timeline này chưa có hoạt động chi tiết.</div>
             )}
           </div>
         </div>
@@ -508,14 +511,14 @@ function CommunityPostCard({
             key={tag}
             type="button"
             onClick={() => onTagClick(tag)}
-            className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100"
+            className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/15"
           >
             #{tag}
           </button>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-3">
         <MetricButton active={post.likedByMe} icon={Heart} label={formatCount(post.likeCount)} onClick={onLike} />
         <MetricButton icon={MessageCircle} label={formatCount(post.commentCount)} onClick={onComment} />
         <MetricButton active={post.savedByMe} icon={Bookmark} label={formatCount(post.saveCount)} onClick={onSave} />
@@ -525,7 +528,7 @@ function CommunityPostCard({
               key={rating}
               type="button"
               onClick={() => onRate(rating)}
-              className="text-slate-300 transition-colors hover:text-amber-400"
+              className="text-muted-foreground/40 transition-colors hover:text-amber-400"
               aria-label={`Đánh giá ${rating} sao`}
             >
               <Star className={cn("size-4", rating <= Math.round(post.ratingAverage) ? "fill-amber-400 text-amber-400" : "")} />
@@ -536,12 +539,12 @@ function CommunityPostCard({
           type="button"
           disabled={busy}
           onClick={onCopy}
-          className="ml-auto flex h-10 min-w-56 items-center justify-center gap-2 rounded-xl border border-blue-600 px-5 text-sm font-bold text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-60"
+          className="ml-auto flex h-10 min-w-56 items-center justify-center gap-2 rounded-xl border border-primary px-5 text-sm font-bold text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-5" />}
           Sao chép lịch trình
         </button>
-        <button type="button" className="flex size-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100">
+        <button type="button" className="flex size-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent">
           <Share2 className="size-5" />
         </button>
       </div>
@@ -554,7 +557,7 @@ function ImageGrid({ images }: { images: string[] }) {
     <div className="grid h-56 grid-cols-[2fr_0.8fr_0.8fr] grid-rows-2 gap-1.5 overflow-hidden rounded-2xl">
       <img src={images[0] || fallbackImage} alt="Ảnh timeline" className="row-span-2 size-full object-cover" />
       {[1, 2, 3, 4].map((index) => (
-        <div key={index} className="relative overflow-hidden bg-slate-100">
+        <div key={index} className="relative overflow-hidden bg-muted">
           <img src={images[index] || images[0] || fallbackImage} alt="Ảnh timeline" className="size-full object-cover" />
           {index === 4 ? (
             <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-slate-950/75 px-2 py-1 text-xs font-semibold text-white">
@@ -585,7 +588,7 @@ function MetricButton({
       onClick={onClick}
       className={cn(
         "flex h-10 min-w-24 items-center gap-2 rounded-xl px-2 text-sm transition-colors",
-        active ? "text-blue-600" : "text-slate-600 hover:bg-slate-100",
+        active ? "text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
       <Icon className={cn("size-5", active && Icon === Heart ? "fill-blue-600" : "")} />
@@ -596,7 +599,7 @@ function MetricButton({
 
 function Avatar({ author }: { author: CommunityAuthor }) {
   return (
-    <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-100 to-sky-100 text-sm font-bold text-blue-700">
+    <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary/25 to-accent text-sm font-bold text-primary">
       {initial(authorName(author))}
     </span>
   );
@@ -613,10 +616,10 @@ function TrendingTags({ tags, onSelectTag }: { tags: CommunitySummary["trendingT
             key={item.tag}
             type="button"
             onClick={() => onSelectTag(item.tag)}
-            className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition-colors hover:border-blue-200 hover:bg-blue-50"
+            className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary/30 hover:bg-accent"
           >
-            <span className="font-semibold text-blue-600">#{item.tag}</span>
-            <span className="text-xs text-slate-500">{formatCount(item.count)}</span>
+            <span className="font-semibold text-primary">#{item.tag}</span>
+            <span className="text-xs text-muted-foreground">{formatCount(item.count)}</span>
           </button>
         ))}
       </div>
@@ -642,10 +645,10 @@ function FeaturedCreators({
               <Avatar author={author} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
-                  <p className="truncate text-sm font-bold text-slate-950">{authorName(author)}</p>
+                  <p className="truncate text-sm font-bold text-foreground">{authorName(author)}</p>
                   {author.verified ? <CheckCircle2 className="size-3.5 fill-blue-600 text-white" /> : null}
                 </div>
-                <p className="truncate text-xs text-slate-500">@{author.username}</p>
+                <p className="truncate text-xs text-muted-foreground">@{author.username}</p>
               </div>
               <button
                 type="button"
@@ -653,7 +656,7 @@ function FeaturedCreators({
                 onClick={() => onFollow(author)}
                 className={cn(
                   "rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-60",
-                  author.followedByMe ? "border-slate-200 text-slate-600" : "border-blue-300 text-blue-600 hover:bg-blue-50",
+                  author.followedByMe ? "border-border text-muted-foreground" : "border-primary/30 text-primary hover:bg-primary/10",
                 )}
               >
                 {busyId === author.id ? "..." : author.followedByMe ? "Đang theo dõi" : "Theo dõi"}
@@ -661,7 +664,7 @@ function FeaturedCreators({
             </div>
           ))
         ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Chưa có nhà sáng tạo nổi bật.</p>
+          <p className="rounded-xl bg-background/70 p-4 text-sm text-muted-foreground">Chưa có nhà sáng tạo nổi bật.</p>
         )}
       </div>
     </Panel>
@@ -675,14 +678,14 @@ function HotTimelines({ posts, onCopy }: { posts: CommunityPost[]; onCopy: (post
         {posts.length ? (
           posts.slice(0, 3).map((post, index) => (
             <button key={post.id} type="button" onClick={() => onCopy(post)} className="flex w-full items-center gap-3 text-left">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-600">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                 {index + 1}
               </span>
               <img src={post.images[0] || fallbackImage} alt={post.title} className="size-16 rounded-xl object-cover" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold text-slate-950">{post.title}</span>
-                <span className="mt-1 block truncate text-xs text-slate-500">{authorName(post.author)}</span>
-                <span className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                <span className="block truncate text-sm font-bold text-foreground">{post.title}</span>
+                <span className="mt-1 block truncate text-xs text-muted-foreground">{authorName(post.author)}</span>
+                <span className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <Star className="size-3.5 fill-amber-400 text-amber-400" />
                   {post.ratingAverage.toFixed(1)}
                   <span>{formatCount(post.copyCount)} sao chép</span>
@@ -691,7 +694,7 @@ function HotTimelines({ posts, onCopy }: { posts: CommunityPost[]; onCopy: (post
             </button>
           ))
         ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Chưa có timeline hot.</p>
+          <p className="rounded-xl bg-background/70 p-4 text-sm text-muted-foreground">Chưa có timeline hot.</p>
         )}
       </div>
     </Panel>
@@ -700,9 +703,9 @@ function HotTimelines({ posts, onCopy }: { posts: CommunityPost[]; onCopy: (post
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-bold text-slate-950">{title}</h2>
+        <h2 className="font-bold text-foreground">{title}</h2>
       </div>
       {children}
     </section>
@@ -762,16 +765,16 @@ function ShareTimelineModal({
   return (
     <ModalFrame title="Chia sẻ timeline" onClose={onClose}>
       {loading ? (
-        <div className="mt-6 h-40 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="mt-6 h-40 animate-pulse rounded-2xl bg-muted" />
       ) : (
         <div className="mt-6 space-y-4">
-          {error ? <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+          {error ? <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
           <label className="block">
-            <span className="text-sm font-semibold text-slate-800">Timeline</span>
+            <span className="text-sm font-semibold text-foreground">Timeline</span>
             <select
               value={timelineId}
               onChange={(event) => setTimelineId(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20"
             >
               {timelines.map((timeline) => (
                 <option key={timeline.id} value={timeline.id}>
@@ -781,32 +784,32 @@ function ShareTimelineModal({
             </select>
           </label>
           {selectedTimeline ? (
-            <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex gap-3 rounded-2xl border border-border bg-background/70 p-3">
               <img src={tripCoverImage(selectedTimeline)} alt={selectedTimeline.title} className="size-20 rounded-xl object-cover" />
               <div className="min-w-0">
-                <p className="truncate font-bold text-slate-950">{selectedTimeline.title}</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="truncate font-bold text-foreground">{selectedTimeline.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {selectedTimeline.events.length} hoạt động · {selectedTimeline.members.length} thành viên
                 </p>
               </div>
             </div>
           ) : null}
           <label className="block">
-            <span className="text-sm font-semibold text-slate-800">Mô tả chia sẻ</span>
+            <span className="text-sm font-semibold text-foreground">Mô tả chia sẻ</span>
             <textarea
               value={caption}
               onChange={(event) => setCaption(event.target.value)}
               placeholder="Kể một chút về chuyến đi này..."
-              className="mt-2 min-h-28 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="mt-2 min-h-28 w-full resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20"
             />
           </label>
           <label className="block">
-            <span className="text-sm font-semibold text-slate-800">Tag</span>
+            <span className="text-sm font-semibold text-foreground">Tag</span>
             <input
               value={tagText}
               onChange={(event) => setTagText(event.target.value)}
               placeholder="Danang, AmThuc, 3N2D"
-              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20"
             />
           </label>
           <button
@@ -867,28 +870,28 @@ function CommentsModal({
   return (
     <ModalFrame title="Bình luận" subtitle={post.title} onClose={onClose}>
       <div className="mt-5 space-y-3">
-        {error ? <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+        {error ? <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
         {loading ? (
-          <div className="h-32 animate-pulse rounded-2xl bg-slate-100" />
+          <div className="h-32 animate-pulse rounded-2xl bg-muted" />
         ) : comments.length ? (
           comments.map((comment) => (
-            <div key={comment.id} className="flex gap-3 rounded-2xl bg-slate-50 p-3">
+            <div key={comment.id} className="flex gap-3 rounded-2xl bg-background/70 p-3">
               <Avatar author={comment.author} />
               <div>
-                <p className="text-sm font-bold text-slate-950">{authorName(comment.author)}</p>
-                <p className="mt-1 text-sm text-slate-700">{comment.content}</p>
+                <p className="text-sm font-bold text-foreground">{authorName(comment.author)}</p>
+                <p className="mt-1 text-sm text-foreground/80">{comment.content}</p>
               </div>
             </div>
           ))
         ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Chưa có bình luận nào.</p>
+          <p className="rounded-xl bg-background/70 p-4 text-sm text-muted-foreground">Chưa có bình luận nào.</p>
         )}
         <div className="flex gap-2 pt-2">
           <input
             value={content}
             onChange={(event) => setContent(event.target.value)}
             placeholder="Viết bình luận..."
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20"
           />
           <button
             type="button"
@@ -917,13 +920,13 @@ function ModalFrame({
 }) {
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">{title}</h2>
-            {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+            <h2 className="text-xl font-bold text-foreground">{title}</h2>
+            {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100">
+          <button type="button" onClick={onClose} className="rounded-xl p-2 text-muted-foreground hover:bg-accent">
             <X className="size-5" />
           </button>
         </div>
@@ -937,7 +940,7 @@ function FeedSkeleton() {
   return (
     <div className="mt-5 space-y-4">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="h-80 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div key={index} className="h-80 animate-pulse rounded-2xl border border-border bg-card" />
       ))}
     </div>
   );
@@ -945,12 +948,12 @@ function FeedSkeleton() {
 
 function EmptyCommunityState({ onShare }: { onShare: () => void }) {
   return (
-    <div className="mt-8 rounded-2xl border border-dashed border-blue-200 bg-white p-10 text-center shadow-sm">
-      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+    <div className="mt-8 rounded-2xl border border-dashed border-primary/25 bg-card p-10 text-center shadow-sm">
+      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
         <Users className="size-7" />
       </div>
-      <h2 className="mt-5 text-xl font-bold text-slate-950">Chưa có timeline cộng đồng</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+      <h2 className="mt-5 text-xl font-bold text-foreground">Chưa có timeline cộng đồng</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
         Chia sẻ timeline đầu tiên để mọi người khám phá, lưu lại và sao chép lịch trình của bạn.
       </p>
       <button
