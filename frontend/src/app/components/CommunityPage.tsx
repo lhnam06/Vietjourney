@@ -19,10 +19,12 @@ import {
   X,
   Archive,
   Flag,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   archiveCommunityPost,
+  deleteCommunityPost,
   copyCommunityTimeline,
   createCommunityComment,
   createCommunityPost,
@@ -45,6 +47,8 @@ type FeedTab = "FOR_YOU" | "FOLLOWING";
 
 interface CommunityPageProps {
   onOpenTimeline?: (timeline: Timeline) => void;
+  isAuthenticated?: boolean;
+  onLogin?: () => void;
 }
 
 const fallbackImage = "https://images.unsplash.com/photo-1599839619722-39751411ea63?q=80&w=600&auto=format&fit=crop";
@@ -77,7 +81,7 @@ function normalizeTag(tag: string) {
   return tag.replace(/^#/, "");
 }
 
-export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
+export function CommunityPage({ onOpenTimeline, isAuthenticated, onLogin }: CommunityPageProps) {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [summary, setSummary] = useState<CommunitySummary | null>(null);
   const [tab, setTab] = useState<FeedTab>("FOR_YOU");
@@ -90,6 +94,19 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [commentsPost, setCommentsPost] = useState<CommunityPost | null>(null);
+
+  function requireAuth(): boolean {
+    if (!isAuthenticated) {
+      toast.error("Vui lòng đăng nhập để thực hiện chức năng này", {
+        action: onLogin ? {
+          label: "Đăng nhập",
+          onClick: onLogin,
+        } : undefined
+      });
+      return false;
+    }
+    return true;
+  }
 
   async function load(signal?: AbortSignal, isLoadMore = false) {
     if (!isLoadMore) {
@@ -155,6 +172,7 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   }
 
   async function runPostAction(postId: string, action: () => Promise<CommunityPost>, optimisticPost?: CommunityPost) {
+    if (!requireAuth()) return;
     setActionId(postId);
     setError(null);
     const originalPost = posts.find(p => p.id === postId);
@@ -171,6 +189,7 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   }
 
   async function archivePostAction(post: CommunityPost) {
+    if (!requireAuth()) return;
     if (!window.confirm("Bạn có chắc muốn lưu trữ bài viết này?")) return;
     setActionId(post.id);
     setError(null);
@@ -187,7 +206,26 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
     }
   }
 
+  async function deletePostAction(post: CommunityPost) {
+    if (!requireAuth()) return;
+    if (!window.confirm("Bạn có chắc muốn xóa vĩnh viễn bài viết này?")) return;
+    setActionId(post.id);
+    setError(null);
+    setPosts(current => current.filter(p => p.id !== post.id));
+    try {
+      await deleteCommunityPost(post.id);
+      toast.success("Đã xóa bài viết.");
+    } catch (deleteError) {
+      setPosts(current => [post, ...current]);
+      toast.error("Xóa thất bại.");
+      setError(deleteError instanceof Error ? deleteError.message : "Xóa thất bại.");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   async function copyTimeline(post: CommunityPost) {
+    if (!requireAuth()) return;
     if (!window.confirm("Bạn muốn sao chép lịch trình này về trang của mình?")) return;
     setActionId(`copy:${post.id}`);
     setError(null);
@@ -205,6 +243,7 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
   }
 
   async function followAuthor(author: CommunityAuthor) {
+    if (!requireAuth()) return;
     setActionId(`author:${author.id}`);
     setError(null);
     
@@ -284,7 +323,9 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
               <button
                 type="button"
                 aria-label="Chia sẻ timeline"
-                onClick={() => setShareOpen(true)}
+                onClick={() => {
+                  if (requireAuth()) setShareOpen(true);
+                }}
                 className="flex size-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_14px_30px_rgb(37_99_235_/_0.25)] transition-transform hover:-translate-y-0.5"
               >
                 <Edit3 className="size-5" />
@@ -328,12 +369,14 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
                   onLike={() => void runPostAction(post.id, () => toggleCommunityLike(post.id), { ...post, likedByMe: !post.likedByMe, likeCount: post.likeCount + (post.likedByMe ? -1 : 1) })}
                   onSave={() => void runPostAction(post.id, () => toggleCommunitySave(post.id), { ...post, savedByMe: !post.savedByMe, saveCount: post.saveCount + (post.savedByMe ? -1 : 1) })}
                   onRate={(rating) => {
+                    if (!requireAuth()) return;
                     if (post.myRating && post.myRating > 0) return;
                     void runPostAction(post.id, () => rateCommunityPost(post.id, rating), { ...post, myRating: rating, ratingCount: post.ratingCount + 1, ratingAverage: (post.ratingAverage * post.ratingCount + rating) / (post.ratingCount + 1) });
                   }}
                   onCopy={() => void copyTimeline(post)}
                   onComment={() => setCommentsPost(post)}
                   onArchive={() => void archivePostAction(post)}
+                  onDelete={() => void deletePostAction(post)}
                 />
               ))}
               {hasMore && (
@@ -348,7 +391,9 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
               )}
             </div>
           ) : (
-            <EmptyCommunityState onShare={() => setShareOpen(true)} />
+            <EmptyCommunityState onShare={() => {
+              if (requireAuth()) setShareOpen(true);
+            }} />
           )}
         </section>
 
@@ -377,6 +422,8 @@ export function CommunityPage({ onOpenTimeline }: CommunityPageProps) {
       {commentsPost ? (
         <CommentsModal
           post={commentsPost}
+          isAuthenticated={isAuthenticated}
+          onLogin={onLogin}
           onClose={() => setCommentsPost(null)}
           onCommented={() => replacePost({ ...commentsPost, commentCount: commentsPost.commentCount + 1 })}
         />
@@ -410,6 +457,8 @@ function CommunityPostCard({
   onRate,
   onCopy,
   onComment,
+  onArchive,
+  onDelete,
 }: {
   post: CommunityPost;
   busy: boolean;
@@ -420,6 +469,7 @@ function CommunityPostCard({
   onCopy: () => void;
   onComment: () => void;
   onArchive?: () => void;
+  onDelete?: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const images = post.images.length ? post.images : [fallbackImage];
@@ -445,17 +495,30 @@ function CommunityPostCard({
           {showMenu && (
             <div className="absolute right-0 top-full z-10 mt-2 w-48 overflow-hidden rounded-2xl border border-border bg-card py-1 shadow-lg">
               {post.author.id === post.currentUserId ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMenu(false);
-                    onArchive?.();
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
-                >
-                  <Archive className="size-4" />
-                  Lưu trữ bài viết
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onArchive?.();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+                  >
+                    <Archive className="size-4" />
+                    Lưu trữ bài viết
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onDelete?.();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
+                  >
+                    <Trash2 className="size-4" />
+                    Xóa bài viết
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
@@ -831,10 +894,14 @@ function CommentsModal({
   post,
   onClose,
   onCommented,
+  isAuthenticated,
+  onLogin,
 }: {
   post: CommunityPost;
   onClose: () => void;
-  onCommented: () => void;
+  onCommented?: () => void;
+  isAuthenticated?: boolean;
+  onLogin?: () => void;
 }) {
   const [comments, setComments] = useState<CommunityComment[]>([]);
   const [content, setContent] = useState("");
@@ -853,13 +920,17 @@ function CommentsModal({
   }, [post.id]);
 
   async function submit() {
+    if (!isAuthenticated) {
+      onLogin?.();
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const comment = await createCommunityComment(post.id, content);
       setComments((currentComments) => [...currentComments, comment]);
       setContent("");
-      onCommented();
+      onCommented?.();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Không gửi được bình luận.");
     } finally {

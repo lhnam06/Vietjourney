@@ -14,4 +14,6 @@ public interface CommunityPostInteractionRepository extends JpaRepository<Commun
     boolean existsByPostIdAndUserIdAndType(String postId, String userId, CommunityInteractionType type);
 
     Optional<CommunityPostInteraction> findByPostIdAndUserIdAndType(String postId, String userId, CommunityInteractionType type);
+
+    void deleteByPostId(String postId);
 }
