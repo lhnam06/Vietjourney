@@ -4,6 +4,9 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
 
+const CINEMATIC_EASE = "power2.inOut";
+const GENTLE_EASE = "sine.inOut";
+
 interface LandingMotionProps {
   rootRef: RefObject<HTMLElement>;
 }
@@ -21,7 +24,7 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
         gsap.fromTo(
           heroMedia,
           { autoAlpha: 0, y: 34, scale: 0.985 },
-          { autoAlpha: 1, y: 0, scale: 1, duration: 0.9, delay: 0.16, ease: "power3.out" },
+          { autoAlpha: 1, y: 0, scale: 1, duration: 1.15, delay: 0.14, ease: CINEMATIC_EASE },
         );
       }
 
@@ -30,7 +33,7 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
         gsap.fromTo(
           path,
           { strokeDasharray: length, strokeDashoffset: length },
-          { strokeDashoffset: 0, duration: 1.1, delay: 0.45, ease: "power2.out" },
+          { strokeDashoffset: 0, duration: 1.3, delay: 0.42, ease: GENTLE_EASE },
         );
       });
 
@@ -41,8 +44,8 @@ export function LandingMotion({ rootRef }: LandingMotionProps) {
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.7,
-            ease: "power3.out",
+            duration: 1,
+            ease: GENTLE_EASE,
             scrollTrigger: { trigger: card, start: "top 88%", once: true },
           },
         );
