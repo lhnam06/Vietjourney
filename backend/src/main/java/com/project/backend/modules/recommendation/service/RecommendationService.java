@@ -46,7 +46,7 @@ public class RecommendationService {
     private final RecommendationPlaceRepository placeRepository;
 
     @Transactional
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public InteractionRecordedResponse recordInteraction(PlaceInteractionRequest request) {
         return recordInteractions(PlaceInteractionBatchRequest.builder()
                 .interactions(List.of(request))
@@ -54,7 +54,7 @@ public class RecommendationService {
     }
 
     @Transactional
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public InteractionRecordedResponse recordInteractions(PlaceInteractionBatchRequest request) {
         User user = currentUser();
         int recorded = 0;
@@ -68,7 +68,7 @@ public class RecommendationService {
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public List<RecommendedPlaceResponse> recommendPlaces(int size) {
         long startNanos = System.nanoTime();
         User user = currentUser();
@@ -135,7 +135,7 @@ public class RecommendationService {
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public UserProfileResponse getMyProfile() {
         User user = currentUser();
         return UserProfileResponse.builder()

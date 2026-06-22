@@ -2,17 +2,16 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent
 import {
   ArrowLeft,
   CalendarDays,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   GripVertical,
+  Inbox,
   Loader2,
   MessageSquare,
   Plus,
   Sparkles,
   Trash2,
-  X,
 } from "lucide-react";
 import type { PlaceList } from "../App";
 import { getAuthToken } from "../lib/authApi";
@@ -25,7 +24,6 @@ import {
 } from "../lib/placesApi";
 import {
   createTimelineEvent,
-  decideTimelineProposal,
   deleteTimelineEvent,
   fetchPendingTimelineProposals,
   fetchTimelineEvents,
@@ -45,6 +43,8 @@ import { AgentPanel } from "./AgentPanel";
 import { ChatPanel } from "./ChatPanel";
 import { NewListModal } from "./Popups";
 import { listIcon } from "./ListPanel";
+import { ProposalDrawer } from "./ProposalDrawer";
+import { ProposalGhostCard } from "./ProposalGhostCard";
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const hours = Array.from({ length: 24 }, (_, index) => index);
@@ -68,9 +68,10 @@ const realtimeRefreshTypes = new Set([
   "EVENT_REORDERED",
   "EVENT_DELETED",
   "PROPOSAL_CREATED",
+  "PROPOSAL_UPDATED",
   "PROPOSAL_DECIDED",
 ]);
-const proposalRefreshTypes = new Set(["PROPOSAL_CREATED", "PROPOSAL_DECIDED"]);
+const proposalRefreshTypes = new Set(["PROPOSAL_CREATED", "PROPOSAL_UPDATED", "PROPOSAL_DECIDED"]);
 const realtimeFallbackPollMs = 3000;
 
 const eventCategoryTone: Record<TimelineEventCategory, {
@@ -152,8 +153,10 @@ export function TimelineEditor({
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isProposalDrawerOpen, setIsProposalDrawerOpen] = useState(false);
+  const [proposalRefreshVersion, setProposalRefreshVersion] = useState(0);
   const [pendingProposals, setPendingProposals] = useState<TimelineProposal[]>([]);
-  const [proposalActionId, setProposalActionId] = useState<string | null>(null);
+  const [suggestingPlaceId, setSuggestingPlaceId] = useState<string | null>(null);
   const edgeSwitchRef = useRef<number | null>(null);
   const edgeSwitchDirectionRef = useRef<"previous" | "next" | null>(null);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
@@ -376,10 +379,20 @@ export function TimelineEditor({
     await reloadEvents();
     if (options.includeProposals) {
       await reloadProposals();
+      setProposalRefreshVersion((current) => current + 1);
     }
     if (options.showNotice && options.actor && options.actor !== currentUser?.username) {
       setNotice("Timeline vừa được cập nhật bởi thành viên khác. Dữ liệu mới nhất đã được tải lại.");
     }
+  }
+
+  async function handleProposalDrawerChanged(message: string, eventsChanged: boolean) {
+    if (eventsChanged) {
+      await reloadEvents();
+    }
+    await reloadProposals();
+    setProposalRefreshVersion((current) => current + 1);
+    setNotice(message);
   }
 
   useEffect(() => {
@@ -692,7 +705,35 @@ export function TimelineEditor({
     setPendingProposals((current) =>
       current.some((item) => item.id === proposal.id) ? current : [proposal, ...current],
     );
+    setProposalRefreshVersion((current) => current + 1);
     setNotice(`Đã gửi yêu cầu thêm "${place.name}" cho người có quyền chỉnh sửa.`);
+  }
+
+  async function requestUnscheduledPlace(place: Place) {
+    if (!canRequestAdditions || suggestingPlaceId) return;
+    setSuggestingPlaceId(place.id);
+    setError(null);
+    try {
+      const proposal = await submitTimelineProposal(timeline.id, {
+        changeType: "ADD",
+        payload: {
+          externalPlaceId: place.id,
+          category: toEventCategory(place.category),
+          status: "PLANNED",
+        },
+        baseVersion: proposalBaseVersion,
+      });
+      setPendingProposals((current) =>
+        current.some((item) => item.id === proposal.id) ? current : [proposal, ...current],
+      );
+      setProposalRefreshVersion((current) => current + 1);
+      setNotice(`Đã gửi đề xuất "${place.name}". Người duyệt sẽ chọn thời gian phù hợp.`);
+      setIsProposalDrawerOpen(true);
+    } catch (proposalError) {
+      setError(proposalError instanceof Error ? proposalError.message : "Không gửi được đề xuất.");
+    } finally {
+      setSuggestingPlaceId(null);
+    }
   }
 
   async function handleColumnDrop(event: DragEvent, day: Date) {
@@ -910,47 +951,17 @@ export function TimelineEditor({
       .sort((first, second) => first.orderIndex - second.orderIndex);
   }
 
-  async function decidePendingProposal(proposal: TimelineProposal, status: "ACCEPTED" | "REJECTED") {
-    if (!canReviewProposals) return;
-
-    setProposalActionId(proposal.id);
-    setError(null);
-    setNotice(null);
-
-    try {
-      await decideTimelineProposal(timeline.id, proposal.id, status);
-      setPendingProposals((current) => current.filter((item) => item.id !== proposal.id));
-      if (status === "ACCEPTED") {
-        await reloadEvents();
-        setNotice("Đã chấp nhận yêu cầu và cập nhật lịch trình.");
-      } else {
-        setNotice("Đã từ chối yêu cầu thay đổi.");
-      }
-    } catch (proposalError) {
-      setError(proposalError instanceof Error ? proposalError.message : "Không xử lý được yêu cầu.");
-      await reloadProposals();
-    } finally {
-      setProposalActionId(null);
-    }
-  }
-
-  function proposalPlaceName(proposal: TimelineProposal) {
-    const placeId = typeof proposal.payload.externalPlaceId === "string" ? proposal.payload.externalPlaceId : "";
-    return placeById.get(placeId)?.name || (placeId ? `Địa điểm ${placeId}` : "Địa điểm mới");
-  }
-
-  function proposalTimeRange(proposal: TimelineProposal) {
-    const startTime = typeof proposal.payload.startTime === "string" ? proposal.payload.startTime : "";
-    const endTime = typeof proposal.payload.endTime === "string" ? proposal.payload.endTime : "";
-    if (!startTime || !endTime) return "Chưa có thời gian";
-
-    const startDate = new Date(startTime);
-    const endDate = new Date(endTime);
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      return "Chưa có thời gian";
-    }
-
-    return `${formatDateTimeCompact(startDate)} - ${formatTime(endDate)}`;
+  function dayProposals(day: Date) {
+    return pendingProposals
+      .filter((proposal) => {
+        const start = proposalStartDate(proposal);
+        return start ? sameDate(start, day) : false;
+      })
+      .sort((first, second) => {
+        const firstStart = proposalStartDate(first)?.getTime() || 0;
+        const secondStart = proposalStartDate(second)?.getTime() || 0;
+        return firstStart - secondStart;
+      });
   }
 
   function canDropOnDay(day: Date) {
@@ -1057,6 +1068,8 @@ export function TimelineEditor({
                 place={place}
                 onDragStart={(event) => handleDragStart(event, { kind: "place", placeId: place.id })}
                 onDragEnd={handleDragEnd}
+                onSuggest={canRequestAdditions ? () => void requestUnscheduledPlace(place) : undefined}
+                suggesting={suggestingPlaceId === place.id}
               />
             ))}
             {!savedPlaceCards.length ? (
@@ -1076,6 +1089,21 @@ export function TimelineEditor({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {currentRole ? (
+                <button
+                  type="button"
+                  onClick={() => setIsProposalDrawerOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                >
+                  <Inbox className="size-4" />
+                  Đề xuất
+                  {pendingProposals.length ? (
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
+                      {pendingProposals.length}
+                    </span>
+                  ) : null}
+                </button>
+              ) : null}
               <span
                 className={cn(
                   "rounded-xl border px-3 py-2 text-xs font-bold",
@@ -1129,70 +1157,6 @@ export function TimelineEditor({
           {notice ? (
             <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
               {notice}
-            </div>
-          ) : null}
-
-          {pendingProposals.length ? (
-            <div className="mt-4 rounded-2xl border border-border bg-background p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-bold text-foreground">Yêu cầu đang chờ</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {canReviewProposals
-                      ? "Duyệt các đề xuất thêm địa điểm trước khi cập nhật lịch trình chung."
-                      : "Các đề xuất của bạn đang chờ chủ chuyến đi hoặc biên tập viên duyệt."}
-                  </p>
-                </div>
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                  {pendingProposals.length} yêu cầu
-                </span>
-              </div>
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {pendingProposals.map((proposal) => (
-                  <article
-                    key={proposal.id}
-                    className="rounded-xl border border-border bg-card p-3 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-foreground">{proposalPlaceName(proposal)}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {proposal.authorUsername} · {proposalTimeRange(proposal)}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                        Chờ duyệt
-                      </span>
-                    </div>
-                    {canReviewProposals ? (
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          disabled={proposalActionId === proposal.id}
-                          onClick={() => void decidePendingProposal(proposal, "ACCEPTED")}
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {proposalActionId === proposal.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Check className="size-3.5" />
-                          )}
-                          Chấp nhận
-                        </button>
-                        <button
-                          type="button"
-                          disabled={proposalActionId === proposal.id}
-                          onClick={() => void decidePendingProposal(proposal, "REJECTED")}
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <X className="size-3.5" />
-                          Từ chối
-                        </button>
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
             </div>
           ) : null}
 
@@ -1337,6 +1301,17 @@ export function TimelineEditor({
                 style={{ left: timeColumnWidth, top: calendarHeaderHeight }}
               >
                 {weekDays.map((day, dayIndex) =>
+                  dayProposals(day).map((proposal, proposalIndex) => (
+                    <ProposalGhostCard
+                      key={proposal.id}
+                      proposal={proposal}
+                      dayIndex={dayIndex}
+                      stackIndex={proposalIndex}
+                      hourHeight={hourHeight}
+                    />
+                  )),
+                )}
+                {weekDays.map((day, dayIndex) =>
                   dayEvents(day).map((event) => (
                     <TimelineCard
                       key={event.id}
@@ -1434,6 +1409,16 @@ export function TimelineEditor({
         onClose={() => setIsChatOpen(false)}
         timelineId={timeline.id}
       />
+      <ProposalDrawer
+        open={isProposalDrawerOpen}
+        timelineId={timeline.id}
+        timelineStart={timeline.startDate}
+        timelineEnd={timeline.endDate}
+        currentRole={currentRole}
+        refreshVersion={proposalRefreshVersion}
+        onClose={() => setIsProposalDrawerOpen(false)}
+        onChanged={handleProposalDrawerChanged}
+      />
     </main>
   );
 }
@@ -1442,10 +1427,14 @@ function PlaceCard({
   place,
   onDragStart,
   onDragEnd,
+  onSuggest,
+  suggesting,
 }: {
   place: Place;
   onDragStart: (event: DragEvent) => void;
   onDragEnd: () => void;
+  onSuggest?: () => void;
+  suggesting: boolean;
 }) {
   return (
     <article
@@ -1464,9 +1453,22 @@ function PlaceCard({
           {categoryLabel(place.category)}
         </span>
       </div>
-      <button className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border text-primary">
-        <Plus className="size-5" />
-      </button>
+      {onSuggest ? (
+        <button
+          type="button"
+          disabled={suggesting}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSuggest();
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          aria-label={`Đề xuất ${place.name} chưa chọn giờ`}
+          title="Đề xuất địa điểm, chọn thời gian sau"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary transition hover:bg-primary/15 disabled:opacity-60"
+        >
+          {suggesting ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-5" />}
+        </button>
+      ) : null}
       <GripVertical className="size-5 shrink-0 text-muted-foreground" />
     </article>
   );
@@ -1640,6 +1642,13 @@ function parseDragPayload(event: DragEvent): DragPayload | null {
   }
 }
 
+function proposalStartDate(proposal: TimelineProposal) {
+  const value = proposal.payload.startTime;
+  if (typeof value !== "string" || !value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function setCardDragImage(
   event: DragEvent,
   payload: DragPayload,
@@ -1799,11 +1808,6 @@ function isWithinTimeline(start: Date, end: Date, timelineStart: Date, timelineE
 
 function formatShortDate(date: Date) {
   return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatDateTimeCompact(date: Date) {
-  if (Number.isNaN(date.getTime())) return "Chưa có thời gian";
-  return `${formatShortDate(date)} ${formatTime(date)}`;
 }
 
 function formatTime(date: Date) {

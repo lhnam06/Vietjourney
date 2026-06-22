@@ -5,7 +5,8 @@ export type TimelineEventCategory = "FOOD" | "DRINK" | "ACTIVITY";
 export type TimelineEventStatus = "PLANNED" | "CONFIRMED" | "CANCELLED";
 export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
 export type NotificationCategory = "TIMELINE" | "COLLABORATION" | "SYSTEM" | "RECOMMENDATION";
-export type TimelineProposalStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+export type TimelineProposalStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "OUTDATED";
+export type TimelineProposalReviewState = "READY" | "CONFLICT" | "UNSCHEDULED" | "PROCESSED";
 
 interface ApiResponse<T> {
   code: number;
@@ -167,13 +168,54 @@ export interface TimelineProposal {
   changeType: string;
   payload: Record<string, unknown>;
   status: TimelineProposalStatus;
+  reviewState: TimelineProposalReviewState;
+  placeName?: string | null;
+  placeAddress?: string | null;
+  conflictEventId?: string | null;
+  conflictReason?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface SubmitTimelineProposalInput {
   changeType: string;
   payload: Record<string, unknown>;
   baseVersion: number;
+}
+
+export interface TimelineProposalDateCount {
+  date: string;
+  count: number;
+}
+
+export interface TimelineProposalReviewSummary {
+  newToday: number;
+  ready: number;
+  conflict: number;
+  unscheduled: number;
+  processed: number;
+  byDate: TimelineProposalDateCount[];
+}
+
+export interface TimelineProposalReviewPage {
+  content: TimelineProposal[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  summary: TimelineProposalReviewSummary;
+}
+
+export interface TimelineProposalReviewQuery {
+  state?: TimelineProposalReviewState;
+  date?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface UpdateTimelineProposalScheduleInput {
+  startTime: string;
+  endTime: string;
 }
 
 const tokenKeys = [
@@ -394,6 +436,35 @@ export function submitTimelineProposal(timelineId: string, input: SubmitTimeline
 
 export function fetchPendingTimelineProposals(timelineId: string, signal?: AbortSignal) {
   return apiFetch<TimelineProposal[]>(`/api/v1/timelines/${timelineId}/proposals`, {}, signal);
+}
+
+export function fetchTimelineProposalReview(
+  timelineId: string,
+  query: TimelineProposalReviewQuery = {},
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams();
+  if (query.state) params.set("state", query.state);
+  if (query.date) params.set("date", query.date);
+  params.set("page", String(query.page ?? 0));
+  params.set("size", String(query.size ?? 20));
+
+  return apiFetch<TimelineProposalReviewPage>(
+    `/api/v1/timelines/${timelineId}/proposals/review?${params.toString()}`,
+    {},
+    signal,
+  );
+}
+
+export function updateTimelineProposalSchedule(
+  timelineId: string,
+  proposalId: string,
+  input: UpdateTimelineProposalScheduleInput,
+) {
+  return apiFetch<TimelineProposal>(`/api/v1/timelines/${timelineId}/proposals/${proposalId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
 export function decideTimelineProposal(
