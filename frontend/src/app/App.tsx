@@ -330,6 +330,7 @@ export default function App() {
         onNavigate={navigate}
         onLogin={openLogin}
         onLogout={logout}
+        onLogoClick={() => setShowLandingPage(true)}
       />
       {view === "timeline-editor" && editingTimeline ? (
         <TimelineEditor
