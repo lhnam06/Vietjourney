@@ -1,4 +1,7 @@
 const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+import { invalidateReadCacheKey, invalidateReadCachePrefix, readThroughCache } from "./readCache";
+import { readCacheKeys, readCachePrefixes } from "./readCacheKeys";
+
 export type TimelineVisibility = "PRIVATE" | "SHARED" | "PUBLIC_READ";
 export type TimelineMemberRole = "OWNER" | "EDITOR" | "VIEWER";
 export type TimelineEventCategory = "FOOD" | "DRINK" | "ACTIVITY";
@@ -227,18 +230,29 @@ const tokenKeys = [
   "VietJourney.token",
 ];
 
+const CURRENT_USER_CACHE_TTL_MS = 5 * 60_000;
+const MY_TIMELINES_CACHE_TTL_MS = 30_000;
+const TIMELINE_CACHE_TTL_MS = 30_000;
+const RECENT_NOTIFICATIONS_CACHE_TTL_MS = 15_000;
+const NOTIFICATIONS_CACHE_TTL_MS = 15_000;
+const UNREAD_NOTIFICATIONS_CACHE_TTL_MS = 15_000;
+
 function getStoredToken() {
   const stores = [localStorage, sessionStorage];
 
   for (const store of stores) {
     for (const key of tokenKeys) {
       const value = store.getItem(key);
-      if (value) return value.replace(/^Bearer\s+/i, "");
+      if (value) {
+        return value.replace(/^Bearer\s+/i, "");
+      }
     }
 
     for (const key of ["auth", "user", "session"]) {
       const raw = store.getItem(key);
-      if (!raw) continue;
+      if (!raw) {
+        continue;
+      }
 
       try {
         const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -253,6 +267,33 @@ function getStoredToken() {
   }
 
   return null;
+}
+
+function invalidateTimelineReadCaches() {
+  invalidateReadCacheKey(readCacheKeys.timelines());
+  invalidateReadCachePrefix(readCachePrefixes.timelineDetail);
+}
+
+function invalidateNotificationReadCaches() {
+  invalidateReadCacheKey(readCacheKeys.recentNotifications());
+  invalidateReadCachePrefix(readCachePrefixes.notifications);
+  invalidateReadCacheKey(readCacheKeys.unreadNotifications());
+}
+
+function buildNotificationParams(query: NotificationQuery = {}) {
+  const params = new URLSearchParams();
+  params.set("page", String(query.page ?? 0));
+  params.set("size", String(query.size ?? 20));
+  if (query.status) {
+    params.set("status", query.status);
+  }
+  if (query.category) {
+    params.set("category", query.category);
+  }
+  if (query.includeArchived) {
+    params.set("includeArchived", "true");
+  }
+  return params;
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}, signal?: AbortSignal) {
@@ -297,21 +338,39 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, signal?: AbortS
 }
 
 export function fetchCurrentUser(signal?: AbortSignal) {
-  return apiFetch<CurrentUser>("/api/v1/users/my-info", {}, signal);
+  return readThroughCache({
+    key: readCacheKeys.currentUser(),
+    ttlMs: CURRENT_USER_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<CurrentUser>("/api/v1/users/my-info"),
+  });
 }
 
 export function fetchMyTimelines(signal?: AbortSignal) {
-  return apiFetch<Timeline[]>("/api/v1/timelines/mine", {}, signal);
+  return readThroughCache({
+    key: readCacheKeys.timelines(),
+    ttlMs: MY_TIMELINES_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<Timeline[]>("/api/v1/timelines/mine"),
+  });
 }
 
 export function fetchTimeline(timelineId: string, signal?: AbortSignal) {
-  return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`, {}, signal);
+  return readThroughCache({
+    key: readCacheKeys.timeline(timelineId),
+    ttlMs: TIMELINE_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`),
+  });
 }
 
 export function createTimeline(input: TimelineInput) {
   return apiFetch<Timeline>("/api/v1/timelines", {
     method: "POST",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -319,18 +378,27 @@ export function updateTimeline(timelineId: string, input: TimelineInput) {
   return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`, {
     method: "PUT",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
 export function deleteTimeline(timelineId: string) {
   return apiFetch<void>(`/api/v1/timelines/${timelineId}`, {
     method: "DELETE",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
 export function duplicateTimeline(timelineId: string) {
   return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}/duplicate`, {
     method: "POST",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -341,12 +409,18 @@ export function upsertTimelineMember(
   return apiFetch<TimelineMember>(`/api/v1/timelines/${timelineId}/members`, {
     method: "PUT",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
 export function removeTimelineMember(timelineId: string, memberId: string) {
   return apiFetch<void>(`/api/v1/timelines/${timelineId}/members/${memberId}`, {
     method: "DELETE",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -357,6 +431,9 @@ export function resetTimelineInviteCode(
   return apiFetch<InviteCodeResult>(`/api/v1/timelines/${timelineId}/invite-code/reset`, {
     method: "POST",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -364,6 +441,9 @@ export function joinTimelineByCode(code: string) {
   return apiFetch<JoinByCodeResult>("/api/v1/timelines/join-by-code", {
     method: "POST",
     body: JSON.stringify({ code }),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -371,6 +451,9 @@ export function createTimelineEvent(timelineId: string, input: TimelineEventInpu
   return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events`, {
     method: "POST",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -396,6 +479,9 @@ export function moveTimelineEvent(
   return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/move`, {
     method: "PATCH",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -407,6 +493,9 @@ export function resizeTimelineEvent(
   return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/resize`, {
     method: "PATCH",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -418,12 +507,18 @@ export function reorderTimelineEvent(
   return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/reorder`, {
     method: "PATCH",
     body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
 export function deleteTimelineEvent(timelineId: string, eventId: string) {
   return apiFetch<void>(`/api/v1/timelines/${timelineId}/events/${eventId}`, {
     method: "DELETE",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
@@ -444,8 +539,12 @@ export function fetchTimelineProposalReview(
   signal?: AbortSignal,
 ) {
   const params = new URLSearchParams();
-  if (query.state) params.set("state", query.state);
-  if (query.date) params.set("date", query.date);
+  if (query.state) {
+    params.set("state", query.state);
+  }
+  if (query.date) {
+    params.set("date", query.date);
+  }
   params.set("page", String(query.page ?? 0));
   params.set("size", String(query.size ?? 20));
 
@@ -475,32 +574,41 @@ export function decideTimelineProposal(
   return apiFetch<void>(
     `/api/v1/timelines/${timelineId}/proposals/${proposalId}/decide?status=${status}`,
     { method: "PATCH" },
-  );
+  ).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
 }
 
-export async function fetchRecentNotifications(signal?: AbortSignal) {
-  const page = await fetchNotifications({ page: 0, size: 6 }, signal);
-
-  return page.content;
+export function fetchRecentNotifications(signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.recentNotifications(),
+    ttlMs: RECENT_NOTIFICATIONS_CACHE_TTL_MS,
+    signal,
+    loader: async () => {
+      const page = await fetchNotifications({ page: 0, size: 6 });
+      return page.content;
+    },
+  });
 }
 
 export function fetchNotifications(query: NotificationQuery = {}, signal?: AbortSignal) {
-  const params = new URLSearchParams();
-  params.set("page", String(query.page ?? 0));
-  params.set("size", String(query.size ?? 20));
-  if (query.status) params.set("status", query.status);
-  if (query.category) params.set("category", query.category);
-  if (query.includeArchived) params.set("includeArchived", "true");
-
-  return apiFetch<SpringPage<NotificationItem>>(
-    `/api/v1/notifications?${params.toString()}`,
-    {},
+  const params = buildNotificationParams(query);
+  return readThroughCache({
+    key: readCacheKeys.notifications(query),
+    ttlMs: NOTIFICATIONS_CACHE_TTL_MS,
     signal,
-  );
+    loader: () => apiFetch<SpringPage<NotificationItem>>(`/api/v1/notifications?${params.toString()}`),
+  });
 }
 
 export function fetchNotificationUnreadCount(signal?: AbortSignal) {
-  return apiFetch<NotificationUnreadCount>("/api/v1/notifications/unread-count", {}, signal);
+  return readThroughCache({
+    key: readCacheKeys.unreadNotifications(),
+    ttlMs: UNREAD_NOTIFICATIONS_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<NotificationUnreadCount>("/api/v1/notifications/unread-count"),
+  });
 }
 
 export function fetchNotificationPreferences(signal?: AbortSignal) {
@@ -520,18 +628,27 @@ export function updateNotificationPreference(
 export function markNotificationAsRead(notificationId: string) {
   return apiFetch<NotificationItem>(`/api/v1/notifications/${notificationId}/read`, {
     method: "PATCH",
+  }).then((result) => {
+    invalidateNotificationReadCaches();
+    return result;
   });
 }
 
 export function markAllNotificationsAsRead() {
   return apiFetch<void>("/api/v1/notifications/read-all", {
     method: "PATCH",
+  }).then((result) => {
+    invalidateNotificationReadCaches();
+    return result;
   });
 }
 
 export function archiveNotification(notificationId: string) {
   return apiFetch<void>(`/api/v1/notifications/${notificationId}`, {
     method: "DELETE",
+  }).then((result) => {
+    invalidateNotificationReadCaches();
+    return result;
   });
 }
 
