@@ -1331,7 +1331,7 @@
 .landing-footer-inner > div button { color: var(--lp-muted); font-size: 0.72rem; font-weight: 680; }
 .landing-footer-inner > div button:hover { color: var(--lp-ink); }
 
-.landing-reveal { opacity: 0; transform: translate3d(0, var(--reveal-distance), 0); transition: opacity 650ms cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay), transform 650ms cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay); }
+.landing-reveal { opacity: 0; transform: translate3d(0, var(--reveal-distance), 0); transition: opacity 900ms cubic-bezier(0.45, 0, 0.55, 1) var(--reveal-delay), transform 900ms cubic-bezier(0.45, 0, 0.55, 1) var(--reveal-delay); }
 .landing-reveal.is-visible { opacity: 1; transform: translate3d(0, 0, 0); }
 
 @keyframes landing-panel-in {
@@ -1340,11 +1340,11 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .landing-hero-copy > * { animation: landing-copy-in 680ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .landing-hero-copy > :nth-child(2) { animation-delay: 60ms; }
-  .landing-hero-copy > :nth-child(3) { animation-delay: 110ms; }
-  .landing-hero-copy > :nth-child(4) { animation-delay: 160ms; }
-  .landing-hero-copy > :nth-child(5) { animation-delay: 210ms; }
+  .landing-hero-copy > * { animation: landing-copy-in 900ms cubic-bezier(0.45, 0, 0.55, 1) both; }
+  .landing-hero-copy > :nth-child(2) { animation-delay: 90ms; }
+  .landing-hero-copy > :nth-child(3) { animation-delay: 180ms; }
+  .landing-hero-copy > :nth-child(4) { animation-delay: 270ms; }
+  .landing-hero-copy > :nth-child(5) { animation-delay: 360ms; }
 }
 
 @keyframes landing-copy-in {
