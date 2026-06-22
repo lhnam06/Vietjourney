@@ -59,6 +59,7 @@ const dragAutoScrollZone = 112;
 const dragAutoScrollMaxSpeed = 14;
 const defaultDropDurationMinutes = 90;
 const snapMinutes = 15;
+const optimisticEventPrefix = "optimistic-event-";
 const realtimeRefreshTypes = new Set([
   "TIMELINE_EVENTS_CHANGED",
   "TIMELINE_UPDATED",
@@ -498,6 +499,78 @@ export function TimelineEditor({
     setDropPreview(null);
   }
 
+  function runAfterNextPaint(task: () => void) {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(task, 0);
+    });
+  }
+
+  function buildOptimisticTimelineEvent(
+    place: Place,
+    startTime: string,
+    endTime: string,
+    orderIndex: number,
+  ): TimelineEvent {
+    return {
+      id: `${optimisticEventPrefix}${place.id}-${Date.now()}`,
+      externalPlaceId: place.id,
+      place: {
+        id: place.id,
+        name: place.name,
+        address: place.address ?? null,
+        rating: place.rating ?? null,
+        latitude: place.latitude ?? null,
+        longitude: place.longitude ?? null,
+        district: place.district ?? null,
+        imageUrl: placeImage(place),
+      },
+      category: toEventCategory(place.category),
+      startTime,
+      endTime,
+      orderIndex,
+      status: "PLANNED",
+      version: 0,
+    };
+  }
+
+  function replaceOptimisticEvent(optimisticId: string, nextEvent: TimelineEvent) {
+    setEvents((current) => current.map((item) => (item.id === optimisticId ? nextEvent : item)));
+  }
+
+  function persistCreatedEvent(optimisticId: string, place: Place, startTime: string, endTime: string, orderIndex: number) {
+    setSavingId(optimisticId);
+    runAfterNextPaint(() => {
+      void createTimelineEvent(timeline.id, {
+        externalPlaceId: place.id,
+        category: toEventCategory(place.category),
+        startTime,
+        endTime,
+        orderIndex,
+        status: "PLANNED",
+      })
+        .then((created) => {
+          replaceOptimisticEvent(optimisticId, created);
+        })
+        .catch(async (createError) => {
+          setEvents((current) => current.filter((item) => item.id !== optimisticId));
+          setError(createError instanceof Error ? createError.message : "Khong cap nhat duoc lich trinh.");
+          await reloadEvents();
+        })
+        .finally(() => {
+          setSavingId((current) => (current === optimisticId ? null : current));
+        });
+    });
+  }
+
+  function persistMovedEvent(source: TimelineEvent, startTime: string, endTime: string, orderIndex?: number) {
+    runAfterNextPaint(() => {
+      void moveEvent(source, startTime, endTime, orderIndex).catch(async (moveError) => {
+        setError(moveError instanceof Error ? moveError.message : "Khong cap nhat duoc lich trinh.");
+        await reloadEvents();
+      });
+    });
+  }
+
   function queueDropPreview(next: DropPreview) {
     pendingDropPreviewRef.current = next;
     if (dropPreviewFrameRef.current) return;
@@ -777,18 +850,13 @@ export function TimelineEditor({
           return;
         }
 
-        const created = await createTimelineEvent(timeline.id, {
-          externalPlaceId: place.id,
-          category: toEventCategory(place.category),
-          startTime: start,
-          endTime: end,
-          orderIndex: dayEvents(day).length,
-          status: "PLANNED",
-        });
-        setEvents((current) => [...current, created]);
+        const orderIndex = dayEvents(day).length;
+        const optimisticEvent = buildOptimisticTimelineEvent(place, start, end, orderIndex);
+        setEvents((current) => [...current, optimisticEvent]);
         setDraggedPlaceId(null);
         setDeleteZoneActive(false);
         clearDropPreview();
+        persistCreatedEvent(optimisticEvent.id, place, start, end, orderIndex);
         return;
       }
 
@@ -803,10 +871,10 @@ export function TimelineEditor({
           item.id === source.id ? { ...item, startTime: start, endTime: end } : item,
         ),
       );
-      await moveEvent(source, start, end, dayEvents(day).length);
       setDraggedEventId(null);
       setDeleteZoneActive(false);
       clearDropPreview();
+      persistMovedEvent(source, start, end, dayEvents(day).length);
     } catch (dropError) {
       setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
       clearDropPreview();
@@ -863,15 +931,10 @@ export function TimelineEditor({
           }
           return;
         }
-        const created = await createTimelineEvent(timeline.id, {
-          externalPlaceId: place.id,
-          category: toEventCategory(place.category),
-          startTime: start,
-          endTime: end,
-          orderIndex: dayEvents(day).length,
-          status: "PLANNED",
-        });
-        setEvents((current) => [...current, created]);
+        const orderIndex = dayEvents(day).length;
+        const optimisticEvent = buildOptimisticTimelineEvent(place, start, end, orderIndex);
+        setEvents((current) => [...current, optimisticEvent]);
+        persistCreatedEvent(optimisticEvent.id, place, start, end, orderIndex);
         return;
       }
 
@@ -884,7 +947,12 @@ export function TimelineEditor({
       if (!source) return;
       const duration = differenceMinutes(new Date(source.endTime), new Date(source.startTime));
       const movedEnd = toDateTimeInput(addMinutes(new Date(start), duration));
-      await moveEvent(source, start, movedEnd, dayEvents(day).length);
+      setEvents((current) =>
+        current.map((item) =>
+          item.id === source.id ? { ...item, startTime: start, endTime: movedEnd } : item,
+        ),
+      );
+      persistMovedEvent(source, start, movedEnd, dayEvents(day).length);
     } catch (dropError) {
       setError(dropError instanceof Error ? dropError.message : "Không cập nhật được lịch trình.");
       await reloadEvents();
