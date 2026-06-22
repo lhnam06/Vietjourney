@@ -66,7 +66,7 @@ public class UserService {
         return userMapper.toUserResponse(user);
     }
 
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public UserResponse updateDisplayName(String userID, ChangeDisplaynameRequest request){
         User user = userRepository.findById(userID).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST));
         user.setDisplayName(request.getDisplayName());
@@ -74,7 +74,7 @@ public class UserService {
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public UserResponse changePassword(String userID, ChangePasswordRequest request){
         User user = userRepository.findById(userID).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXIST));
         boolean oldPasswordMatch = passwordEncoder.matches(request.getOldPassword(), user.getPassword());
@@ -91,7 +91,7 @@ public class UserService {
         return userRepository.findAll().stream().map(userMapper::toUserResponse).toList();
     }
 
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public UserResponse getMyInfo(){
         var context = SecurityContextHolder.getContext();
         String name = context.getAuthentication().getName();

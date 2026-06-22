@@ -2,8 +2,11 @@ package com.project.backend.modules.timeline.controller;
 
 import com.project.backend.common.dto.ApiResponse;
 import com.project.backend.modules.timeline.dto.request.SubmitProposalRequest;
+import com.project.backend.modules.timeline.dto.request.UpdateTimelineProposalScheduleRequest;
 import com.project.backend.modules.timeline.dto.response.TimelineProposalResponse;
+import com.project.backend.modules.timeline.dto.response.TimelineProposalReviewPageResponse;
 import com.project.backend.modules.timeline.entity.TimelineProposal;
+import com.project.backend.modules.timeline.enums.TimelineProposalReviewState;
 import com.project.backend.modules.timeline.enums.TimelineProposalStatus;
 import com.project.backend.modules.timeline.service.TimelineProposalService;
 import jakarta.validation.Valid;
@@ -13,7 +16,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/v1/timelines/{timelineId}/proposals")
@@ -33,16 +36,37 @@ public class TimelineProposalController {
                 request.getBaseVersion()
         );
         return ApiResponse.<TimelineProposalResponse>builder()
-                .result(mapToResponse(proposal))
+                .result(timelineProposalService.toResponse(proposal))
                 .build();
     }
 
     @GetMapping
     public ApiResponse<List<TimelineProposalResponse>> getPendingProposals(
             @PathVariable String timelineId) {
-        List<TimelineProposal> proposals = timelineProposalService.getPendingProposals(timelineId);
         return ApiResponse.<List<TimelineProposalResponse>>builder()
-                .result(proposals.stream().map(this::mapToResponse).collect(Collectors.toList()))
+                .result(timelineProposalService.getPendingProposals(timelineId))
+                .build();
+    }
+
+    @GetMapping("/review")
+    public ApiResponse<TimelineProposalReviewPageResponse> getReviewPage(
+            @PathVariable String timelineId,
+            @RequestParam(required = false) TimelineProposalReviewState state,
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.<TimelineProposalReviewPageResponse>builder()
+                .result(timelineProposalService.getReviewPage(timelineId, state, date, page, size))
+                .build();
+    }
+
+    @PatchMapping("/{proposalId}")
+    public ApiResponse<TimelineProposalResponse> updateSchedule(
+            @PathVariable String timelineId,
+            @PathVariable String proposalId,
+            @RequestBody @Valid UpdateTimelineProposalScheduleRequest request) {
+        return ApiResponse.<TimelineProposalResponse>builder()
+                .result(timelineProposalService.updateSchedule(timelineId, proposalId, request))
                 .build();
     }
 
@@ -53,19 +77,5 @@ public class TimelineProposalController {
             @RequestParam TimelineProposalStatus status) {
         timelineProposalService.decideProposal(timelineId, proposalId, status);
         return ApiResponse.<Void>builder().build();
-    }
-
-    private TimelineProposalResponse mapToResponse(TimelineProposal proposal) {
-        return TimelineProposalResponse.builder()
-                .id(proposal.getId())
-                .timelineId(proposal.getTimeline().getId())
-                .authorId(proposal.getAuthor().getId())
-                .authorUsername(proposal.getAuthor().getUsername())
-                .baseVersion(proposal.getBaseVersion())
-                .changeType(proposal.getChangeType())
-                .payload(proposal.getPayload())
-                .status(proposal.getStatus())
-                .createdAt(proposal.getCreatedAt())
-                .build();
     }
 }
