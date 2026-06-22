@@ -28,7 +28,6 @@ public class CommunityController {
     CommunityService communityService;
 
     @GetMapping("/posts")
-    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public ApiResponse<Page<CommunityPostResponse>> getPosts(
             @RequestParam(defaultValue = "FOR_YOU") String tab,
             @RequestParam(required = false) String query,
@@ -47,7 +46,6 @@ public class CommunityController {
     }
 
     @GetMapping("/summary")
-    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public ApiResponse<CommunitySummaryResponse> getSummary() {
         return ApiResponse.<CommunitySummaryResponse>builder()
                 .result(communityService.getSummary())
@@ -90,7 +88,6 @@ public class CommunityController {
     }
 
     @GetMapping("/posts/{postId}/comments")
-    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
     public ApiResponse<List<CommunityCommentResponse>> getComments(@PathVariable String postId) {
         return ApiResponse.<List<CommunityCommentResponse>>builder()
                 .result(communityService.getComments(postId))
@@ -130,5 +127,12 @@ public class CommunityController {
         return ApiResponse.<CommunityPostResponse>builder()
                 .result(communityService.archivePost(postId))
                 .build();
+    }
+
+    @DeleteMapping("/posts/{postId}")
+    @PreAuthorize("hasAnyRole('USER', 'LEADER', 'ADMIN')")
+    public ApiResponse<Void> deletePost(@PathVariable String postId) {
+        communityService.deletePost(postId);
+        return ApiResponse.<Void>builder().build();
     }
 }

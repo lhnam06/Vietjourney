@@ -1,6 +1,8 @@
 const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
 import { getAuthToken } from "./authApi";
 import type { Place } from "./placesApi";
+import { readThroughCache } from "./readCache";
+import { readCacheKeys } from "./readCacheKeys";
 
 interface ApiResponse<T> {
   code: number;
@@ -15,6 +17,8 @@ interface PlaceInteractionInput {
   eventType: RecommendationEventType;
 }
 
+const RECOMMENDATION_CACHE_TTL_MS = 60_000;
+
 function authHeaders() {
   const token = getAuthToken();
   return {
@@ -23,19 +27,25 @@ function authHeaders() {
   };
 }
 
-export async function fetchRecommendedPlaces(size = 12, signal?: AbortSignal) {
-  const response = await fetch(_getApiBase() + `/api/v1/recommendations/places?size=${size}`, {
-    method: "GET",
+export function fetchRecommendedPlaces(size = 12, signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.recommendedPlaces(size),
+    ttlMs: RECOMMENDATION_CACHE_TTL_MS,
     signal,
-    headers: authHeaders(),
+    loader: async () => {
+      const response = await fetch(_getApiBase() + `/api/v1/recommendations/places?size=${size}`, {
+        method: "GET",
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Không tải được gợi ý (${response.status})`);
+      }
+
+      const payload = (await response.json()) as ApiResponse<Place[]>;
+      return payload.result;
+    },
   });
-
-  if (!response.ok) {
-    throw new Error(`Không tải được gợi ý (${response.status})`);
-  }
-
-  const payload = (await response.json()) as ApiResponse<Place[]>;
-  return payload.result;
 }
 
 export async function recordPlaceInteraction({ place, eventType }: PlaceInteractionInput) {

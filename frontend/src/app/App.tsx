@@ -366,7 +366,7 @@ export default function App() {
           onOpenTimeline={openTimelineEditor}
         />
       ) : view === "community" ? (
-        <CommunityPage onOpenTimeline={openTimelineEditor} />
+        <CommunityPage onOpenTimeline={openTimelineEditor} isAuthenticated={isAuthenticated} onLogin={openLogin} />
       ) : view === "profile" ? (
         <Profile
           savedPlaces={savedPlaces}

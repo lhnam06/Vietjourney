@@ -12,6 +12,8 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import type { PlaceList } from "../App";
 import { getAuthToken } from "../lib/authApi";
@@ -155,6 +157,7 @@ export function TimelineEditor({
   const [isAgentOpen, setIsAgentOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isProposalDrawerOpen, setIsProposalDrawerOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [proposalRefreshVersion, setProposalRefreshVersion] = useState(0);
   const [pendingProposals, setPendingProposals] = useState<TimelineProposal[]>([]);
   const [suggestingPlaceId, setSuggestingPlaceId] = useState<string | null>(null);
@@ -1040,112 +1043,157 @@ export function TimelineEditor({
 
   return (
     <main className="min-w-0 flex-1 overflow-hidden bg-background px-4 pb-4 pt-8 lg:px-5">
-      <div className="grid h-[calc(100vh-3rem)] min-h-0 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/15"
-            >
-              <ArrowLeft className="size-4" />
-              Chuyến đi của tôi
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsNewListOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_10px_24px_oklch(0.515_0.22_277_/_0.22)] transition hover:-translate-y-0.5 hover:opacity-95"
-            >
-              <Plus className="size-4" />
-              Tạo mới
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-xl border border-border bg-background px-4 py-3">
-            <p className="text-xs text-muted-foreground">Đang chỉnh sửa</p>
-            <h1 className="mt-1 truncate text-lg font-bold text-foreground">{timeline.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatShortDate(timelineStart)} - {formatShortDate(timelineEnd)}
-            </p>
-          </div>
-
-          <div className="mt-3 rounded-xl border border-border bg-background/80 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Quyền của bạn</p>
-              <span className={cn("rounded-full border px-3 py-1 text-xs font-bold", roleBadgeClass)}>
-                {roleLabel}
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{permissionHint}</p>
-          </div>
-
-          <div className="relative mt-4">
-            <button
-              type="button"
-              onClick={() => setIsListMenuOpen((open) => !open)}
-              className="flex h-12 w-full items-center justify-between rounded-xl border border-border bg-background px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <ActiveListIcon className="size-4" />
-                </span>
-                <span className="truncate">{activeList?.name || "Danh sách"}</span>
-              </span>
-              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-            </button>
-            {isListMenuOpen ? (
-              <div className="absolute left-0 right-0 top-14 z-30 max-h-64 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
-                {placeLists.map((list) => (
+      <div className={cn("grid h-[calc(100vh-3rem)] min-h-0 gap-4 transition-[grid-template-columns] duration-300", isSidebarOpen ? "xl:grid-cols-[360px_minmax(0,1fr)]" : "xl:grid-cols-[72px_minmax(0,1fr)]")}>
+        <aside className={cn("flex min-h-0 flex-col rounded-2xl border border-border bg-card shadow-sm transition-all duration-300", isSidebarOpen ? "p-4" : "p-3 items-center justify-between")}>
+          {isSidebarOpen ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/15"
+                >
+                  <ArrowLeft className="size-4" />
+                  Chuyến đi của tôi
+                </button>
+                <div className="flex items-center gap-2">
                   <button
-                    key={list.id}
                     type="button"
-                    onClick={() => {
-                      onSelectList(list.id);
-                      setIsListMenuOpen(false);
-                    }}
-                    className={cn(
-                      "flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-medium transition-colors",
-                      list.id === activeList?.id
-                        ? "bg-primary text-primary-foreground"
-                        : "text-foreground hover:bg-accent",
-                    )}
+                    onClick={() => setIsNewListOpen(true)}
+                    className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_10px_24px_oklch(0.515_0.22_277_/_0.22)] transition hover:-translate-y-0.5 hover:opacity-95"
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {(() => {
-                        const Icon = listIcon(list.icon);
-                        return <Icon className="size-4 shrink-0" />;
-                      })()}
-                      <span className="truncate">{list.name}</span>
-                    </span>
-                    <span className="ml-3 text-xs opacity-75">{list.places.length}</span>
+                    <Plus className="size-4" />
+                    Tạo mới
                   </button>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-border bg-background px-4 py-3">
+                <p className="text-xs text-muted-foreground">Đang chỉnh sửa</p>
+                <h1 className="mt-1 truncate text-lg font-bold text-foreground">{timeline.title}</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {formatShortDate(timelineStart)} - {formatShortDate(timelineEnd)}
+                </p>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-border bg-background/80 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Quyền của bạn</p>
+                  <span className={cn("rounded-full border px-3 py-1 text-xs font-bold", roleBadgeClass)}>
+                    {roleLabel}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{permissionHint}</p>
+              </div>
+
+              <div className="relative mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsListMenuOpen((open) => !open)}
+                  className="flex h-12 w-full items-center justify-between rounded-xl border border-border bg-background px-4 text-left text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/35 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <ActiveListIcon className="size-4" />
+                    </span>
+                    <span className="truncate">{activeList?.name || "Danh sách"}</span>
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+                {isListMenuOpen ? (
+                  <div className="absolute left-0 right-0 top-14 z-30 max-h-64 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                    {placeLists.map((list) => (
+                      <button
+                        key={list.id}
+                        type="button"
+                        onClick={() => {
+                          onSelectList(list.id);
+                          setIsListMenuOpen(false);
+                        }}
+                        className={cn(
+                          "flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-medium transition-colors",
+                          list.id === activeList?.id
+                            ? "bg-primary text-primary-foreground"
+                            : "text-foreground hover:bg-accent",
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          {(() => {
+                            const Icon = listIcon(list.icon);
+                            return <Icon className="size-4 shrink-0" />;
+                          })()}
+                          <span className="truncate">{list.name}</span>
+                        </span>
+                        <span className="ml-3 text-xs opacity-75">{list.places.length}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between">
+                <h2 className="font-bold text-foreground">Địa điểm đã lưu ({savedPlaceCards.length})</h2>
+                {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
+              </div>
+
+              <div className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                {savedPlaceCards.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    onDragStart={(event) => handleDragStart(event, { kind: "place", placeId: place.id })}
+                    onDragEnd={handleDragEnd}
+                    onSuggest={canRequestAdditions ? () => void requestUnscheduledPlace(place) : undefined}
+                    suggesting={suggestingPlaceId === place.id}
+                  />
                 ))}
+                {savedPlaceCards.length === 0 ? (
+                  <div className="rounded-xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
+                    Danh sách này chưa có địa điểm. Quay lại Khám phá để thêm địa điểm hoặc chọn danh sách khác.
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <h2 className="font-bold text-foreground">Địa điểm đã lưu ({savedPlaceCards.length})</h2>
-            {loading ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
-          </div>
-
-          <div className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-            {savedPlaceCards.map((place) => (
-              <PlaceCard
-                key={place.id}
-                place={place}
-                onDragStart={(event) => handleDragStart(event, { kind: "place", placeId: place.id })}
-                onDragEnd={handleDragEnd}
-                onSuggest={canRequestAdditions ? () => void requestUnscheduledPlace(place) : undefined}
-                suggesting={suggestingPlaceId === place.id}
-              />
-            ))}
-            {!savedPlaceCards.length ? (
-              <div className="rounded-xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
-                Danh sách này chưa có địa điểm. Quay lại Khám phá để thêm địa điểm hoặc chọn danh sách khác.
+              
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-muted/50 py-3 text-sm font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <PanelLeftClose className="size-5" />
+                Thu gọn sidebar
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col items-center gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex size-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm transition hover:bg-primary/15"
+                  title="Chuyến đi của tôi"
+                >
+                  <ArrowLeft className="size-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNewListOpen(true)}
+                  className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-primary/90"
+                  title="Tạo mới"
+                >
+                  <Plus className="size-5" />
+                </button>
               </div>
-            ) : null}
-          </div>
+              
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(true)}
+                className="flex size-12 w-full items-center justify-center rounded-xl border border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Mở sidebar"
+              >
+                <PanelLeftOpen className="size-5" />
+              </button>
+            </>
+          )}
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -1208,11 +1256,6 @@ export function TimelineEditor({
                 <CalendarDays className="size-4 text-primary" />
                 {weekRangeText}
               </div>
-            </div>
-
-            <div className="flex rounded-xl border border-primary/20 bg-primary/10 p-1 shadow-sm">
-              <button className="rounded-lg px-5 py-2 text-sm font-medium text-primary/70 hover:bg-card">Ngày</button>
-              <button className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm">Tuần</button>
             </div>
           </div>
 
