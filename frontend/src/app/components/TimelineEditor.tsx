@@ -14,6 +14,7 @@ import {
   Trash2,
   PanelLeftClose,
   PanelLeftOpen,
+  MapPinned,
 } from "lucide-react";
 import type { PlaceList } from "../App";
 import { getAuthToken } from "../lib/authApi";
@@ -129,6 +130,7 @@ interface TimelineEditorProps {
   onSelectList: (listId: string) => void;
   onCreateList: (name: string, icon?: string) => void;
   onBack: () => void;
+  onViewMap?: () => void;
 }
 
 export function TimelineEditor({
@@ -139,6 +141,7 @@ export function TimelineEditor({
   onSelectList,
   onCreateList,
   onBack,
+  onViewMap,
 }: TimelineEditorProps) {
   const [events, setEvents] = useState<TimelineEvent[]>(timeline.events);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(timeline.startDate)));
@@ -1057,6 +1060,16 @@ export function TimelineEditor({
                   Chuyến đi của tôi
                 </button>
                 <div className="flex items-center gap-2">
+                  {onViewMap && (
+                    <button
+                      type="button"
+                      onClick={onViewMap}
+                      className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/15"
+                    >
+                      <MapPinned className="size-4" />
+                      Bản đồ
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsNewListOpen(true)}

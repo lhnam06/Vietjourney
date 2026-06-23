@@ -92,6 +92,7 @@ export default function App() {
   const [view, setView] = useState<AppView>(() => (hasInitialToken ? loadActiveView() : "explore"));
   const [editingTimeline, setEditingTimeline] = useState<Timeline | null>(null);
   const [mapTimeline, setMapTimeline] = useState<Timeline | null>(null);
+  const [mapReturnView, setMapReturnView] = useState<AppView>("trips");
   const [placeLists, setPlaceLists] = useState<PlaceList[]>(loadPlaceLists);
   const [activeListId, setActiveListId] = useState(() => placeLists[0]?.id || "");
   const activeList = placeLists.find((list) => list.id === activeListId) || placeLists[0];
@@ -284,6 +285,7 @@ export default function App() {
   function openTripMap(timeline: Timeline) {
     setEditingTimeline(null);
     setMapTimeline(timeline);
+    setMapReturnView("trips");
     setView("trip-map");
   }
 
@@ -344,13 +346,20 @@ export default function App() {
             setEditingTimeline(null);
             setView("trips");
           }}
+          onViewMap={() => {
+            if (editingTimeline) {
+              setMapTimeline(editingTimeline);
+              setMapReturnView("timeline-editor");
+              setView("trip-map");
+            }
+          }}
         />
       ) : view === "trip-map" && mapTimeline ? (
         <TripMapPage
           timeline={mapTimeline}
           onBack={() => {
             setMapTimeline(null);
-            setView("trips");
+            setView(mapReturnView);
           }}
         />
       ) : view === "trips" ? (
