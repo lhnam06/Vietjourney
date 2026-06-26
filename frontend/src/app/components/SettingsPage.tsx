@@ -1044,7 +1044,7 @@ export function SettingsPage() {
 
   return (
     <main className="min-w-0 flex-1 overflow-y-auto bg-background">
-      <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1180px] px-4 pb-28 pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:pb-6">
         <header className="border-b border-border pb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             VietJourney
@@ -1065,7 +1065,7 @@ export function SettingsPage() {
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[230px_minmax(0,1fr)]">
           <aside className="xl:sticky xl:top-6 xl:h-fit">
-            <nav className="space-y-1 rounded-lg border border-border bg-card p-1.5">
+            <nav className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-card p-1.5 sm:grid-cols-3 xl:grid-cols-1">
               {settingsNav.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}

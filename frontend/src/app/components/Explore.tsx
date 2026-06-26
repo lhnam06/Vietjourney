@@ -506,7 +506,7 @@ export function Explore({ savedPlaceIds, onAddPlace }: ExploreProps) {
 
   return (
     <>
-      <main ref={scrollRootRef} className="flex-1 overflow-y-auto px-4 pb-6 pt-10 sm:px-5 lg:px-8">
+      <main ref={scrollRootRef} className="flex-1 overflow-y-auto px-4 pb-28 pt-8 sm:px-5 sm:pt-10 lg:px-8 lg:pb-6">
         <div className="mx-auto max-w-5xl">
           <header className="flex items-start justify-between gap-4">
             <div>

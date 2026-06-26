@@ -280,7 +280,7 @@ export function CommunityPage({ onOpenTimeline, isAuthenticated, onLogin }: Comm
   return (
     <main className="min-w-0 flex-1 overflow-y-auto bg-background text-foreground">
       <div className="grid min-h-full xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="min-w-0 border-r border-border px-5 pb-8 pt-6 lg:px-8">
+        <section className="min-w-0 border-r border-border px-4 pb-28 pt-5 sm:px-5 sm:pt-6 lg:px-8 lg:pb-8">
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground">Cộng đồng</h1>
@@ -537,7 +537,7 @@ function CommunityPostCard({
         </div>
       </div>
 
-      <div className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
+      <div className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
         <ImageGrid images={images} />
         <div className="flex min-w-0 flex-col justify-center">
           <div className="flex flex-wrap items-center justify-between gap-2">

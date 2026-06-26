@@ -326,7 +326,7 @@ export function MyTrips({
 
   return (
     <>
-      <main className="min-w-0 flex-1 overflow-y-auto bg-background px-5 pb-6 pt-10 lg:px-8">
+      <main className="min-w-0 flex-1 overflow-y-auto bg-background px-4 pb-28 pt-8 sm:px-5 sm:pt-10 lg:px-8 lg:pb-6">
         <div className="mx-auto grid max-w-[1480px] gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
           <section className="min-w-0">
             <header className="flex flex-wrap items-start justify-between gap-4">

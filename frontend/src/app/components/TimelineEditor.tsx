@@ -1045,8 +1045,8 @@ export function TimelineEditor({
   const weekRangeText = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}`;
 
   return (
-    <main className="min-w-0 flex-1 overflow-hidden bg-background px-4 pb-4 pt-8 lg:px-5">
-      <div className={cn("grid h-[calc(100vh-3rem)] min-h-0 gap-4 transition-[grid-template-columns] duration-300", isSidebarOpen ? "xl:grid-cols-[360px_minmax(0,1fr)]" : "xl:grid-cols-[72px_minmax(0,1fr)]")}>
+    <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background px-3 pb-24 pt-4 sm:px-4 sm:pt-8 lg:px-5 lg:pb-4 xl:overflow-hidden">
+      <div className={cn("grid min-h-0 gap-3 transition-[grid-template-columns] duration-300 sm:gap-4 xl:h-[calc(100dvh-3rem)]", isSidebarOpen ? "xl:grid-cols-[360px_minmax(0,1fr)]" : "xl:grid-cols-[72px_minmax(0,1fr)]")}>
         <aside className={cn("flex min-h-0 flex-col rounded-2xl border border-border bg-card shadow-sm transition-all duration-300", isSidebarOpen ? "p-4" : "p-3 items-center justify-between")}>
           {isSidebarOpen ? (
             <>
@@ -1209,7 +1209,7 @@ export function TimelineEditor({
           )}
         </aside>
 
-        <section className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <section className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold text-foreground">Lên lịch trình cho chuyến đi</h2>
@@ -1286,7 +1286,7 @@ export function TimelineEditor({
 
           <div
             ref={calendarScrollRef}
-            className="relative mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-3xl border border-border bg-[radial-gradient(circle_at_top_left,oklch(0.68_0.19_270_/_0.12),transparent_34%),linear-gradient(180deg,var(--card),var(--background))] shadow-inner"
+            className="relative mt-4 h-[65dvh] min-h-[420px] overflow-y-auto overflow-x-auto rounded-3xl border border-border bg-[radial-gradient(circle_at_top_left,oklch(0.68_0.19_270_/_0.12),transparent_34%),linear-gradient(180deg,var(--card),var(--background))] shadow-inner sm:h-[68dvh] xl:min-h-0 xl:flex-1 xl:overflow-x-hidden"
             onDragOver={handleCalendarDragOver}
             onDragLeave={handleDragLeave}
           >

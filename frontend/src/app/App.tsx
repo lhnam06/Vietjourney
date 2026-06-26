@@ -324,7 +324,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+    <div className="flex min-h-dvh w-full overflow-hidden bg-background text-foreground lg:h-screen">
       <Sidebar
         activeView={view}
         currentUser={currentUser}

@@ -163,7 +163,7 @@ export function Profile({ savedPlaces, onExplore, onEditTimeline }: ProfileProps
 
   return (
     <main className="min-w-0 flex-1 overflow-y-auto bg-background">
-      <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1500px] px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-5">
         <div className="flex items-center justify-end gap-3">
           <button
             type="button"

@@ -522,7 +522,7 @@ export function TripMapPage({ timeline, onBack }: TripMapPageProps) {
   }, [layerMenuOpen]);
 
   return (
-    <main className="h-dvh min-w-0 flex-1 overflow-hidden bg-background px-4 py-4 lg:px-6">
+    <main className="h-dvh min-w-0 flex-1 overflow-hidden bg-background px-3 pb-24 pt-3 sm:px-4 sm:py-4 lg:px-6 lg:pb-4">
       <div className="mx-auto flex h-full max-w-[1500px] flex-col">
         <header className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
