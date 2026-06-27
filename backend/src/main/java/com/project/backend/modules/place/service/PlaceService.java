@@ -3,6 +3,7 @@ package com.project.backend.modules.place.service;
 import com.project.backend.common.exception.AppException;
 import com.project.backend.common.exception.ErrorCode;
 import com.project.backend.modules.place.dto.request.PlaceFilterRequest;
+import com.project.backend.modules.place.dto.response.DistrictSummaryResponse;
 import com.project.backend.modules.place.dto.response.PageResponse;
 import com.project.backend.modules.place.dto.response.PlaceResponse;
 import com.project.backend.modules.place.mapper.PlaceMapper;
@@ -44,6 +45,17 @@ public class PlaceService {
                 .size(request.getSize())
                 .totalPages(totalPages)
                 .build();
+    }
+
+    public List<DistrictSummaryResponse> findDistricts(PlaceFilterRequest request) {
+        validateRequest(request);
+
+        return placeQueryRepository.findDistrictsByFilter(request).stream()
+                .map(row -> DistrictSummaryResponse.builder()
+                        .name(row.get("name", String.class))
+                        .count(((Number) row.get("count")).longValue())
+                        .build())
+                .toList();
     }
 
     private long extractTotal(List<Tuple> rows, PlaceFilterRequest request) {

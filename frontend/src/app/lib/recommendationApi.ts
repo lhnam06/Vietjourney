@@ -1,61 +1,67 @@
-import { requestJson } from './api';
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+import { getAuthToken } from "./authApi";
+import type { Place } from "./placesApi";
+import { readThroughCache } from "./readCache";
+import { readCacheKeys } from "./readCacheKeys";
 
-const BASE = '/api/v1/recommendations';
+interface ApiResponse<T> {
+  code: number;
+  message?: string;
+  result: T;
+}
 
-export type RecommendationEventType = 'VIEWPORT' | 'CLICK' | 'DWELL' | 'ADD_TO_TIMELINE';
+export type RecommendationEventType = "VIEWPORT" | "CLICK" | "DWELL" | "ADD_TO_TIMELINE";
 
-export type PlaceInteractionPayload = {
-  placeId: string;
-  category: string;
+interface PlaceInteractionInput {
+  place: Place;
   eventType: RecommendationEventType;
-  score?: number;
-  district?: string;
-  tags?: Record<string, string[]>;
-};
+}
 
-export type RecommendedPlace = {
-  id: string;
-  name: string;
-  address?: string;
-  category: string;
-  district?: string;
-  images?: string[];
-  tags?: Record<string, string[]>;
-  rating?: number;
-  minPrice?: number;
-  maxPrice?: number;
-  latitude?: number;
-  longitude?: number;
-};
+const RECOMMENDATION_CACHE_TTL_MS = 60_000;
 
-export type UserRecommendationProfile = {
-  tags: { tagGroup: string; tagValue: string; score: number }[];
-  districts: { value: string; score: number }[];
-  categories: { value: string; score: number }[];
-};
+function authHeaders() {
+  const token = getAuthToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
-export async function getRecommendedPlaces(accessToken: string, size = 20): Promise<RecommendedPlace[]> {
-  const q = new URLSearchParams({ size: String(Math.min(50, Math.max(1, size))) });
-  return requestJson<RecommendedPlace[]>(`${BASE}/places?${q.toString()}`, {
-    method: 'GET',
-    accessToken,
+export function fetchRecommendedPlaces(size = 12, signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.recommendedPlaces(size),
+    ttlMs: RECOMMENDATION_CACHE_TTL_MS,
+    signal,
+    loader: async () => {
+      const response = await fetch(_getApiBase() + `/api/v1/recommendations/places?size=${size}`, {
+        method: "GET",
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Không tải được gợi ý (${response.status})`);
+      }
+
+      const payload = (await response.json()) as ApiResponse<Place[]>;
+      return payload.result;
+    },
   });
 }
 
-export async function getMyRecommendationProfile(accessToken: string): Promise<UserRecommendationProfile> {
-  return requestJson<UserRecommendationProfile>(`${BASE}/profile/me`, {
-    method: 'GET',
-    accessToken,
+export async function recordPlaceInteraction({ place, eventType }: PlaceInteractionInput) {
+  const response = await fetch(_getApiBase() + "/api/v1/recommendations/interactions", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      placeId: place.id,
+      category: String(place.category || "").toLowerCase(),
+      eventType,
+      district: place.district || undefined,
+      tags: place.tags || undefined,
+    }),
   });
-}
 
-export async function postInteractionBatch(
-  accessToken: string,
-  interactions: PlaceInteractionPayload[]
-): Promise<{ recorded: number }> {
-  return requestJson<{ recorded: number }>(`${BASE}/interactions/batch`, {
-    method: 'POST',
-    accessToken,
-    body: JSON.stringify({ interactions }),
-  });
+  if (!response.ok) {
+    throw new Error(`Không ghi nhận được tương tác (${response.status})`);
+  }
 }

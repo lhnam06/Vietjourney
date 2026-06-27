@@ -1,7 +1,45 @@
-import { requestJson } from './api';
-import type { TimelineItem } from '../types/domain';
+const _getApiBase = () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+import { invalidateReadCacheKey, invalidateReadCachePrefix, readThroughCache } from "./readCache";
+import { readCacheKeys, readCachePrefixes } from "./readCacheKeys";
 
-export type ApiTimelinePlace = {
+export type TimelineVisibility = "PRIVATE" | "SHARED" | "PUBLIC_READ";
+export type TimelineMemberRole = "OWNER" | "EDITOR" | "VIEWER";
+export type TimelineEventCategory = "FOOD" | "DRINK" | "ACTIVITY";
+export type TimelineEventStatus = "PLANNED" | "CONFIRMED" | "CANCELLED";
+export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
+export type NotificationCategory = "TIMELINE" | "COLLABORATION" | "SYSTEM" | "RECOMMENDATION";
+export type TimelineProposalStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "OUTDATED";
+export type TimelineProposalReviewState = "READY" | "CONFLICT" | "UNSCHEDULED" | "PROCESSED";
+
+interface ApiResponse<T> {
+  code: number;
+  message?: string;
+  result: T;
+}
+
+interface SpringPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export interface CurrentUser {
+  id: string;
+  username: string;
+  displayName?: string | null;
+}
+
+export interface TimelineMember {
+  id: string;
+  userId: string;
+  username: string;
+  displayName?: string | null;
+  role: TimelineMemberRole;
+}
+
+export interface TimelinePlace {
   id: string;
   name: string;
   address?: string | null;
@@ -10,251 +48,613 @@ export type ApiTimelinePlace = {
   longitude?: number | null;
   district?: string | null;
   imageUrl?: string | null;
-};
+}
 
-export type ApiTimelineEvent = {
+export interface TimelineEvent {
   id: string;
-  externalPlaceId?: string | null;
-  place?: ApiTimelinePlace | null;
-  category: string;
+  externalPlaceId: string;
+  place?: TimelinePlace | null;
+  category: TimelineEventCategory;
   startTime: string;
   endTime: string;
-  orderIndex?: number | null;
+  orderIndex: number;
   notes?: string | null;
-  status?: string;
-  version?: number | null;
-};
+  status: TimelineEventStatus;
+  version: number;
+}
 
-export type ApiTimelineMember = {
-  id: string;
-  userId?: string;
-  username?: string;
-  displayName?: string;
-  role?: string;
-};
-
-export type ApiTimelineDetail = {
+export interface Timeline {
   id: string;
   title: string;
   description?: string | null;
   startDate: string;
   endDate: string;
-  visibility?: string;
-  ownerId?: string;
-  ownerUsername?: string;
-  ownerDisplayName?: string;
-  members?: ApiTimelineMember[];
-  events?: ApiTimelineEvent[];
+  visibility: TimelineVisibility;
+  ownerId: string;
+  ownerUsername: string;
+  ownerDisplayName?: string | null;
+  members: TimelineMember[];
+  events: TimelineEvent[];
   activeInviteCode?: string | null;
-  version?: number;
-};
+}
 
-export type ApiResetInviteCodeResponse = {
+export interface TimelineInput {
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  visibility: TimelineVisibility;
+}
+
+export interface TimelineEventInput {
+  externalPlaceId: string;
+  category: TimelineEventCategory;
+  startTime: string;
+  endTime: string;
+  orderIndex?: number;
+  notes?: string;
+  status?: TimelineEventStatus;
+}
+
+export interface MoveTimelineEventInput {
+  startTime: string;
+  endTime: string;
+  orderIndex?: number;
+}
+
+export interface ResizeTimelineEventInput {
+  startTime: string;
+  endTime: string;
+}
+
+export interface ReorderTimelineEventInput {
+  orderIndex: number;
+}
+
+export interface NotificationItem {
+  id: string;
+  category: NotificationCategory;
+  type: string;
+  title: string;
+  message?: string | null;
+  payload?: Record<string, unknown> | null;
+  status: NotificationStatus;
+  sourceModule?: string | null;
+  sourceReferenceType?: string | null;
+  createdAt: string;
+  readAt?: string | null;
+  archivedAt?: string | null;
+  sourceReferenceId?: string | null;
+}
+
+export interface NotificationQuery {
+  status?: NotificationStatus;
+  category?: NotificationCategory;
+  includeArchived?: boolean;
+  page?: number;
+  size?: number;
+}
+
+export interface NotificationUnreadCount {
+  unreadCount: number;
+}
+
+export interface NotificationPreference {
+  category: NotificationCategory;
+  inAppEnabled: boolean;
+  realtimeEnabled: boolean;
+}
+
+export interface NotificationPreferenceInput {
+  inAppEnabled: boolean;
+  realtimeEnabled: boolean;
+}
+
+export interface InviteCodeResult {
   code: string;
-  role: string;
+  role: TimelineMemberRole;
   maxUses: number;
   expiresAt: string;
-};
-
-export async function getMyTimelines(accessToken: string) {
-  return requestJson<ApiTimelineDetail[]>('/api/v1/timelines/mine', { accessToken });
 }
 
-export async function getTimelineDetail(timelineId: string, accessToken: string, signal?: AbortSignal) {
-  return requestJson<ApiTimelineDetail>(`/api/v1/timelines/${encodeURIComponent(timelineId)}`, {
-    accessToken,
-    signal,
-  });
+export interface JoinByCodeResult {
+  timelineId: string;
+  role: TimelineMemberRole;
 }
 
-export async function resetTimelineInviteCode(
-  timelineId: string,
-  body: { role: string; maxUses?: number; expiresInHours?: number },
-  accessToken: string
-) {
-  return requestJson<ApiResetInviteCodeResponse>(
-    `/api/v1/timelines/${encodeURIComponent(timelineId)}/invite-code/reset`,
-    { method: 'POST', body: JSON.stringify(body), accessToken }
-  );
+export interface TimelineProposal {
+  id: string;
+  timelineId: string;
+  authorId: string;
+  authorUsername: string;
+  baseVersion: number;
+  changeType: string;
+  payload: Record<string, unknown>;
+  status: TimelineProposalStatus;
+  reviewState: TimelineProposalReviewState;
+  placeName?: string | null;
+  placeAddress?: string | null;
+  conflictEventId?: string | null;
+  conflictReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export async function joinTimelineByCode(code: string, accessToken: string) {
-  return requestJson<{ timelineId: string; role: string }>(
-    `/api/v1/timelines/join-by-code`,
-    { method: 'POST', body: JSON.stringify({ code: code.trim().toUpperCase() }), accessToken }
-  );
+export interface SubmitTimelineProposalInput {
+  changeType: string;
+  payload: Record<string, unknown>;
+  baseVersion: number;
 }
 
-export function isoLocalDateTimeToHHmm(iso: string): string {
-  const m = iso.match(/T(\d{2}):(\d{2})/);
-  if (m) return `${m[1]}:${m[2]}`;
-  return '09:00';
+export interface TimelineProposalDateCount {
+  date: string;
+  count: number;
 }
 
-export async function moveTimelineEvent(
-  timelineId: string,
-  eventId: string,
-  body: { startTime: string; endTime: string; orderIndex?: number },
-  accessToken: string
-) {
-  return requestJson<ApiTimelineEvent>(
-    `/api/v1/timelines/${encodeURIComponent(timelineId)}/events/${encodeURIComponent(eventId)}/move`,
-    { method: 'PATCH', body: JSON.stringify(body), accessToken }
-  );
+export interface TimelineProposalReviewSummary {
+  newToday: number;
+  ready: number;
+  conflict: number;
+  unscheduled: number;
+  processed: number;
+  byDate: TimelineProposalDateCount[];
 }
 
-export async function addTimelineEvent(
-  timelineId: string,
-  body: {
-    externalPlaceId?: string;
-    category: string;
-    startTime: string;
-    endTime: string;
-    notes?: string;
-    orderIndex?: number;
-    status?: 'PLANNED' | 'CONFIRMED' | 'CANCELLED';
-  },
-  accessToken: string
-) {
-  return requestJson<ApiTimelineEvent>(
-    `/api/v1/timelines/${encodeURIComponent(timelineId)}/events`,
-    { method: 'POST', body: JSON.stringify(body), accessToken }
-  );
+export interface TimelineProposalReviewPage {
+  content: TimelineProposal[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  summary: TimelineProposalReviewSummary;
 }
 
-export async function deleteTimelineEvent(
-  timelineId: string,
-  eventId: string,
-  accessToken: string
-) {
-  return requestJson<void>(
-    `/api/v1/timelines/${encodeURIComponent(timelineId)}/events/${encodeURIComponent(eventId)}`,
-    { method: 'DELETE', accessToken }
-  );
+export interface TimelineProposalReviewQuery {
+  state?: TimelineProposalReviewState;
+  date?: string;
+  page?: number;
+  size?: number;
 }
 
-export async function reorderTimelineEvent(
-  timelineId: string,
-  eventId: string,
-  body: { orderIndex: number },
-  accessToken: string
-) {
-  return requestJson<ApiTimelineEvent>(
-    `/api/v1/timelines/${encodeURIComponent(timelineId)}/events/${encodeURIComponent(eventId)}/reorder`,
-    { method: 'PATCH', body: JSON.stringify(body), accessToken }
-  );
+export interface UpdateTimelineProposalScheduleInput {
+  startTime: string;
+  endTime: string;
 }
 
-export function mapApiTimelineToTimetable(detail: ApiTimelineDetail): {
-  items: TimelineItem[];
-  labelByLocationId: Record<string, string>;
-  placesByLocationId: Record<string, ApiTimelinePlace>;
-  tripMeta: {
-    id: string;
-    title: string;
-    destination: string;
-    startDate: string;
-    endDate: string;
-    ownerId: string;
-    version: number;
-  };
-} {
-  const labelByLocationId: Record<string, string> = {};
-  const placesByLocationId: Record<string, ApiTimelinePlace> = {};
-  
-  if (!detail) {
-    return {
-      items: [],
-      labelByLocationId: {},
-      placesByLocationId: {},
-      tripMeta: { id: '', title: '', destination: '', startDate: '', endDate: '' }
-    };
+const tokenKeys = [
+  "token",
+  "accessToken",
+  "authToken",
+  "jwt",
+  "vietjourney_token",
+  "VietJourney.token",
+];
+
+const CURRENT_USER_CACHE_TTL_MS = 5 * 60_000;
+const MY_TIMELINES_CACHE_TTL_MS = 30_000;
+const TIMELINE_CACHE_TTL_MS = 30_000;
+const RECENT_NOTIFICATIONS_CACHE_TTL_MS = 15_000;
+const NOTIFICATIONS_CACHE_TTL_MS = 15_000;
+const UNREAD_NOTIFICATIONS_CACHE_TTL_MS = 15_000;
+
+function getStoredToken() {
+  const stores = [localStorage, sessionStorage];
+
+  for (const store of stores) {
+    for (const key of tokenKeys) {
+      const value = store.getItem(key);
+      if (value) {
+        return value.replace(/^Bearer\s+/i, "");
+      }
+    }
+
+    for (const key of ["auth", "user", "session"]) {
+      const raw = store.getItem(key);
+      if (!raw) {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const token = parsed.token || parsed.accessToken || parsed.authToken;
+        if (typeof token === "string") {
+          return token.replace(/^Bearer\s+/i, "");
+        }
+      } catch {
+        // Ignore malformed storage values from previous app versions.
+      }
+    }
   }
 
-  const items: TimelineItem[] = (detail.events ?? [])
-    .filter(ev => ev && ev.startTime) // Ensure event and startTime exist
-    .map((ev) => {
-      // Backend uses uppercase enum: FOOD, DRINK, ACTIVITY
-      // Frontend expects lowercase or specific prefixes for matching mock data
-      const rawCat = (ev.category ?? 'ACTIVITY').toLowerCase();
-      
-      // Clean the externalPlaceId: it might have come back with a prefix if we saved it that way
-      let cleanId = ev.externalPlaceId || ev.id;
-      if (cleanId.includes(':')) {
-        cleanId = cleanId.split(':').pop()!;
-      }
-
-      // Reconstruct the frontend locationId using the same logic as recommendationUtils
-      // IMPORTANT: Always use string IDs for consistent lookup
-      const placeIdStr = ev.place?.id ? String(ev.place.id) : null;
-      const locationId = placeIdStr || `${rawCat}:${cleanId}`;
-      
-      const name = ev.place?.name?.trim() || 'Hoạt động';
-      labelByLocationId[locationId] = name;
-      if (ev.place) {
-        placesByLocationId[locationId] = ev.place;
-      }
-
-      const date = ev.startTime ? ev.startTime.slice(0, 10) : new Date().toISOString().slice(0, 10);
-      
-      console.log(`[timelineApi] Mapped event ${ev.id}:`, { locationId, hasPlace: !!ev.place });
-      
-      return {
-        id: ev.id,
-        locationId,
-        startTime: isoLocalDateTimeToHHmm(ev.startTime),
-        endTime: isoLocalDateTimeToHHmm(ev.endTime),
-        date,
-        notes: ev.notes?.trim() ? ev.notes : undefined,
-      };
-    });
-
-  return {
-    items,
-    labelByLocationId,
-    placesByLocationId,
-    tripMeta: {
-      id: detail.id || '',
-      title: detail.title || '',
-      destination: detail.description || 'Vietnam',
-      startDate: detail.startDate || '',
-      endDate: detail.endDate || '',
-      ownerId: detail.ownerId || '',
-      version: detail.version || 1
-    }
-  };
+  return null;
 }
-export async function createTimeline(
-  body: {
-    title: string;
-    description?: string;
-    startDate: string;
-    endDate: string;
-    visibility: 'PRIVATE' | 'SHARED' | 'PUBLIC_READ';
-  },
-  accessToken: string
+
+function invalidateTimelineReadCaches() {
+  invalidateReadCacheKey(readCacheKeys.timelines());
+  invalidateReadCachePrefix(readCachePrefixes.timelineDetail);
+}
+
+function invalidateNotificationReadCaches() {
+  invalidateReadCacheKey(readCacheKeys.recentNotifications());
+  invalidateReadCachePrefix(readCachePrefixes.notifications);
+  invalidateReadCacheKey(readCacheKeys.unreadNotifications());
+}
+
+function buildNotificationParams(query: NotificationQuery = {}) {
+  const params = new URLSearchParams();
+  params.set("page", String(query.page ?? 0));
+  params.set("size", String(query.size ?? 20));
+  if (query.status) {
+    params.set("status", query.status);
+  }
+  if (query.category) {
+    params.set("category", query.category);
+  }
+  if (query.includeArchived) {
+    params.set("includeArchived", "true");
+  }
+  return params;
+}
+
+async function apiFetch<T>(path: string, init: RequestInit = {}, signal?: AbortSignal) {
+  const token = getStoredToken();
+  const headers = new Headers(init.headers);
+
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(path.startsWith("/") ? _getApiBase() + path : _getApiBase() + "/" + path, {
+    ...init,
+    signal,
+    headers,
+  });
+
+  let payload: ApiResponse<T> | null = null;
+  try {
+    payload = (await response.json()) as ApiResponse<T>;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      payload?.message ||
+      (response.status === 401 || response.status === 403
+        ? "Bạn cần đăng nhập để xem chuyến đi."
+        : `Yêu cầu thất bại (${response.status})`);
+    throw new Error(message);
+  }
+
+  if (!payload) {
+    throw new Error("Backend không trả về dữ liệu hợp lệ.");
+  }
+
+  return payload.result;
+}
+
+export function fetchCurrentUser(signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.currentUser(),
+    ttlMs: CURRENT_USER_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<CurrentUser>("/api/v1/users/my-info"),
+  });
+}
+
+export function fetchMyTimelines(signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.timelines(),
+    ttlMs: MY_TIMELINES_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<Timeline[]>("/api/v1/timelines/mine"),
+  });
+}
+
+export function fetchTimeline(timelineId: string, signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.timeline(timelineId),
+    ttlMs: TIMELINE_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`),
+  });
+}
+
+export function createTimeline(input: TimelineInput) {
+  return apiFetch<Timeline>("/api/v1/timelines", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function updateTimeline(timelineId: string, input: TimelineInput) {
+  return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function deleteTimeline(timelineId: string) {
+  return apiFetch<void>(`/api/v1/timelines/${timelineId}`, {
+    method: "DELETE",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function duplicateTimeline(timelineId: string) {
+  return apiFetch<Timeline>(`/api/v1/timelines/${timelineId}/duplicate`, {
+    method: "POST",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function upsertTimelineMember(
+  timelineId: string,
+  input: { username: string; role: Exclude<TimelineMemberRole, "OWNER"> },
 ) {
-  return requestJson<ApiTimelineDetail>('/api/v1/timelines', {
-    method: 'POST',
-    body: JSON.stringify(body),
-    accessToken,
+  return apiFetch<TimelineMember>(`/api/v1/timelines/${timelineId}/members`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
-export async function getPendingProposals(timelineId: string, accessToken: string) {
-  return requestJson<any[]>(`/api/v1/timelines/${encodeURIComponent(timelineId)}/proposals`, {
-    accessToken,
+export function removeTimelineMember(timelineId: string, memberId: string) {
+  return apiFetch<void>(`/api/v1/timelines/${timelineId}/members/${memberId}`, {
+    method: "DELETE",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
   });
 }
 
-export async function decideProposal(
+export function resetTimelineInviteCode(
+  timelineId: string,
+  input: { role: TimelineMemberRole; maxUses?: number; expiresInHours?: number },
+) {
+  return apiFetch<InviteCodeResult>(`/api/v1/timelines/${timelineId}/invite-code/reset`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function joinTimelineByCode(code: string) {
+  return apiFetch<JoinByCodeResult>("/api/v1/timelines/join-by-code", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function createTimelineEvent(timelineId: string, input: TimelineEventInput) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function fetchTimelineEvents(
+  timelineId: string,
+  rangeStart: string,
+  rangeEnd: string,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({ rangeStart, rangeEnd });
+  return apiFetch<TimelineEvent[]>(
+    `/api/v1/timelines/${timelineId}/events?${params.toString()}`,
+    {},
+    signal,
+  );
+}
+
+export function moveTimelineEvent(
+  timelineId: string,
+  eventId: string,
+  input: MoveTimelineEventInput,
+) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/move`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function resizeTimelineEvent(
+  timelineId: string,
+  eventId: string,
+  input: ResizeTimelineEventInput,
+) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/resize`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function reorderTimelineEvent(
+  timelineId: string,
+  eventId: string,
+  input: ReorderTimelineEventInput,
+) {
+  return apiFetch<TimelineEvent>(`/api/v1/timelines/${timelineId}/events/${eventId}/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function deleteTimelineEvent(timelineId: string, eventId: string) {
+  return apiFetch<void>(`/api/v1/timelines/${timelineId}/events/${eventId}`, {
+    method: "DELETE",
+  }).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function submitTimelineProposal(timelineId: string, input: SubmitTimelineProposalInput) {
+  return apiFetch<TimelineProposal>(`/api/v1/timelines/${timelineId}/proposals`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function fetchPendingTimelineProposals(timelineId: string, signal?: AbortSignal) {
+  return apiFetch<TimelineProposal[]>(`/api/v1/timelines/${timelineId}/proposals`, {}, signal);
+}
+
+export function fetchTimelineProposalReview(
+  timelineId: string,
+  query: TimelineProposalReviewQuery = {},
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams();
+  if (query.state) {
+    params.set("state", query.state);
+  }
+  if (query.date) {
+    params.set("date", query.date);
+  }
+  params.set("page", String(query.page ?? 0));
+  params.set("size", String(query.size ?? 20));
+
+  return apiFetch<TimelineProposalReviewPage>(
+    `/api/v1/timelines/${timelineId}/proposals/review?${params.toString()}`,
+    {},
+    signal,
+  );
+}
+
+export function updateTimelineProposalSchedule(
   timelineId: string,
   proposalId: string,
-  status: 'ACCEPTED' | 'REJECTED',
-  accessToken: string
+  input: UpdateTimelineProposalScheduleInput,
 ) {
-  return requestJson<void>(
-    `/api/v1/timelines/${encodeURIComponent(timelineId)}/proposals/${encodeURIComponent(proposalId)}/decide?status=${status}`,
-    { method: 'PATCH', accessToken }
+  return apiFetch<TimelineProposal>(`/api/v1/timelines/${timelineId}/proposals/${proposalId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function decideTimelineProposal(
+  timelineId: string,
+  proposalId: string,
+  status: Exclude<TimelineProposalStatus, "PENDING">,
+) {
+  return apiFetch<void>(
+    `/api/v1/timelines/${timelineId}/proposals/${proposalId}/decide?status=${status}`,
+    { method: "PATCH" },
+  ).then((result) => {
+    invalidateTimelineReadCaches();
+    return result;
+  });
+}
+
+export function fetchRecentNotifications(signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.recentNotifications(),
+    ttlMs: RECENT_NOTIFICATIONS_CACHE_TTL_MS,
+    signal,
+    loader: async () => {
+      const page = await fetchNotifications({ page: 0, size: 6 });
+      return page.content;
+    },
+  });
+}
+
+export function fetchNotifications(query: NotificationQuery = {}, signal?: AbortSignal) {
+  const params = buildNotificationParams(query);
+  return readThroughCache({
+    key: readCacheKeys.notifications(query),
+    ttlMs: NOTIFICATIONS_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<SpringPage<NotificationItem>>(`/api/v1/notifications?${params.toString()}`),
+  });
+}
+
+export function fetchNotificationUnreadCount(signal?: AbortSignal) {
+  return readThroughCache({
+    key: readCacheKeys.unreadNotifications(),
+    ttlMs: UNREAD_NOTIFICATIONS_CACHE_TTL_MS,
+    signal,
+    loader: () => apiFetch<NotificationUnreadCount>("/api/v1/notifications/unread-count"),
+  });
+}
+
+export function fetchNotificationPreferences(signal?: AbortSignal) {
+  return apiFetch<NotificationPreference[]>("/api/v1/notifications/preferences", {}, signal);
+}
+
+export function updateNotificationPreference(
+  category: NotificationCategory,
+  input: NotificationPreferenceInput,
+) {
+  return apiFetch<NotificationPreference>(`/api/v1/notifications/preferences/${category}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function markNotificationAsRead(notificationId: string) {
+  return apiFetch<NotificationItem>(`/api/v1/notifications/${notificationId}/read`, {
+    method: "PATCH",
+  }).then((result) => {
+    invalidateNotificationReadCaches();
+    return result;
+  });
+}
+
+export function markAllNotificationsAsRead() {
+  return apiFetch<void>("/api/v1/notifications/read-all", {
+    method: "PATCH",
+  }).then((result) => {
+    invalidateNotificationReadCaches();
+    return result;
+  });
+}
+
+export function archiveNotification(notificationId: string) {
+  return apiFetch<void>(`/api/v1/notifications/${notificationId}`, {
+    method: "DELETE",
+  }).then((result) => {
+    invalidateNotificationReadCaches();
+    return result;
+  });
+}
+
+export function tripCoverImage(timeline: Timeline) {
+  return (
+    timeline.events.find((event) => event.place?.imageUrl)?.place?.imageUrl ||
+    `https://picsum.photos/seed/${encodeURIComponent(timeline.id)}/960/640`
   );
 }
