@@ -31,20 +31,10 @@ import com.project.backend.modules.timeline.repository.TimelineRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -160,6 +150,58 @@ public class TimelineService {
         publishTimelineChangedEvent(timeline, TimelineChangeType.TIMELINE_UPDATED);
 
         return getTimeline(timeline.getId());
+    }
+
+    @Transactional
+    @PreAuthorize("@timelineSecurity.isOwner(#timelineId)")
+    public void deleteTimeline(String timelineId) {
+        timelineSecurityService.requireOwnerAccess(timelineId);
+        Timeline timeline = getTimelineOrThrow(timelineId);
+        timelineRepository.delete(timeline);
+    }
+
+    @Transactional
+    @PreAuthorize("@timelineSecurity.canViewTimeline(#timelineId)")
+    public TimelineResponse duplicateTimeline(String timelineId) {
+        timelineSecurityService.requireViewAccess(timelineId);
+
+        Timeline sourceTimeline = getTimelineOrThrow(timelineId);
+        User owner = getCurrentUser();
+        Timeline copiedTimeline = Timeline.builder()
+                .title(sourceTimeline.getTitle() + " (bản sao)")
+                .description(sourceTimeline.getDescription())
+                .startDate(sourceTimeline.getStartDate())
+                .endDate(sourceTimeline.getEndDate())
+                .visibility(sourceTimeline.getVisibility())
+                .owner(owner)
+                .build();
+        copiedTimeline = timelineRepository.save(copiedTimeline);
+
+        timelineMemberRepository.save(TimelineMember.builder()
+                .timeline(copiedTimeline)
+                .user(owner)
+                .role(TimelineMemberRole.OWNER)
+                .build());
+
+        List<TimelineEvent> sourceEvents = timelineEventRepository.findTimelineEventsInRange(
+                sourceTimeline.getId(),
+                sourceTimeline.getStartDate().atStartOfDay(),
+                sourceTimeline.getEndDate().plusDays(1).atStartOfDay()
+        );
+        for (TimelineEvent sourceEvent : sourceEvents) {
+            timelineEventRepository.save(TimelineEvent.builder()
+                    .timeline(copiedTimeline)
+                    .externalPlaceId(sourceEvent.getExternalPlaceId())
+                    .category(sourceEvent.getCategory())
+                    .startTime(sourceEvent.getStartTime())
+                    .endTime(sourceEvent.getEndTime())
+                    .orderIndex(sourceEvent.getOrderIndex())
+                    .notes(sourceEvent.getNotes())
+                    .status(sourceEvent.getStatus())
+                    .build());
+        }
+
+        return getTimeline(copiedTimeline.getId());
     }
 
     @Transactional

@@ -1,6 +1,7 @@
 package com.project.backend.modules.timeline.dto.response;
 
 import com.project.backend.modules.timeline.enums.TimelineProposalStatus;
+import com.project.backend.modules.timeline.enums.TimelineProposalReviewState;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -21,5 +22,11 @@ public class TimelineProposalResponse {
     String changeType;
     Map<String, Object> payload;
     TimelineProposalStatus status;
+    TimelineProposalReviewState reviewState;
+    String placeName;
+    String placeAddress;
+    String conflictEventId;
+    String conflictReason;
     LocalDateTime createdAt;
+    LocalDateTime updatedAt;
 }

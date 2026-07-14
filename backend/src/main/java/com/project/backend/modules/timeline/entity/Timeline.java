@@ -19,6 +19,7 @@ import java.util.Set;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(exclude = {"owner", "members", "events"})
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Timeline {
     @Id

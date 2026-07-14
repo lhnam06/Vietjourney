@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(exclude = {"timeline", "user"})
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class TimelineMember {
     @Id
