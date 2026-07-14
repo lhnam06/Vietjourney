@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vj-postgres
+    environment:
+      POSTGRES_USER: vietjourney
+      POSTGRES_PASSWORD: vietjourney
+      POSTGRES_DB: vietjourney
+    ports:
+      - "5432:5432"
+    volumes:
+      - vj_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vietjourney -d vietjourney"]
+      interval: 4s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: vj-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --loglevel warning
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vj-backend
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PLACE_DB_ENABLED: ${PLACE_DB_ENABLED}
+      PLACE_DB_URL: ${PLACE_DB_URL}
+      PLACE_DB_USERNAME: ${PLACE_DB_USERNAME}
+      PLACE_DB_PASSWORD: ${PLACE_DB_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      JWT_SIGNER_KEY: ${JWT_SIGNER_KEY}
+    depends_on:
+      redis:
+        condition: service_started
+
+  websocket-proxy:
+    build:
+      context: ./websocket-proxy
+      dockerfile: Dockerfile
+    container_name: vj-ws-proxy
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      REDIS_ADDR: redis:6379
+      JWT_SIGNER_KEY: ${JWT_SIGNER_KEY}
+      BACKEND_URL: http://backend:8082
+    depends_on:
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+
+volumes:
+  vj_pgdata:
