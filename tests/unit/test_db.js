@@ -1,8 +1,13 @@
 const { Client } = require('pg');
 
+const connectionString = process.env.DB_URL || process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DB_URL or DATABASE_URL is required');
+}
+
 async function test() {
   const client = new Client({
-    connectionString: 'postgresql://REMOVED_SUPABASE_USERNAME:REMOVED_SUPABASE_PASSWORD@REMOVED_SUPABASE_HOST:5432/postgres'
+    connectionString
   });
 
   try {

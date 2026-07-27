@@ -2,9 +2,9 @@ spring:
   main:
     lazy-initialization: true
   datasource:
-    url: ${DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0}
-    username: ${DB_USERNAME:REMOVED_SUPABASE_USERNAME}
-    password: ${DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/vietjourney}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     hikari:
       minimum-idle: 1
       maximum-pool-size: 10
@@ -24,9 +24,9 @@ cors:
 place:
   datasource:
     enabled: ${PLACE_DB_ENABLED:true}
-    url: ${PLACE_DB_URL:jdbc:postgresql://REMOVED_SUPABASE_HOST:6543/postgres?prepareThreshold=0}
-    username: ${PLACE_DB_USERNAME:REMOVED_SUPABASE_USERNAME}
-    password: ${PLACE_DB_PASSWORD:REMOVED_SUPABASE_PASSWORD}
+    url: ${PLACE_DB_URL:${DB_URL:jdbc:postgresql://localhost:5432/vietjourney}}
+    username: ${PLACE_DB_USERNAME:${DB_USERNAME:postgres}}
+    password: ${PLACE_DB_PASSWORD:${DB_PASSWORD:postgres}}
     hikari:
       minimum-idle: 1
       maximum-pool-size: 10
@@ -38,6 +38,6 @@ place:
     id-column: ${PLACE_DB_ID_COLUMN:id}
 
 jwt:
-  signer_key: ${JWT_SIGNER_KEY:REMOVED_JWT_SIGNER_KEY}
+  signer_key: ${JWT_SIGNER_KEY:change-this-dev-only-signer-key-with-at-least-64-characters}
   valid_duration: 36000
   refreshable_duration: 604800

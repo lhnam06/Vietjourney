@@ -55,8 +55,7 @@ func init() {
 
 	secret := os.Getenv("JWT_SIGNER_KEY")
 	if secret == "" {
-		// Fallback for dev if not provided in env.
-		secret = "REMOVED_JWT_SIGNER_KEY"
+		log.Fatal("JWT_SIGNER_KEY is required")
 	}
 	jwtSecret = []byte(secret)
 
