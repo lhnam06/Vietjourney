@@ -2,7 +2,7 @@ spring:
   main:
     lazy-initialization: true
   datasource:
-    url: ${DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres}
+    url: ${DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?prepareThreshold=0}
     username: ${DB_USERNAME:postgres.jegerdfhcbrcziuuhsbe}
     password: ${DB_PASSWORD:BripbPKL9y4AWz2A}
     hikari:
@@ -24,7 +24,7 @@ cors:
 place:
   datasource:
     enabled: ${PLACE_DB_ENABLED:true}
-    url: ${PLACE_DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres}
+    url: ${PLACE_DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?prepareThreshold=0}
     username: ${PLACE_DB_USERNAME:postgres.jegerdfhcbrcziuuhsbe}
     password: ${PLACE_DB_PASSWORD:BripbPKL9y4AWz2A}
     hikari:
