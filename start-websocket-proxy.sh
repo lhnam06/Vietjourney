@@ -6,7 +6,7 @@
 
 cd "$(dirname "$0")/websocket-proxy"
 REDIS_ADDR=localhost:6379 \
-JWT_SIGNER_KEY="${JWT_SIGNER_KEY:?JWT_SIGNER_KEY is required}" \
+JWT_SIGNER_KEY="REMOVED_JWT_SIGNER_KEY" \
 BACKEND_URL=http://localhost:8082 \
 PORT=8081 \
 exec ./websocket-proxy.exe
